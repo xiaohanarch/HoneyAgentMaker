@@ -34,7 +34,8 @@ public sealed interface Asset {
 
     /** 带精确版本的引用，例如 vendor.fin/transaction-anomaly-analyst@1.2.0 */
     default String versionedRef() {
-        return metadata().namespace() + "/" + metadata().name() + "@" + metadata().version();
+        return metadata().namespace() + "/" + metadata().name() + "@"
+                + metadata().version();
     }
 
     default String label() {
@@ -58,8 +59,7 @@ public sealed interface Asset {
     record AgentExtensionAsset(String apiVersion, String kind, Metadata metadata, AgentExtensionSpec spec)
             implements Asset {}
 
-    record RemoteAgentAsset(String apiVersion, String kind, Metadata metadata, RemoteAgentSpec spec)
-            implements Asset {}
+    record RemoteAgentAsset(String apiVersion, String kind, Metadata metadata, RemoteAgentSpec spec) implements Asset {}
 
     record WorkflowAsset(String apiVersion, String kind, Metadata metadata, WorkflowSpec spec) implements Asset {}
 

@@ -40,8 +40,10 @@ public final class Capabilities {
     record ToolResult(List<EffectiveTool> tools, List<AssemblyIssue> issues) {}
 
     private static Expanded unresolved(String ref, Asset owner, String path) {
-        return new Expanded(List.of(), List.of(AssemblyIssue.error("REFERENCE_UNRESOLVED",
-                "工具引用 " + ref + " 不存在、版本不满足，或者 kind 不对", owner.versionedRef(), path)));
+        return new Expanded(
+                List.of(),
+                List.of(AssemblyIssue.error(
+                        "REFERENCE_UNRESOLVED", "工具引用 " + ref + " 不存在、版本不满足，或者 kind 不对", owner.versionedRef(), path)));
     }
 
     private static Optional<Asset> resolve(String ref, AssetResolver resolver, List<Status> statuses) {
@@ -51,15 +53,18 @@ public final class Capabilities {
     /** 扩展里直接写的引用字符串，按被引用资产的 kind 归一化成工具条目 */
     private static Optional<NormalizedToolEntry> normalize(
             ToolEntryOrRef entry, AssetResolver resolver, List<Status> statuses) {
-        if (entry instanceof ToolEntryOrRef.Entry e) return Optional.of(e.entry().normalize());
+        if (entry instanceof ToolEntryOrRef.Entry e)
+            return Optional.of(e.entry().normalize());
         String ref = ((ToolEntryOrRef.Ref) entry).ref();
         return resolve(ref, resolver, statuses).flatMap(asset -> switch (asset) {
-            case Asset.ToolSourceAsset source -> Optional.of(new NormalizedToolEntry(
-                    source.spec().type().equals("mcp") ? "mcp" : "api", ref, null, null));
+            case Asset.ToolSourceAsset source ->
+                Optional.of(
+                        new NormalizedToolEntry(source.spec().type().equals("mcp") ? "mcp" : "api", ref, null, null));
             case Asset.SkillAsset ignored -> Optional.of(new NormalizedToolEntry("skill", ref, null, null));
             case Asset.AgentAsset ignored -> Optional.of(new NormalizedToolEntry("agent", ref, null, null));
             case Asset.RemoteAgentAsset ignored -> Optional.of(new NormalizedToolEntry("remoteAgent", ref, null, null));
-            case Asset.KnowledgeSourceAsset ignored -> Optional.of(new NormalizedToolEntry("documents", ref, null, null));
+            case Asset.KnowledgeSourceAsset ignored ->
+                Optional.of(new NormalizedToolEntry("documents", ref, null, null));
             default -> Optional.empty();
         });
     }
@@ -77,7 +82,13 @@ public final class Capabilities {
         if (entry.type().equals("builtin")) {
             return BuiltinTools.find(entry.builtinName())
                     .map(b -> Expanded.of(new EffectiveTool(
-                            b.name(), "builtin", Layer.platform, "platform/builtin", b.description(), b.writeLevel(), null)))
+                            b.name(),
+                            "builtin",
+                            Layer.platform,
+                            "platform/builtin",
+                            b.description(),
+                            b.writeLevel(),
+                            null)))
                     .orElseGet(() -> unresolved(entry.builtinName(), owner, path));
         }
         Optional<Asset> resolved = resolve(entry.ref(), resolver, statuses);
@@ -86,34 +97,65 @@ public final class Capabilities {
         String source = asset.versionedRef();
         String description = descriptionOf(asset);
         return switch (entry.type()) {
-            case "skill" -> asset instanceof Asset.SkillAsset skill
-                    ? Expanded.of(new EffectiveTool(skill.metadata().name(), "skill", layer, source, description,
-                            skill.spec().writeLevel(), null))
-                    : unresolved(entry.ref(), owner, path);
-            case "agent" -> asset instanceof AgentAsset agent
-                    ? Expanded.of(new EffectiveTool(agent.metadata().name(), "agent", layer, source,
-                            agent.spec().expertise(), agent.spec().writePolicy().maxLevel(), null))
-                    : unresolved(entry.ref(), owner, path);
-            case "remoteAgent" -> asset instanceof Asset.RemoteAgentAsset remote
-                    ? Expanded.of(new EffectiveTool(remote.metadata().name(), "remoteAgent", layer, source,
-                            remote.spec().routing().description(), null, null))
-                    : unresolved(entry.ref(), owner, path);
-            case "documents" -> asset instanceof Asset.KnowledgeSourceAsset kb
-                    ? Expanded.of(new EffectiveTool(documentsToolName(kb.metadata().name()), "documents", layer, source,
-                            "检索文档：" + description, "L0", null))
-                    : unresolved(entry.ref(), owner, path);
+            case "skill" ->
+                asset instanceof Asset.SkillAsset skill
+                        ? Expanded.of(new EffectiveTool(
+                                skill.metadata().name(),
+                                "skill",
+                                layer,
+                                source,
+                                description,
+                                skill.spec().writeLevel(),
+                                null))
+                        : unresolved(entry.ref(), owner, path);
+            case "agent" ->
+                asset instanceof AgentAsset agent
+                        ? Expanded.of(new EffectiveTool(
+                                agent.metadata().name(),
+                                "agent",
+                                layer,
+                                source,
+                                agent.spec().expertise(),
+                                agent.spec().writePolicy().maxLevel(),
+                                null))
+                        : unresolved(entry.ref(), owner, path);
+            case "remoteAgent" ->
+                asset instanceof Asset.RemoteAgentAsset remote
+                        ? Expanded.of(new EffectiveTool(
+                                remote.metadata().name(),
+                                "remoteAgent",
+                                layer,
+                                source,
+                                remote.spec().routing().description(),
+                                null,
+                                null))
+                        : unresolved(entry.ref(), owner, path);
+            case "documents" ->
+                asset instanceof Asset.KnowledgeSourceAsset kb
+                        ? Expanded.of(new EffectiveTool(
+                                documentsToolName(kb.metadata().name()),
+                                "documents",
+                                layer,
+                                source,
+                                "检索文档：" + description,
+                                "L0",
+                                null))
+                        : unresolved(entry.ref(), owner, path);
             case "mcp", "api" -> {
                 if (!(asset instanceof Asset.ToolSourceAsset toolSource)) yield unresolved(entry.ref(), owner, path);
                 List<String> wanted = entry.tools();
                 var defined = toolSource.spec().tools();
                 List<String> missing = wanted == null
                         ? List.of()
-                        : wanted.stream().filter(n -> defined.stream().noneMatch(t -> t.name().equals(n))).toList();
+                        : wanted.stream()
+                                .filter(n ->
+                                        defined.stream().noneMatch(t -> t.name().equals(n)))
+                                .toList();
                 if (!missing.isEmpty()) yield unresolved(entry.ref() + " 中的 " + String.join("、", missing), owner, path);
                 List<EffectiveTool> tools = defined.stream()
                         .filter(t -> wanted == null || wanted.contains(t.name()))
-                        .map(t -> new EffectiveTool(t.name(), entry.type(), layer, source, t.description(),
-                                t.writeLevel(), t.category()))
+                        .map(t -> new EffectiveTool(
+                                t.name(), entry.type(), layer, source, t.description(), t.writeLevel(), t.category()))
                         .toList();
                 yield new Expanded(tools, List.of());
             }
@@ -135,8 +177,14 @@ public final class Capabilities {
         List<EffectiveTool> base = new ArrayList<>();
         if (hasSemanticPacks) {
             for (var t : BuiltinTools.SEMANTIC) {
-                base.add(new EffectiveTool(t.name(), "semantic", Layer.platform, "platform/semantic", t.description(),
-                        t.writeLevel(), null));
+                base.add(new EffectiveTool(
+                        t.name(),
+                        "semantic",
+                        Layer.platform,
+                        "platform/semantic",
+                        t.description(),
+                        t.writeLevel(),
+                        null));
             }
         }
         var vendorTools = agent.spec().tools();
@@ -153,41 +201,56 @@ public final class Capabilities {
         List<EffectiveTool> tenant = new ArrayList<>();
         for (var ext : extensions) {
             var spec = ext.spec();
-            List<ToolEntryOrRef> added = spec.tools() == null ? List.of() : spec.tools().add();
+            List<ToolEntryOrRef> added =
+                    spec.tools() == null ? List.of() : spec.tools().add();
             for (int i = 0; i < added.size(); i++) {
                 String path = "spec.tools.add[" + i + "]";
                 ToolEntryOrRef entry = added.get(i);
                 Optional<NormalizedToolEntry> normalized = normalize(entry, resolver, statuses);
                 Expanded e = normalized.isPresent()
                         ? expand(normalized.get(), ext, path, resolver, statuses)
-                        : unresolved(entry instanceof ToolEntryOrRef.Ref r ? r.ref() : String.valueOf(entry), ext, path);
+                        : unresolved(
+                                entry instanceof ToolEntryOrRef.Ref r ? r.ref() : String.valueOf(entry), ext, path);
                 tenant.addAll(e.tools());
                 issues.addAll(e.issues());
             }
-            List<String> skills = spec.skills() == null ? List.of() : spec.skills().add();
+            List<String> skills =
+                    spec.skills() == null ? List.of() : spec.skills().add();
             for (int i = 0; i < skills.size(); i++) {
-                Expanded e = expand(new NormalizedToolEntry("skill", skills.get(i), null, null), ext,
-                        "spec.skills.add[" + i + "]", resolver, statuses);
+                Expanded e = expand(
+                        new NormalizedToolEntry("skill", skills.get(i), null, null),
+                        ext,
+                        "spec.skills.add[" + i + "]",
+                        resolver,
+                        statuses);
                 tenant.addAll(e.tools());
                 issues.addAll(e.issues());
             }
-            List<String> knowledge = spec.knowledge() == null ? List.of() : spec.knowledge().add();
+            List<String> knowledge =
+                    spec.knowledge() == null ? List.of() : spec.knowledge().add();
             for (int i = 0; i < knowledge.size(); i++) {
                 String ref = knowledge.get(i);
                 boolean isKnowledgeSource = resolve(ref, resolver, statuses)
                         .filter(Asset.KnowledgeSourceAsset.class::isInstance)
                         .isPresent();
                 if (!isKnowledgeSource) continue;
-                Expanded e = expand(new NormalizedToolEntry("documents", ref, null, null), ext,
-                        "spec.knowledge.add[" + i + "]", resolver, statuses);
+                Expanded e = expand(
+                        new NormalizedToolEntry("documents", ref, null, null),
+                        ext,
+                        "spec.knowledge.add[" + i + "]",
+                        resolver,
+                        statuses);
                 tenant.addAll(e.tools());
                 issues.addAll(e.issues());
             }
         }
         for (var tool : tenant) {
             if (!names.add(tool.name())) {
-                issues.add(AssemblyIssue.error("TOOL_NAME_CONFLICT",
-                        "租户工具 " + tool.name() + "（" + tool.source() + "）与已有工具重名，不能发布", tool.source(), null));
+                issues.add(AssemblyIssue.error(
+                        "TOOL_NAME_CONFLICT",
+                        "租户工具 " + tool.name() + "（" + tool.source() + "）与已有工具重名，不能发布",
+                        tool.source(),
+                        null));
                 continue;
             }
             merged.add(tool);
@@ -206,8 +269,8 @@ public final class Capabilities {
 
     private static List<EffectiveApproval> fromAsset(Asset owner, List<ApprovalRule> rules) {
         return rules.stream()
-                .map(r -> new EffectiveApproval(r.tool(), r.policy(), r.when(), r.approverRole(), owner.layer(),
-                        owner.versionedRef()))
+                .map(r -> new EffectiveApproval(
+                        r.tool(), r.policy(), r.when(), r.approverRole(), owner.layer(), owner.versionedRef()))
                 .toList();
     }
 
@@ -220,7 +283,8 @@ public final class Capabilities {
         List<EffectiveApproval> vendor = fromAsset(agent, agent.spec().approvals());
         List<EffectiveApproval> tenant = new ArrayList<>();
         for (var ext : extensions) {
-            if (ext.spec().approvals() != null) tenant.addAll(fromAsset(ext, ext.spec().approvals().add()));
+            if (ext.spec().approvals() != null)
+                tenant.addAll(fromAsset(ext, ext.spec().approvals().add()));
         }
         List<EffectiveApproval> all = new ArrayList<>(vendor);
         all.addAll(tenant);
@@ -229,33 +293,43 @@ public final class Capabilities {
         var env = Conditions.approvalEnvironment();
         for (var approval : all) {
             if (tools.stream().noneMatch(t -> approvalMatchesTool(approval.tool(), t))) {
-                issues.add(AssemblyIssue.error("REFERENCE_UNRESOLVED",
-                        "确认点指向的工具 " + approval.tool() + " 不在这个 Agent 的工具集合里", approval.source(), null));
+                issues.add(AssemblyIssue.error(
+                        "REFERENCE_UNRESOLVED",
+                        "确认点指向的工具 " + approval.tool() + " 不在这个 Agent 的工具集合里",
+                        approval.source(),
+                        null));
             }
             if (approval.when() != null) {
                 var check = Conditions.check(env, approval.when());
                 if (!check.valid()) {
-                    issues.add(AssemblyIssue.error("APPROVAL_CONDITION_INVALID",
-                            "确认点条件 \"" + approval.when() + "\" 无效：" + check.reason(), approval.source(), null));
+                    issues.add(AssemblyIssue.error(
+                            "APPROVAL_CONDITION_INVALID",
+                            "确认点条件 \"" + approval.when() + "\" 无效：" + check.reason(),
+                            approval.source(),
+                            null));
                 }
             }
         }
         // 租户确认点只能更严格（主提示词 5.3 节）：不能声明 auto，也不能对标品已要求更严策略的工具声明更宽松的策略
         for (var t : tenant) {
             if (t.policy().equals("auto")) {
-                issues.add(AssemblyIssue.error("APPROVAL_RELAXED",
-                        "租户扩展不能把 " + t.tool() + " 的确认策略声明为 auto，确认点只能更严格", t.source(), null));
+                issues.add(AssemblyIssue.error(
+                        "APPROVAL_RELAXED", "租户扩展不能把 " + t.tool() + " 的确认策略声明为 auto，确认点只能更严格", t.source(), null));
                 continue;
             }
-            List<EffectiveTool> affected = tools.stream().filter(tool -> approvalMatchesTool(t.tool(), tool)).toList();
+            List<EffectiveTool> affected = tools.stream()
+                    .filter(tool -> approvalMatchesTool(t.tool(), tool))
+                    .toList();
             vendor.stream()
                     .filter(v -> v.when() == null
                             && AgentSpec.approvalStrictness(v.policy()) > AgentSpec.approvalStrictness(t.policy())
                             && affected.stream().anyMatch(tool -> approvalMatchesTool(v.tool(), tool)))
                     .findFirst()
-                    .ifPresent(stricter -> issues.add(AssemblyIssue.error("APPROVAL_RELAXED",
+                    .ifPresent(stricter -> issues.add(AssemblyIssue.error(
+                            "APPROVAL_RELAXED",
                             "标品对 " + stricter.tool() + " 要求 " + stricter.policy() + "，租户扩展不能放宽为 " + t.policy(),
-                            t.source(), null)));
+                            t.source(),
+                            null)));
         }
         return new ApprovalResult(all, issues);
     }
@@ -278,8 +352,11 @@ public final class Capabilities {
             List<String> allowed = point.get().allowedProfiles();
             if (allowed == null || !allowed.contains(profile)) {
                 String list = allowed == null ? "（未开放选择）" : String.join("、", allowed);
-                issues.add(AssemblyIssue.error("MODEL_NOT_ALLOWED", "模型档位 " + profile + " 不在标品允许的范围内：" + list,
-                        ext.versionedRef(), "spec.model.profile"));
+                issues.add(AssemblyIssue.error(
+                        "MODEL_NOT_ALLOWED",
+                        "模型档位 " + profile + " 不在标品允许的范围内：" + list,
+                        ext.versionedRef(),
+                        "spec.model.profile"));
                 continue;
             }
             model = new EffectiveModel(profile, model.temperature(), ext.layer());
@@ -289,14 +366,17 @@ public final class Capabilities {
 
     /** 匹配某个工具的全部确认点，运行时先按 when 条件过滤，再用 strictestPolicy 取最严 */
     public static List<EffectiveApproval> matchingApprovals(List<EffectiveApproval> approvals, EffectiveTool tool) {
-        return approvals.stream().filter(a -> approvalMatchesTool(a.tool(), tool)).toList();
+        return approvals.stream()
+                .filter(a -> approvalMatchesTool(a.tool(), tool))
+                .toList();
     }
 
     /** 人工确认策略取最严格者，没有匹配时为 auto */
     public static String strictestPolicy(List<EffectiveApproval> approvals) {
         String strictest = "auto";
         for (var a : approvals) {
-            if (AgentSpec.approvalStrictness(a.policy()) > AgentSpec.approvalStrictness(strictest)) strictest = a.policy();
+            if (AgentSpec.approvalStrictness(a.policy()) > AgentSpec.approvalStrictness(strictest))
+                strictest = a.policy();
         }
         return strictest;
     }
@@ -311,9 +391,11 @@ public final class Capabilities {
                 .filter(t -> t.layer() == Layer.tenant
                         && t.writeLevel() != null
                         && WRITE_LEVEL_ORDER.indexOf(t.writeLevel()) > max)
-                .map(t -> AssemblyIssue.error("TOOL_WRITE_LEVEL_EXCEEDED",
+                .map(t -> AssemblyIssue.error(
+                        "TOOL_WRITE_LEVEL_EXCEEDED",
                         "租户工具 " + t.name() + " 的写级别 " + t.writeLevel() + " 超过了 Agent 的上限 " + maxLevel,
-                        t.source(), null))
+                        t.source(),
+                        null))
                 .toList();
     }
 }

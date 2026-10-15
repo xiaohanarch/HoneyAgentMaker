@@ -121,12 +121,11 @@ public final class OtherSchemas {
 
     // ── 工具来源 ───────────────────────────────────────────────────────────
 
-    public static final List<String> TOOL_CATEGORIES = List.of("query", "draft", "write", "payment", "posting", "notify");
+    public static final List<String> TOOL_CATEGORIES =
+            List.of("query", "draft", "write", "payment", "posting", "notify");
 
     public static Schema toolSource() {
-        Schema tool = object().field(
-                        "name",
-                        string().regex("^[a-z][a-z0-9_.]*$", "工具名用小写字母、数字、下划线和点，例如 supplier_list"))
+        Schema tool = object().field("name", string().regex("^[a-z][a-z0-9_.]*$", "工具名用小写字母、数字、下划线和点，例如 supplier_list"))
                 .field("description", string().min(1))
                 .optional("writeLevel", writeLevel())
                 .optional("category", enumOf(TOOL_CATEGORIES))
@@ -148,21 +147,19 @@ public final class OtherSchemas {
 
     public static Schema semanticPack() {
         Schema metaRef = string().regex(
-                "^erp\\.[a-z]+\\.[A-Za-z][A-Za-z0-9]*(@v\\d+)?$",
-                "元数据引用格式应为 erp.<域>.<对象>[@v版本]，例如 erp.pur.Supplier@v1");
+                        "^erp\\.[a-z]+\\.[A-Za-z][A-Za-z0-9]*(@v\\d+)?$",
+                        "元数据引用格式应为 erp.<域>.<对象>[@v版本]，例如 erp.pur.Supplier@v1");
         Schema field = object().field("ref", string().min(1))
                 .optional("description", string())
                 .optional("enumMeaning", record(string(), string()));
-        Schema semanticObject = object().field("ref", metaRef)
-                .optional("description", string())
-                .optional("fields", array(field));
+        Schema semanticObject =
+                object().field("ref", metaRef).optional("description", string()).optional("fields", array(field));
         Schema relationship = object().field("from", string().min(1))
                 .field("to", string().min(1))
                 .field("verb", string().min(1))
                 .field("cardinality", enumOf("one-to-one", "one-to-many", "many-to-one", "many-to-many"))
                 .optional("notes", string());
-        Schema metric = object().field(
-                        "name", string().regex("^[a-z][a-z0-9_]*$", "指标名用小写下划线风格，例如 overdue_days"))
+        Schema metric = object().field("name", string().regex("^[a-z][a-z0-9_]*$", "指标名用小写下划线风格，例如 overdue_days"))
                 .field("displayName", string().min(1))
                 .field("definition", string().min(1))
                 .optional("unit", string());
@@ -245,12 +242,16 @@ public final class OtherSchemas {
                         "auth",
                         object().field(
                                         "type",
-                                        enumOf("none", "client-credentials", "token-exchange", "platform-service-token"))
+                                        enumOf(
+                                                "none",
+                                                "client-credentials",
+                                                "token-exchange",
+                                                "platform-service-token"))
                                 .optional(
                                         "credentialRef",
                                         string().regex(
-                                                "^(env|vault):[A-Za-z0-9_./-]+$",
-                                                "凭据只能写引用，例如 env:DEMO_ERP_CLIENT_SECRET，不能写凭据本身")));
+                                                        "^(env|vault):[A-Za-z0-9_./-]+$",
+                                                        "凭据只能写引用，例如 env:DEMO_ERP_CLIENT_SECRET，不能写凭据本身")));
         return defineKind(
                 "Connection",
                 object().field("alias", connectionAlias())
@@ -339,6 +340,7 @@ public final class OtherSchemas {
     }
 
     public static Schema solution() {
-        return defineKind("Solution", object().field("assets", array(pinnedAssetRef()).min(1)));
+        return defineKind(
+                "Solution", object().field("assets", array(pinnedAssetRef()).min(1)));
     }
 }

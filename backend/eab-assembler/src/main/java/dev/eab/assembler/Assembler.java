@@ -77,7 +77,8 @@ public final class Assembler {
         List<AgentExtensionAsset> targeting = input.extensions().stream()
                 .filter(ext -> {
                     AssetRef target = AssetRef.parse(ext.spec().target());
-                    return target.namespace().equals(requested.namespace()) && target.name().equals(requested.name());
+                    return target.namespace().equals(requested.namespace())
+                            && target.name().equals(requested.name());
                 })
                 .toList();
 
@@ -102,8 +103,10 @@ public final class Assembler {
             if (Versions.satisfies(version, range)) {
                 extensions.add(ext);
             } else {
-                issues.add(AssemblyIssue.warning("TARGET_UNRESOLVED",
-                        "扩展的目标范围 " + range + " 不包含当前标品版本 " + version + "，本次未生效", ext.versionedRef(),
+                issues.add(AssemblyIssue.warning(
+                        "TARGET_UNRESOLVED",
+                        "扩展的目标范围 " + range + " 不包含当前标品版本 " + version + "，本次未生效",
+                        ext.versionedRef(),
                         "spec.target"));
             }
         }
@@ -112,13 +115,15 @@ public final class Assembler {
         for (var ext : extensions) {
             for (var v : ext.spec().extensionPointViolations(agent.spec().extensionPoints())) {
                 if (v.path().equals("spec.model.profile")) continue;
-                issues.add(AssemblyIssue.error("EXTENSION_POINT_UNDECLARED", v.message(), ext.versionedRef(), v.path()));
+                issues.add(
+                        AssemblyIssue.error("EXTENSION_POINT_UNDECLARED", v.message(), ext.versionedRef(), v.path()));
             }
         }
 
         var packs = Segments.resolveSemanticPacks(agent, extensions, input.resolver(), input.statuses());
         var segments = Segments.build(input.platformRules(), agent, packs.packs(), extensions);
-        var tools = Capabilities.buildTools(agent, extensions, !packs.packs().isEmpty(), input.resolver(), input.statuses());
+        var tools = Capabilities.buildTools(
+                agent, extensions, !packs.packs().isEmpty(), input.resolver(), input.statuses());
         var approvals = Capabilities.mergeApprovals(agent, extensions, tools.tools());
         var hooks = Hooks.merge(agent, extensions);
         var model = Capabilities.resolveModel(agent, extensions);
@@ -140,13 +145,16 @@ public final class Assembler {
                 agent.versionedRef(),
                 extensions.isEmpty()
                         ? null
-                        : new ResolvedTarget(extensions.stream().map(Assembler::rangeOf).toList(), version),
+                        : new ResolvedTarget(
+                                extensions.stream().map(Assembler::rangeOf).toList(), version),
                 extensions.stream().map(Asset::versionedRef).toList(),
                 input.platformRules().stream().map(Asset::versionedRef).toList(),
                 packRefs);
         var definition = new EffectiveDefinition(
                 agent.metadata().name(),
-                agent.metadata().displayName() == null ? agent.metadata().name() : agent.metadata().displayName(),
+                agent.metadata().displayName() == null
+                        ? agent.metadata().name()
+                        : agent.metadata().displayName(),
                 spec.expertise(),
                 segments.segments(),
                 tools.tools(),

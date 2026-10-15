@@ -39,7 +39,8 @@ public final class DefinitionView {
     /** 把有效定义的指令片段拼成发给模型的系统提示词，每段带来源标记 */
     public static String renderInstructions(EffectiveDefinition definition) {
         return definition.segments().stream()
-                .map(s -> "<!-- " + s.kind().value() + " " + s.source() + " " + s.field() + " -->\n" + s.text().strip())
+                .map(s -> "<!-- " + s.kind().value() + " " + s.source() + " " + s.field() + " -->\n"
+                        + s.text().strip())
                 .collect(Collectors.joining("\n\n"));
     }
 }

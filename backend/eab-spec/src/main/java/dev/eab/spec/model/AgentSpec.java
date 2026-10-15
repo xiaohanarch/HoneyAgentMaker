@@ -95,14 +95,13 @@ public record AgentSpec(
             List<HookBinding> onFailure) {
 
         public List<HookBinding> of(String event) {
-            List<HookBinding> list =
-                    switch (event) {
-                        case "beforeToolCall" -> beforeToolCall;
-                        case "afterToolCall" -> afterToolCall;
-                        case "onResult" -> onResult;
-                        case "onFailure" -> onFailure;
-                        default -> throw new IllegalArgumentException("未知的钩子事件 " + event);
-                    };
+            List<HookBinding> list = switch (event) {
+                case "beforeToolCall" -> beforeToolCall;
+                case "afterToolCall" -> afterToolCall;
+                case "onResult" -> onResult;
+                case "onFailure" -> onFailure;
+                default -> throw new IllegalArgumentException("未知的钩子事件 " + event);
+            };
             return list == null ? List.of() : list;
         }
 
@@ -118,7 +117,10 @@ public record AgentSpec(
 
     public record ExtensionPoint(String type, String description, List<String> allowedProfiles, List<String> events) {}
 
-    public record OutputField(String type, String description, @JsonProperty("enum") List<String> enumValues) {}
+    public record OutputField(
+            String type,
+            String description,
+            @JsonProperty("enum") List<String> enumValues) {}
 
     /** 结构化结果的字段声明，钩子条件里的 result.xxx 按这里做检查（ADR 0003） */
     public record Output(Map<String, OutputField> schema) {}

@@ -19,7 +19,7 @@ pnpm test:coverage    带覆盖率的单元测试
 pnpm assets:validate  校验 assets/ 下全部资产：schema、静态检查、试组装
 pnpm assets:assemble vendor.fin/transaction-anomaly-analyst --tenant t001 --as tenant|vendor
                       打印有效定义，租户视角下标品指令为占位块；加 --json 输出 JSON
-pnpm spec:json-schema 修改 packages/spec 的 schema 后重新生成 JSON Schema（有测试检查同步）
+pnpm spec:json-schema 修改 eab-spec 的 schema 后重新生成 schemas/ 下的 JSON Schema（有测试检查同步）
 ```
 
 pnpm seed:reset       重置演示数据：DemoERP 重新生成，平台清空审计、事件、委托（资产与密钥保留）
@@ -33,6 +33,9 @@ pnpm seed:reset       重置演示数据：DemoERP 重新生成，平台清空�
 - 后端正在从 TypeScript 迁移到 Java（ADR 0006，计划见 J0 到 J2）：`backend/` 是 Maven 多模块工程（Spring Boot 4.1、Spring AI 2.0、JDK 21），包名 `dev.eab.*`。新的后端功能写在 Java 里；`apps/platform`、`apps/demo-erp` 和 TS 后端包只作为迁移的行为参照，J2 后删除。迁移时对外 HTTP 契约（路径、响应信封、端口、令牌、环境变量名）保持不变。
 - Java 命令都在 `backend/` 下用 Maven Wrapper 执行（Windows 用 `mvnw.cmd`），或经 `node scripts/mvnw.mjs <参数>` 调用；JAVA_HOME 指向 JDK 21。
 - Java 数据访问用 `JdbcClient` 加仓储接口，不用 JPA；测试用 JUnit 5、AssertJ 和 MockMvc，测试名用 `@DisplayName` 写中文描述。
+- 资产 schema 的唯一来源是 `backend/eab-spec`：`kinds/` 下是 schema 定义（校验、默认值、JSON Schema），`model/` 下是对应的记录类型，两处一起改（ADR 0007）。测试里的资产用 `dev.eab.spec.testing.Fixtures` 构造，不手写整段 YAML。
+- 平台测试用 `TestPlatform.services()` 建内存库的服务，用 `TestPlatform.mvc()` 发请求（不启动 Spring 容器），用 `TestPlatform.bearer()` 取用户令牌。
+- 迁移期间 Java 版的数据目录是 `data/java/`，与 TS 版分开。Java 进程输出中文时加 `-Dstdout.encoding=UTF-8`，否则 Windows 控制台会乱码。
 
 - 各包以 TypeScript 源码为入口（`exports` 指向 `src/index.ts`），不预先构建；服务用 tsx 运行。
 - 后端服务用 `buildApp()` 构造 Fastify 实例，测试用 `app.inject()`，不监听端口。

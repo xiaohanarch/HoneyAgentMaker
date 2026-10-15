@@ -38,9 +38,8 @@ public final class Conditions {
 
     private Conditions() {}
 
-    static final CelOptions OPTIONS = CelOptions.current()
-            .enableHeterogeneousNumericComparisons(true)
-            .build();
+    static final CelOptions OPTIONS =
+            CelOptions.current().enableHeterogeneousNumericComparisons(true).build();
 
     private static final CelType DYN_MAP = MapType.create(SimpleType.STRING, SimpleType.DYN);
 
@@ -62,7 +61,9 @@ public final class Conditions {
             Map<String, CelType> fields = new LinkedHashMap<>();
             output.schema().forEach((name, field) -> fields.put(name, OUTPUT_TYPES.get(field.type())));
             StructType struct = StructType.create(
-                    "eab.AgentResult", ImmutableSet.copyOf(fields.keySet()), name -> Optional.ofNullable(fields.get(name)));
+                    "eab.AgentResult",
+                    ImmutableSet.copyOf(fields.keySet()),
+                    name -> Optional.ofNullable(fields.get(name)));
             return new Environment(Map.of("result", struct), struct);
         }
         if (event.equals("onFailure")) return new Environment(Map.of("error", DYN_MAP), null);
@@ -106,7 +107,9 @@ public final class Conditions {
     public static CheckOutcome check(Environment env, String expression) {
         try {
             CelValidationResult result = compiler(env).compile(expression);
-            if (result.hasError()) return new CheckOutcome.Invalid(firstLine(result.getErrors().getFirst().getMessage()));
+            if (result.hasError())
+                return new CheckOutcome.Invalid(
+                        firstLine(result.getErrors().getFirst().getMessage()));
             CelType type = result.getAst().getResultType();
             if (type.equals(SimpleType.BOOL) || type.equals(SimpleType.DYN)) return new CheckOutcome.Valid();
             return new CheckOutcome.Invalid("条件的结果类型是 " + type.name() + "，应为 bool");

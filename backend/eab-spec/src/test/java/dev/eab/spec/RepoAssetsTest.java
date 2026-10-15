@@ -23,7 +23,8 @@ class RepoAssetsTest {
                 .map(a -> new Entry(a.asset(), AssetResolver.Status.published))
                 .toList());
         List<String> problems = loaded.assets().stream()
-                .flatMap(a -> Lint.lint(a.asset(), resolver).stream().map(i -> a.file() + " " + i.path() + " " + i.message()))
+                .flatMap(a ->
+                        Lint.lint(a.asset(), resolver).stream().map(i -> a.file() + " " + i.path() + " " + i.message()))
                 .toList();
         assertThat(problems).isEmpty();
     }

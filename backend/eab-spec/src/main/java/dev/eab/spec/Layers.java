@@ -73,6 +73,8 @@ public final class Layers {
 
     /** 租户层命名空间返回租户编号，其他层返回空 */
     public static Optional<String> tenantIdOfNamespace(String namespace) {
-        return layerOfNamespace(namespace) == Layer.tenant ? Optional.of(split(namespace).get(1)) : Optional.empty();
+        return layerOfNamespace(namespace) == Layer.tenant
+                ? Optional.of(split(namespace).get(1))
+                : Optional.empty();
     }
 }

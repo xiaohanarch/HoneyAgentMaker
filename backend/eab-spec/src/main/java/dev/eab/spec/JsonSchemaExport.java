@@ -29,6 +29,9 @@ public final class JsonSchemaExport {
     }
 
     public static String serialize(ObjectNode schema) {
-        return Json.MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(schema).replace("\r\n", "\n") + "\n";
+        return Json.MAPPER
+                        .writerWithDefaultPrettyPrinter()
+                        .writeValueAsString(schema)
+                        .replace("\r\n", "\n") + "\n";
     }
 }

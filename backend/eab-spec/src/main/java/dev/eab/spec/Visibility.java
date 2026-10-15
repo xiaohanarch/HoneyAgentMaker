@@ -24,9 +24,10 @@ public final class Visibility {
         try {
             Layer layer = Layers.layerOfNamespace(namespace);
             return switch (viewer) {
-                case Viewer.Tenant t -> Layers.tenantIdOfNamespace(namespace)
-                        .map(id -> id.equals(t.tenantId()))
-                        .orElse(false);
+                case Viewer.Tenant t ->
+                    Layers.tenantIdOfNamespace(namespace)
+                            .map(id -> id.equals(t.tenantId()))
+                            .orElse(false);
                 case Viewer.Vendor v -> layer == Layer.vendor;
                 case Viewer.Platform p -> layer == Layer.platform;
             };
@@ -64,7 +65,8 @@ public final class Visibility {
                             .orElse(false);
         }
         if (viewer instanceof Viewer.Vendor) return true;
-        return !(asset instanceof EvalSuiteAsset suite && suite.spec().visibility().equals("internal"));
+        return !(asset instanceof EvalSuiteAsset suite
+                && suite.spec().visibility().equals("internal"));
     }
 
     /**

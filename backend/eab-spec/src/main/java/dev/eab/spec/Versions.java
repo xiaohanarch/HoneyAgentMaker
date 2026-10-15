@@ -39,8 +39,6 @@ public final class Versions {
 
     /** 取满足范围的最高版本 */
     public static Optional<String> maxSatisfying(Collection<String> versions, String range) {
-        return versions.stream()
-                .filter(v -> isValid(v) && satisfies(v, range))
-                .max(Versions::compare);
+        return versions.stream().filter(v -> isValid(v) && satisfies(v, range)).max(Versions::compare);
     }
 }

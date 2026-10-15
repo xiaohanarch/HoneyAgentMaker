@@ -46,32 +46,53 @@ public final class References {
                 }
                 refList(out, stepSkills, "spec.executionSteps", List.of(AssetKind.Skill));
                 hooks(out, s.hooks(), "spec.hooks");
-                refList(out, s.evals() == null ? List.of() : s.evals().suites(), "spec.evals.suites",
+                refList(
+                        out,
+                        s.evals() == null ? List.of() : s.evals().suites(),
+                        "spec.evals.suites",
                         List.of(AssetKind.EvalSuite));
             }
             case Asset.AgentExtensionAsset ext -> {
                 var s = ext.spec();
                 out.add(new Reference("spec.target", s.target(), List.of(AssetKind.Agent)));
-                List<ToolEntryOrRef> tools = s.tools() == null ? List.of() : s.tools().add();
+                List<ToolEntryOrRef> tools =
+                        s.tools() == null ? List.of() : s.tools().add();
                 for (int i = 0; i < tools.size(); i++) {
                     String path = "spec.tools.add[" + i + "]";
                     switch (tools.get(i)) {
                         case ToolEntryOrRef.Ref ref -> out.add(new Reference(path, ref.ref(), SHORTHAND_TOOL_KINDS));
-                        case ToolEntryOrRef.Entry entry -> addTool(out, entry.entry().normalize(), path);
+                        case ToolEntryOrRef.Entry entry ->
+                            addTool(out, entry.entry().normalize(), path);
                     }
                 }
-                refList(out, s.skills() == null ? List.of() : s.skills().add(), "spec.skills.add",
+                refList(
+                        out,
+                        s.skills() == null ? List.of() : s.skills().add(),
+                        "spec.skills.add",
                         List.of(AssetKind.Skill));
-                refList(out, s.knowledge() == null ? List.of() : s.knowledge().add(), "spec.knowledge.add",
+                refList(
+                        out,
+                        s.knowledge() == null ? List.of() : s.knowledge().add(),
+                        "spec.knowledge.add",
                         List.of(AssetKind.SemanticPack, AssetKind.KnowledgeSource));
                 hooks(out, s.hooks(), "spec.hooks");
-                refList(out, s.evals() == null ? List.of() : s.evals().suites(), "spec.evals.suites",
+                refList(
+                        out,
+                        s.evals() == null ? List.of() : s.evals().suites(),
+                        "spec.evals.suites",
                         List.of(AssetKind.EvalSuite));
             }
-            case Asset.AssistantAsset assistant -> refList(out, assistant.spec().members(), "spec.members",
-                    List.of(AssetKind.Agent, AssetKind.RemoteAgent));
+            case Asset.AssistantAsset assistant ->
+                refList(
+                        out,
+                        assistant.spec().members(),
+                        "spec.members",
+                        List.of(AssetKind.Agent, AssetKind.RemoteAgent));
             case Asset.RemoteAgentAsset remote -> {
-                refList(out, remote.spec().allowedCallers(), "spec.allowedCallers",
+                refList(
+                        out,
+                        remote.spec().allowedCallers(),
+                        "spec.allowedCallers",
                         List.of(AssetKind.Agent, AssetKind.Assistant));
                 if (remote.spec().assistant() != null) {
                     out.add(new Reference("spec.assistant", remote.spec().assistant(), List.of(AssetKind.Assistant)));
@@ -79,8 +100,9 @@ public final class References {
             }
             case Asset.SkillAsset skill -> steps(out, skill.spec().steps(), "spec.steps");
             case Asset.WorkflowAsset workflow -> steps(out, workflow.spec().steps(), "spec.steps");
-            case Asset.EvalSuiteAsset suite -> out.add(new Reference(
-                    "spec.target", suite.spec().target(), List.of(AssetKind.Agent, AssetKind.AgentExtension)));
+            case Asset.EvalSuiteAsset suite ->
+                out.add(new Reference(
+                        "spec.target", suite.spec().target(), List.of(AssetKind.Agent, AssetKind.AgentExtension)));
             case Asset.SemanticPackAsset pack -> {
                 if (pack.spec().extendsRef() != null) {
                     out.add(new Reference("spec.extends", pack.spec().extendsRef(), List.of(AssetKind.SemanticPack)));
@@ -89,7 +111,9 @@ public final class References {
             case Asset.SolutionAsset solution -> refList(out, solution.spec().assets(), "spec.assets", List.of());
             case Asset.DevRequestAsset request -> {
                 if (request.spec().context().assistant() != null) {
-                    out.add(new Reference("spec.context.assistant", request.spec().context().assistant(),
+                    out.add(new Reference(
+                            "spec.context.assistant",
+                            request.spec().context().assistant(),
                             List.of(AssetKind.Assistant)));
                 }
             }

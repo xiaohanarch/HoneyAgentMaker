@@ -20,7 +20,13 @@ public final class Hooks {
         if (hooks == null) return List.of();
         Layer layer = owner.layer();
         return hooks.of(event).stream()
-                .map(b -> new EffectiveHook(event, layer, owner.versionedRef(), b.workflow(), b.skill(), b.when(),
+                .map(b -> new EffectiveHook(
+                        event,
+                        layer,
+                        owner.versionedRef(),
+                        b.workflow(),
+                        b.skill(),
+                        b.when(),
                         layer == Layer.tenant ? "isolate" : "propagate"))
                 .toList();
     }
@@ -42,7 +48,8 @@ public final class Hooks {
                 hooks.add(hook);
                 continue;
             }
-            var check = Conditions.check(Conditions.hookEnvironment(hook.event(), agent.spec().output()), hook.when());
+            var check = Conditions.check(
+                    Conditions.hookEnvironment(hook.event(), agent.spec().output()), hook.when());
             if (check.valid()) {
                 hooks.add(hook);
                 continue;
@@ -50,9 +57,12 @@ public final class Hooks {
             boolean isTenant = hook.failurePolicy().equals("isolate");
             String message = hook.event() + " 钩子的条件 \"" + hook.when() + "\" 无效：" + check.reason()
                     + (isTenant ? "。该租户钩子已停用" : "");
-            issues.add(isTenant
-                    ? AssemblyIssue.warning("HOOK_CONDITION_INVALID", message, hook.source(), "spec.hooks." + hook.event())
-                    : AssemblyIssue.error("HOOK_CONDITION_INVALID", message, hook.source(), "spec.hooks." + hook.event()));
+            issues.add(
+                    isTenant
+                            ? AssemblyIssue.warning(
+                                    "HOOK_CONDITION_INVALID", message, hook.source(), "spec.hooks." + hook.event())
+                            : AssemblyIssue.error(
+                                    "HOOK_CONDITION_INVALID", message, hook.source(), "spec.hooks." + hook.event()));
         }
         return new HookResult(hooks, issues);
     }

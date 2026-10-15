@@ -37,8 +37,7 @@ class JsonSchemaExportTest {
     void agentSchemaRequiresFields() {
         var agent = JsonSchemaExport.kindJsonSchema(AssetKind.Agent);
         var required = agent.get("properties").get("spec").get("required");
-        assertThat(required.toString())
-                .contains("expertise", "instructions", "model", "writePolicy", "routing");
+        assertThat(required.toString()).contains("expertise", "instructions", "model", "writePolicy", "routing");
         var skill = JsonSchemaExport.kindJsonSchema(AssetKind.Skill);
         assertThat(skill.get("$defs").has("Step")).isTrue();
     }

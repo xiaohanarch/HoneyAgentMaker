@@ -27,7 +27,8 @@ class ResolverTest {
     }
 
     @ParameterizedTest(name = "拒绝非法引用 {0}")
-    @ValueSource(strings = {"no-slash", "vendor.fin/", "acme.fin/x", "vendor.fin/Bad_Name", "vendor.fin/x@not-a-range!"})
+    @ValueSource(
+            strings = {"no-slash", "vendor.fin/", "acme.fin/x", "vendor.fin/Bad_Name", "vendor.fin/x@not-a-range!"})
     void rejectsInvalidRefs(String ref) {
         assertThatThrownBy(() -> AssetRef.parse(ref)).isInstanceOf(AssetRef.InvalidAssetRefException.class);
     }
@@ -51,21 +52,25 @@ class ResolverTest {
     void resolvesHighestPublished() {
         AssetRef ref = AssetRef.parse("vendor.fin/transaction-anomaly-analyst@^1.0");
         assertThat(resolver.resolveVersion(ref, AssetResolver.PUBLISHED)).contains("1.2.0");
-        assertThat(resolver.resolveVersion(ref, List.of(Status.published, Status.draft))).contains("1.3.0");
+        assertThat(resolver.resolveVersion(ref, List.of(Status.published, Status.draft)))
+                .contains("1.3.0");
     }
 
     @Test
     @DisplayName("不带范围时取最新的已发布版本")
     void resolvesLatestWithoutRange() {
-        assertThat(resolver.resolve("vendor.fin/transaction-anomaly-analyst").map(a -> a.metadata().version()))
+        assertThat(resolver.resolve("vendor.fin/transaction-anomaly-analyst")
+                        .map(a -> a.metadata().version()))
                 .contains("2.0.0");
     }
 
     @Test
     @DisplayName("没有满足的版本或者 kind 不符时返回空")
     void emptyWhenUnresolved() {
-        assertThat(resolver.resolve("vendor.fin/transaction-anomaly-analyst@^3")).isEmpty();
-        assertThat(resolver.resolveOfKind("vendor.fin/finance", AgentAsset.class, AssetResolver.PUBLISHED)).isEmpty();
+        assertThat(resolver.resolve("vendor.fin/transaction-anomaly-analyst@^3"))
+                .isEmpty();
+        assertThat(resolver.resolveOfKind("vendor.fin/finance", AgentAsset.class, AssetResolver.PUBLISHED))
+                .isEmpty();
         assertThat(resolver.resolveOfKind("vendor.fin/finance", SemanticPackAsset.class, AssetResolver.PUBLISHED))
                 .isPresent();
     }
@@ -73,7 +78,8 @@ class ResolverTest {
     @Test
     @DisplayName("版本列表按从新到旧排序")
     void versionsSortedDescending() {
-        assertThat(resolver.listVersions("vendor.fin", "transaction-anomaly-analyst").stream().map(VersionInfo::version))
+        assertThat(resolver.listVersions("vendor.fin", "transaction-anomaly-analyst").stream()
+                        .map(VersionInfo::version))
                 .containsExactly("2.0.0", "1.3.0", "1.2.0");
         assertThat(resolver.listVersions("vendor.fin", "missing")).isEmpty();
     }

@@ -46,13 +46,14 @@ final class Segments {
                         : java.util.Optional.<SemanticPackAsset>empty();
                 if (pack.isEmpty()) {
                     if (!optional) {
-                        issues.add(AssemblyIssue.error("REFERENCE_UNRESOLVED",
-                                "语义包 " + ref + " 不存在或没有满足范围的已发布版本", from.versionedRef(), null));
+                        issues.add(AssemblyIssue.error(
+                                "REFERENCE_UNRESOLVED", "语义包 " + ref + " 不存在或没有满足范围的已发布版本", from.versionedRef(), null));
                     }
                     return;
                 }
                 var p = pack.get();
-                if (!seen.add(AssetRef.key(p.metadata().namespace(), p.metadata().name()))) return;
+                if (!seen.add(
+                        AssetRef.key(p.metadata().namespace(), p.metadata().name()))) return;
                 if (p.spec().extendsRef() != null && depth < MAX_EXTENDS_DEPTH) {
                     visit(p.spec().extendsRef(), p, depth + 1, false);
                 }
@@ -91,42 +92,89 @@ final class Segments {
             var list = set.spec().rules();
             for (int i = 0; i < list.size(); i++) {
                 var rule = list.get(i);
-                segments.add(new Segment("platform-rule:" + rule.id(), SegmentKind.platform_rule, Layer.platform,
-                        set.versionedRef(), "spec.rules[" + i + "].instruction", rule.instruction(), rule.name(), true));
+                segments.add(new Segment(
+                        "platform-rule:" + rule.id(),
+                        SegmentKind.platform_rule,
+                        Layer.platform,
+                        set.versionedRef(),
+                        "spec.rules[" + i + "].instruction",
+                        rule.instruction(),
+                        rule.name(),
+                        true));
             }
         }
-        segments.add(new Segment("vendor-instructions", SegmentKind.vendor_instructions, agent.layer(), agentRef,
-                "spec.instructions", agent.spec().instructions(), null, agentConfidential));
+        segments.add(new Segment(
+                "vendor-instructions",
+                SegmentKind.vendor_instructions,
+                agent.layer(),
+                agentRef,
+                "spec.instructions",
+                agent.spec().instructions(),
+                null,
+                agentConfidential));
         if (agent.spec().additionalContext() != null) {
-            segments.add(new Segment("vendor-context", SegmentKind.vendor_context, agent.layer(), agentRef,
-                    "spec.additionalContext", agent.spec().additionalContext(), null, agentConfidential));
+            segments.add(new Segment(
+                    "vendor-context",
+                    SegmentKind.vendor_context,
+                    agent.layer(),
+                    agentRef,
+                    "spec.additionalContext",
+                    agent.spec().additionalContext(),
+                    null,
+                    agentConfidential));
         }
         var constraints = agent.spec().constraints();
         for (int i = 0; i < constraints.size(); i++) {
-            constraint(constraints.get(i), agent, "spec.constraints[" + i + "]", SegmentKind.vendor_constraint,
-                    agentConfidential, rules, issues).ifPresent(segments::add);
+            constraint(
+                            constraints.get(i),
+                            agent,
+                            "spec.constraints[" + i + "]",
+                            SegmentKind.vendor_constraint,
+                            agentConfidential,
+                            rules,
+                            issues)
+                    .ifPresent(segments::add);
         }
         for (var pack : packs) {
             var instructions = pack.spec().agentInstructions();
             for (int i = 0; i < instructions.size(); i++) {
                 segments.add(new Segment(
-                        "semantic-instruction:" + pack.metadata().namespace() + "/" + pack.metadata().name() + ":" + i,
-                        SegmentKind.semantic_instruction, pack.layer(), pack.versionedRef(),
-                        "spec.agent_instructions[" + i + "]", instructions.get(i), null, false));
+                        "semantic-instruction:" + pack.metadata().namespace() + "/"
+                                + pack.metadata().name() + ":" + i,
+                        SegmentKind.semantic_instruction,
+                        pack.layer(),
+                        pack.versionedRef(),
+                        "spec.agent_instructions[" + i + "]",
+                        instructions.get(i),
+                        null,
+                        false));
             }
         }
         for (var ext : extensions) {
             if (ext.spec().instructions() == null) continue;
-            segments.add(new Segment("tenant-instructions:" + ext.versionedRef(), SegmentKind.tenant_instructions,
-                    ext.layer(), ext.versionedRef(), "spec.instructions.append", ext.spec().instructions().append(),
-                    null, false));
+            segments.add(new Segment(
+                    "tenant-instructions:" + ext.versionedRef(),
+                    SegmentKind.tenant_instructions,
+                    ext.layer(),
+                    ext.versionedRef(),
+                    "spec.instructions.append",
+                    ext.spec().instructions().append(),
+                    null,
+                    false));
         }
         for (var ext : extensions) {
             if (ext.spec().constraints() == null) continue;
             var appended = ext.spec().constraints().append();
             for (int i = 0; i < appended.size(); i++) {
-                constraint(appended.get(i), ext, "spec.constraints.append[" + i + "]", SegmentKind.tenant_constraint,
-                        false, rules, issues).ifPresent(segments::add);
+                constraint(
+                                appended.get(i),
+                                ext,
+                                "spec.constraints.append[" + i + "]",
+                                SegmentKind.tenant_constraint,
+                                false,
+                                rules,
+                                issues)
+                        .ifPresent(segments::add);
             }
         }
         return new SegmentResult(segments, issues);
@@ -142,17 +190,30 @@ final class Segments {
             List<AssemblyIssue> issues) {
         String source = owner.versionedRef();
         if (!CommonSchemas.isRuleId(text)) {
-            return java.util.Optional.of(new Segment(kind.value() + ":" + source + ":" + field, kind, owner.layer(),
-                    source, field, text, null, kind == SegmentKind.vendor_constraint && confidentialIfFreeText));
+            return java.util.Optional.of(new Segment(
+                    kind.value() + ":" + source + ":" + field,
+                    kind,
+                    owner.layer(),
+                    source,
+                    field,
+                    text,
+                    null,
+                    kind == SegmentKind.vendor_constraint && confidentialIfFreeText));
         }
         SemanticRule rule = rules.get(text);
         if (rule == null) {
-            issues.add(AssemblyIssue.error("REFERENCE_UNRESOLVED",
-                    "约束引用的规则 " + text + " 在挂载的语义包里找不到", source, field));
+            issues.add(AssemblyIssue.error("REFERENCE_UNRESOLVED", "约束引用的规则 " + text + " 在挂载的语义包里找不到", source, field));
             return java.util.Optional.empty();
         }
         // 规则来自语义包，对租户可见；文本取规则的处置建议
-        return java.util.Optional.of(new Segment(kind.value() + ":" + source + ":" + text, kind, owner.layer(), source,
-                field, "[" + text + "] " + rule.remedy(), text, false));
+        return java.util.Optional.of(new Segment(
+                kind.value() + ":" + source + ":" + text,
+                kind,
+                owner.layer(),
+                source,
+                field,
+                "[" + text + "] " + rule.remedy(),
+                text,
+                false));
     }
 }

@@ -55,8 +55,8 @@ public final class Lint {
     /** 引用范围在解析之前检查，越界的引用不进入解析，避免借报错信息探测其他租户的资产 */
     private static List<LintIssue> referenceScope(Asset asset) {
         return outOfScopeReferences(asset).stream()
-                .map(r -> new LintIssue("reference-scope", "error",
-                        "不能引用 " + r.ref() + "：只能引用平台层、标品层和本租户的资产", r.path()))
+                .map(r ->
+                        new LintIssue("reference-scope", "error", "不能引用 " + r.ref() + "：只能引用平台层、标品层和本租户的资产", r.path()))
                 .toList();
     }
 
@@ -65,7 +65,8 @@ public final class Lint {
                 .filter(r -> {
                     try {
                         return !Visibility.canReferenceNamespace(
-                                asset.metadata().namespace(), AssetRef.parse(r.ref()).namespace());
+                                asset.metadata().namespace(),
+                                AssetRef.parse(r.ref()).namespace());
                     } catch (AssetRef.InvalidAssetRefException e) {
                         return false;
                     }
@@ -116,7 +117,9 @@ public final class Lint {
                 issues.add(endpoint(path, "出现了硬编码地址，请改为引用连接别名"));
             } else if (SECRET_PATTERNS.stream().anyMatch(p -> p.matcher(text).find())) {
                 issues.add(endpoint(path, "疑似包含凭据，凭据只能通过连接的 credentialRef 引用"));
-            } else if (key != null && SECRET_KEY_NAMES.matcher(key).matches() && !CREDENTIAL_REF.matcher(text).find()) {
+            } else if (key != null
+                    && SECRET_KEY_NAMES.matcher(key).matches()
+                    && !CREDENTIAL_REF.matcher(text).find()) {
                 issues.add(endpoint(path, "字段 " + key + " 看起来是凭据，只能写 env: 或 vault: 引用"));
             }
         });
@@ -137,14 +140,17 @@ public final class Lint {
             var tool = tools.get(i);
             String path = "spec.tools[" + i + "]";
             if (tool.writeLevel() == null) {
-                issues.add(new LintIssue("tool-write-level", "error",
-                        "工具 " + tool.name() + " 没有声明写操作级别 writeLevel", path));
+                issues.add(new LintIssue(
+                        "tool-write-level", "error", "工具 " + tool.name() + " 没有声明写操作级别 writeLevel", path));
                 continue;
             }
             boolean capped = "payment".equals(tool.category()) || "posting".equals(tool.category());
             if (capped && tool.writeLevel().equals("L3")) {
-                issues.add(new LintIssue("tool-write-level", "error",
-                        "工具 " + tool.name() + " 属于付款或过账类，写操作级别最高只能到 L2", path + ".writeLevel"));
+                issues.add(new LintIssue(
+                        "tool-write-level",
+                        "error",
+                        "工具 " + tool.name() + " 属于付款或过账类，写操作级别最高只能到 L2",
+                        path + ".writeLevel"));
             }
         }
         return issues;
@@ -179,7 +185,8 @@ public final class Lint {
             }
             AssetKind kind = AssetKind.of(resolved.get());
             if (!reference.kinds().isEmpty() && !reference.kinds().contains(kind)) {
-                String expected = String.join(" 或 ", reference.kinds().stream().map(Enum::name).toList());
+                String expected = String.join(
+                        " 或 ", reference.kinds().stream().map(Enum::name).toList());
                 issues.add(refIssue(
                         "引用的资产 " + reference.ref() + " 是 " + kind.name() + "，这里需要 " + expected, reference.path()));
             }
@@ -195,7 +202,8 @@ public final class Lint {
         var tools = agent.spec().tools();
         for (int i = 0; i < tools.size(); i++) {
             var tool = tools.get(i).normalize();
-            if (tool.type().equals("builtin") && BuiltinTools.find(tool.builtinName()).isEmpty()) {
+            if (tool.type().equals("builtin")
+                    && BuiltinTools.find(tool.builtinName()).isEmpty()) {
                 issues.add(refIssue("内置工具 " + tool.builtinName() + " 不存在", "spec.tools[" + i + "].builtin"));
             }
         }
@@ -216,10 +224,13 @@ public final class Lint {
             packRefs.addAll(agent.spec().semanticPacks());
             base = "spec.constraints";
         } else if (asset instanceof AgentExtensionAsset ext) {
-            constraints = ext.spec().constraints() == null ? List.of() : ext.spec().constraints().append();
+            constraints = ext.spec().constraints() == null
+                    ? List.of()
+                    : ext.spec().constraints().append();
             resolver.resolveOfKind(ext.spec().target(), AgentAsset.class, statuses)
                     .ifPresent(target -> packRefs.addAll(target.spec().semanticPacks()));
-            if (ext.spec().knowledge() != null) packRefs.addAll(ext.spec().knowledge().add());
+            if (ext.spec().knowledge() != null)
+                packRefs.addAll(ext.spec().knowledge().add());
             base = "spec.constraints.append";
         } else {
             return List.of();
@@ -241,7 +252,8 @@ public final class Lint {
         return ids;
     }
 
-    private static void visitPack(String ref, int depth, AssetResolver resolver, List<Status> statuses, Set<String> ids) {
+    private static void visitPack(
+            String ref, int depth, AssetResolver resolver, List<Status> statuses, Set<String> ids) {
         if (!AssetRef.isValid(ref)) return;
         resolver.resolveOfKind(ref, SemanticPackAsset.class, statuses).ifPresent(pack -> {
             pack.spec().rules().forEach(rule -> ids.add(rule.id()));

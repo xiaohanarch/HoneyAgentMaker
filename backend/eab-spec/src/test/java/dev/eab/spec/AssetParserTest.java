@@ -47,7 +47,10 @@ class AssetParserTest {
             """;
 
     static AssetIssue issueAt(ParseResult result, String path) {
-        return result.issues().stream().filter(i -> i.path().equals(path)).findFirst().orElse(null);
+        return result.issues().stream()
+                .filter(i -> i.path().equals(path))
+                .findFirst()
+                .orElse(null);
     }
 
     @Test
@@ -81,7 +84,8 @@ class AssetParserTest {
         AssetIssue issue = issueAt(result, "spec.tools[2].mcp.source");
         assertThat(issue).isNotNull();
         assertThat(issue.line()).isEqualTo(17);
-        assertThat(issue.format("agent.yaml")).matches("^agent\\.yaml 第 17 行第 \\d+ 列 spec\\.tools\\[2\\]\\.mcp\\.source：.*");
+        assertThat(issue.format("agent.yaml"))
+                .matches("^agent\\.yaml 第 17 行第 \\d+ 列 spec\\.tools\\[2\\]\\.mcp\\.source：.*");
     }
 
     @Test
@@ -174,12 +178,15 @@ class AssetParserTest {
     @Test
     @DisplayName("扩展 target 不是合法引用时报 schema 问题而不是抛异常")
     void invalidTargetReportsIssue() {
-        ParseResult result = AssetParser.parseObject(Fixtures.tree(
-                Map.of(
-                        "apiVersion", "eab.dev/v1",
-                        "kind", "AgentExtension",
-                        "metadata", Map.of("name", "x", "namespace", "tenant.t001", "version", "1.0.0"),
-                        "spec", Map.of("target", "nope"))));
+        ParseResult result = AssetParser.parseObject(Fixtures.tree(Map.of(
+                "apiVersion",
+                "eab.dev/v1",
+                "kind",
+                "AgentExtension",
+                "metadata",
+                Map.of("name", "x", "namespace", "tenant.t001", "version", "1.0.0"),
+                "spec",
+                Map.of("target", "nope"))));
         assertThat(result.issues().getFirst().path()).isEqualTo("spec.target");
     }
 
@@ -190,6 +197,7 @@ class AssetParserTest {
         ParseResult again = AssetParser.parseObject(Json.toTree(agent));
         assertThat(again.issues()).isEmpty();
         assertThat(again.asset()).isEqualTo(agent);
-        assertThat(List.of(again.asset().versionedRef())).containsExactly("vendor.fin/transaction-anomaly-analyst@1.0.0");
+        assertThat(List.of(again.asset().versionedRef()))
+                .containsExactly("vendor.fin/transaction-anomaly-analyst@1.0.0");
     }
 }

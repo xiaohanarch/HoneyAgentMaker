@@ -85,7 +85,8 @@ public final class AssetParser {
             TokenStreamLocation location = e.getLocation();
             String detail = e.getOriginalMessage() == null ? e.getMessage() : e.getOriginalMessage();
             Position at = location == null ? null : new Position(location.getLineNr(), location.getColumnNr());
-            return failed("YAML_SYNTAX", "YAML 语法错误：" + detail.lines().findFirst().orElse(""), "", at);
+            return failed(
+                    "YAML_SYNTAX", "YAML 语法错误：" + detail.lines().findFirst().orElse(""), "", at);
         }
         JsonNode tree = Json.YAML.readTree(text);
         return validate(tree, positions);
@@ -108,15 +109,19 @@ public final class AssetParser {
             return failed("NOT_AN_OBJECT", "资产必须是一个对象", "", null);
         }
         if (!CommonSchemas.API_VERSION.equals(textOf(value, "apiVersion"))) {
-            return failedAt("UNSUPPORTED_API_VERSION", "apiVersion 必须是 " + CommonSchemas.API_VERSION,
-                    List.of("apiVersion"), positions);
+            return failedAt(
+                    "UNSUPPORTED_API_VERSION",
+                    "apiVersion 必须是 " + CommonSchemas.API_VERSION,
+                    List.of("apiVersion"),
+                    positions);
         }
         String kindName = textOf(value, "kind");
         AssetKind kind = AssetKind.of(kindName == null ? "" : kindName).orElse(null);
         if (kind == null) {
-            String known = String.join("、", Arrays.stream(AssetKind.values()).map(Enum::name).toList());
-            return failedAt("UNKNOWN_KIND", "未知的 kind \"" + kindName + "\"，可用的 kind：" + known, List.of("kind"),
-                    positions);
+            String known = String.join(
+                    "、", Arrays.stream(AssetKind.values()).map(Enum::name).toList());
+            return failedAt(
+                    "UNKNOWN_KIND", "未知的 kind \"" + kindName + "\"，可用的 kind：" + known, List.of("kind"), positions);
         }
 
         Issues issues = new Issues();
@@ -131,8 +136,12 @@ public final class AssetParser {
             List<AssetIssue> list = new ArrayList<>();
             for (Issues.Issue issue : issues.list()) {
                 Position at = locate(issue.path(), positions);
-                list.add(new AssetIssue("SCHEMA_" + issue.code().toUpperCase(), issue.message(),
-                        Issues.formatPath(issue.path()), at == null ? null : at.line(), at == null ? null : at.column()));
+                list.add(new AssetIssue(
+                        "SCHEMA_" + issue.code().toUpperCase(),
+                        issue.message(),
+                        Issues.formatPath(issue.path()),
+                        at == null ? null : at.line(),
+                        at == null ? null : at.column()));
             }
             return new ParseResult.Failed(list);
         }
@@ -142,9 +151,11 @@ public final class AssetParser {
         Layer layer = asset.layer();
         if (!allowed.isEmpty() && !allowed.contains(layer)) {
             String names = String.join("、", allowed.stream().map(Enum::name).toList());
-            return failedAt("KIND_LAYER_MISMATCH",
+            return failedAt(
+                    "KIND_LAYER_MISMATCH",
                     kind.name() + " 只能放在 " + names + " 层的命名空间里，当前是 " + layer.name() + " 层",
-                    List.of("metadata", "namespace"), positions);
+                    List.of("metadata", "namespace"),
+                    positions);
         }
         return new ParseResult.Ok(asset, normalized);
     }
@@ -169,12 +180,12 @@ public final class AssetParser {
     }
 
     private static ParseResult failed(String code, String message, String path, Position at) {
-        return new ParseResult.Failed(List.of(new AssetIssue(code, message, path, at == null ? null : at.line(),
-                at == null ? null : at.column())));
+        return new ParseResult.Failed(List.of(
+                new AssetIssue(code, message, path, at == null ? null : at.line(), at == null ? null : at.column())));
     }
 
-    private static ParseResult failedAt(String code, String message, List<Object> path,
-            Map<String, Position> positions) {
+    private static ParseResult failedAt(
+            String code, String message, List<Object> path, Map<String, Position> positions) {
         return failed(code, message, Issues.formatPath(path), locate(path, positions));
     }
 }

@@ -21,7 +21,6 @@ import dev.eab.spec.AssetRef;
 import dev.eab.spec.model.AgentSpec;
 import dev.eab.spec.schema.Schema;
 import java.util.List;
-import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
 
 /** Agent 与扩展的 schema，对应 TS 版 kinds/agent.ts、agent-parts.ts、agent-extension.ts */
@@ -48,7 +47,8 @@ public final class AgentSchemas {
     public static final List<String> OUTPUT_FIELD_TYPES = List.of("string", "int", "double", "bool", "list", "map");
 
     static Schema toolSubset() {
-        return object().field("source", assetRef()).optional("tools", array(string().min(1)).min(1));
+        return object().field("source", assetRef())
+                .optional("tools", array(string().min(1)).min(1));
     }
 
     public static Schema toolEntry() {
@@ -188,14 +188,23 @@ public final class AgentSchemas {
                 "AgentExtension",
                 object().field("target", targetRef())
                         .optional("instructions", object().field("append", string().min(1)))
-                        .optional("constraints", object().field("append", array(string().min(1)).min(1)))
-                        .optional("tools", object().field("add", array(toolEntryOrRef()).min(1)))
-                        .optional("skills", object().field("add", array(assetRef()).min(1)))
-                        .optional("knowledge", object().field("add", array(assetRef()).min(1)))
+                        .optional(
+                                "constraints",
+                                object().field("append", array(string().min(1)).min(1)))
+                        .optional(
+                                "tools",
+                                object().field("add", array(toolEntryOrRef()).min(1)))
+                        .optional(
+                                "skills",
+                                object().field("add", array(assetRef()).min(1)))
+                        .optional(
+                                "knowledge",
+                                object().field("add", array(assetRef()).min(1)))
                         .optional("hooks", hooks())
-                        .optional("approvals", object().field("add", array(approvalRule()).min(1)))
+                        .optional(
+                                "approvals",
+                                object().field("add", array(approvalRule()).min(1)))
                         .optional("model", object().field("profile", modelProfile()))
                         .optional("evals", evalsRef()));
     }
-
 }

@@ -89,7 +89,12 @@ class AssemblerTest {
 
         Result go() {
             return Assembler.assemble(new Assembler.Input(
-                    agent, "t001", extensions, List.of(Fixtures.platformRules()), resolverOf(assets, statuses), resolve));
+                    agent,
+                    "t001",
+                    extensions,
+                    List.of(Fixtures.platformRules()),
+                    resolverOf(assets, statuses),
+                    resolve));
         }
     }
 
@@ -117,18 +122,20 @@ class AssemblerTest {
                     "instructions", Map.of("append", "单笔超 50 万须给出责任部门"),
                     "constraints", Map.of("append", List.of("结论里不写客户姓名"))));
             var definition = run().extensions(extension).go().definition();
-            assertThat(definition.segments().stream().map(s -> s.kind().value())).containsExactly(
-                    "platform-rule",
-                    "vendor-instructions",
-                    "vendor-constraint",
-                    "vendor-constraint",
-                    "semantic-instruction",
-                    "tenant-instructions",
-                    "tenant-constraint");
+            assertThat(definition.segments().stream().map(s -> s.kind().value()))
+                    .containsExactly(
+                            "platform-rule",
+                            "vendor-instructions",
+                            "vendor-constraint",
+                            "vendor-constraint",
+                            "semantic-instruction",
+                            "tenant-instructions",
+                            "tenant-constraint");
             assertThat(definition.segments().stream().map(s -> s.layer().name()))
                     .containsExactly("platform", "vendor", "vendor", "vendor", "vendor", "tenant", "tenant");
             assertThat(definition.segments().get(1).source()).isEqualTo("vendor.fin/transaction-anomaly-analyst@1.2.0");
-            assertThat(definition.segments().get(5).source()).isEqualTo("tenant.t001.finance/anomaly-analyst-ext@0.3.0");
+            assertThat(definition.segments().get(5).source())
+                    .isEqualTo("tenant.t001.finance/anomaly-analyst-ext@0.3.0");
         }
 
         @Test
@@ -157,7 +164,8 @@ class AssemblerTest {
             String text = DefinitionView.renderInstructions(run().go().definition());
             assertThat(text.indexOf("【平台机密】")).isLessThan(text.indexOf(Fixtures.VENDOR_ANOMALY_INSTRUCTIONS));
             assertThat(text)
-                    .contains("<!-- vendor-instructions vendor.fin/transaction-anomaly-analyst@1.2.0 spec.instructions -->");
+                    .contains(
+                            "<!-- vendor-instructions vendor.fin/transaction-anomaly-analyst@1.2.0 spec.instructions -->");
         }
     }
 
@@ -167,12 +175,19 @@ class AssemblerTest {
         @Test
         @DisplayName("标品工具、语义查询工具、租户新增工具合并")
         void toolsMerge() {
-            var definition = run().extensions(ext(Map.of("tools", Map.of("add", List.of("tenant.t001.tools/notify-im")))))
+            var definition = run().extensions(
+                            ext(Map.of("tools", Map.of("add", List.of("tenant.t001.tools/notify-im")))))
                     .go()
                     .definition();
-            var names = definition.tools().stream().map(t -> t.layer().name() + ":" + t.name()).toList();
-            assertThat(names).contains("vendor:invoice-lookup", "platform:semantic.describe_object", "tenant:notify_im");
-            assertThat(definition.tools().stream().filter(t -> t.name().equals("notify_im")).findFirst().orElseThrow()
+            var names = definition.tools().stream()
+                    .map(t -> t.layer().name() + ":" + t.name())
+                    .toList();
+            assertThat(names)
+                    .contains("vendor:invoice-lookup", "platform:semantic.describe_object", "tenant:notify_im");
+            assertThat(definition.tools().stream()
+                            .filter(t -> t.name().equals("notify_im"))
+                            .findFirst()
+                            .orElseThrow()
                             .writeLevel())
                     .isEqualTo("L2");
         }
@@ -181,7 +196,8 @@ class AssemblerTest {
         @DisplayName("租户新增的工具与标品工具重名时报 TOOL_NAME_CONFLICT")
         void nameConflict() {
             var tenantSkill = Fixtures.skill(with().namespace("tenant.t001.skills"));
-            Result result = run().extensions(ext(Map.of("skills", Map.of("add", List.of("tenant.t001.skills/invoice-lookup")))))
+            Result result = run().extensions(
+                            ext(Map.of("skills", Map.of("add", List.of("tenant.t001.skills/invoice-lookup")))))
                     .assets(plus(base(), tenantSkill))
                     .go();
             assertThat(result.ok()).isFalse();
@@ -196,7 +212,13 @@ class AssemblerTest {
                     Map.of(
                             "add",
                             List.of(
-                                    Map.of("api", Map.of("source", "tenant.t001.tools/notify-im", "tools", List.of("notify_sms"))),
+                                    Map.of(
+                                            "api",
+                                            Map.of(
+                                                    "source",
+                                                    "tenant.t001.tools/notify-im",
+                                                    "tools",
+                                                    List.of("notify_sms"))),
                                     "tenant.t001.tools/missing"))));
             assertThat(codes(run().extensions(extension).go()))
                     .containsExactly("REFERENCE_UNRESOLVED", "REFERENCE_UNRESOLVED");
@@ -213,7 +235,8 @@ class AssemblerTest {
         @DisplayName("标品和租户的确认点都保留，租户可以加更严格的确认")
         void keepsBothLayers() {
             var extension = ext(Map.of(
-                    "tools", Map.of("add", List.of("tenant.t001.tools/notify-im")),
+                    "tools",
+                    Map.of("add", List.of("tenant.t001.tools/notify-im")),
                     "approvals",
                     Map.of(
                             "add",
@@ -235,7 +258,8 @@ class AssemblerTest {
         @Test
         @DisplayName("租户放宽标品已有的确认要求时报 APPROVAL_RELAXED")
         void relaxedRejected() {
-            var extension = ext(Map.of("approvals", Map.of("add", List.of(Map.of("tool", "invoice-lookup", "policy", "auto")))));
+            var extension = ext(
+                    Map.of("approvals", Map.of("add", List.of(Map.of("tool", "invoice-lookup", "policy", "auto")))));
             assertThat(codes(run().extensions(extension).assets(assets).go())).containsExactly("APPROVAL_RELAXED");
         }
 
@@ -246,7 +270,13 @@ class AssemblerTest {
                     "approvals",
                     Map.of(
                             "add",
-                            List.of(Map.of("tool", "wire_transfer", "policy", "require-approval", "when", "input.amount >")))));
+                            List.of(Map.of(
+                                    "tool",
+                                    "wire_transfer",
+                                    "policy",
+                                    "require-approval",
+                                    "when",
+                                    "input.amount >")))));
             assertThat(codes(run().extensions(extension).assets(assets).go()))
                     .containsExactly("REFERENCE_UNRESOLVED", "APPROVAL_CONDITION_INVALID");
         }
@@ -259,14 +289,21 @@ class AssemblerTest {
                 "hooks",
                 Map.of(
                         "onResult",
-                        Map.of("workflow", "tenant.t001.wf/create-followup-task", "when", "result.severity in ['high','critical']"))));
+                        Map.of(
+                                "workflow",
+                                "tenant.t001.wf/create-followup-task",
+                                "when",
+                                "result.severity in ['high','critical']"))));
 
         @Test
         @DisplayName("同一事件先标品钩子后租户钩子，租户钩子标注 isolate")
         void hookOrder() {
             var agent = Fixtures.agent(with().version("1.2.0")
                     .spec("hooks", Map.of("onResult", Map.of("skill", "vendor.fin.skills/invoice-lookup"))));
-            var definition = run().extensions(extension).assets(baseWithAgent(agent)).go().definition();
+            var definition = run().extensions(extension)
+                    .assets(baseWithAgent(agent))
+                    .go()
+                    .definition();
             assertThat(definition.hooks().stream().map(h -> h.layer().name() + ":" + h.failurePolicy()))
                     .containsExactly("vendor:propagate", "tenant:isolate");
         }
@@ -275,8 +312,17 @@ class AssemblerTest {
         @DisplayName("标品升级把 severity 改名为 riskLevel 后，租户钩子停用并给出警告")
         void renamedOutputDisablesTenantHook() {
             var upgraded = Fixtures.agent(with().version("1.3.0")
-                    .spec("output", Map.of("schema", Map.of("riskLevel", Map.of("type", "string"), "amount", Map.of("type", "double")))));
-            Result result = run().extensions(extension).assets(plus(base(), upgraded)).go();
+                    .spec(
+                            "output",
+                            Map.of(
+                                    "schema",
+                                    Map.of(
+                                            "riskLevel",
+                                            Map.of("type", "string"),
+                                            "amount",
+                                            Map.of("type", "double")))));
+            Result result =
+                    run().extensions(extension).assets(plus(base(), upgraded)).go();
             var definition = result.definition();
             assertThat(definition.provenance().agent()).isEqualTo("vendor.fin/transaction-anomaly-analyst@1.3.0");
             assertThat(definition.hooks()).isEmpty();
@@ -291,8 +337,16 @@ class AssemblerTest {
         @Test
         @DisplayName("标品钩子条件无效时组装失败")
         void vendorHookConditionInvalid() {
-            var agent = Fixtures.agent(with().version("1.2.0").spec("hooks", Map.of(
-                    "onResult", Map.of("skill", "vendor.fin.skills/invoice-lookup", "when", "result.missing == 1"))));
+            var agent = Fixtures.agent(with().version("1.2.0")
+                    .spec(
+                            "hooks",
+                            Map.of(
+                                    "onResult",
+                                    Map.of(
+                                            "skill",
+                                            "vendor.fin.skills/invoice-lookup",
+                                            "when",
+                                            "result.missing == 1"))));
             Result result = run().assets(baseWithAgent(agent)).go();
             assertThat(result.ok()).isFalse();
             assertThat(result.issues().getFirst().severity()).isEqualTo("error");
@@ -305,7 +359,10 @@ class AssemblerTest {
         @Test
         @DisplayName("允许范围内的档位生效")
         void allowedProfile() {
-            var model = run().extensions(ext(Map.of("model", Map.of("profile", "fast")))).go().definition().model();
+            var model = run().extensions(ext(Map.of("model", Map.of("profile", "fast"))))
+                    .go()
+                    .definition()
+                    .model();
             assertThat(model.profile()).isEqualTo("fast");
             assertThat(model.layer().name()).isEqualTo("tenant");
         }
@@ -313,7 +370,8 @@ class AssemblerTest {
         @Test
         @DisplayName("超出范围时报错")
         void disallowedProfile() {
-            assertThat(codes(run().extensions(ext(Map.of("model", Map.of("profile", "judge")))).go()))
+            assertThat(codes(run().extensions(ext(Map.of("model", Map.of("profile", "judge"))))
+                            .go()))
                     .containsExactly("MODEL_NOT_ALLOWED");
         }
 
@@ -343,10 +401,16 @@ class AssemblerTest {
         void resolvesCurrentVersion() {
             var extension = Fixtures.extension(with().spec("target", "vendor.fin/transaction-anomaly-analyst@^2.0")
                     .spec("instructions", Map.of("append", "追加")));
-            var definition = run().extensions(extension).assets(versions).statuses(statuses).go().definition();
+            var definition = run().extensions(extension)
+                    .assets(versions)
+                    .statuses(statuses)
+                    .go()
+                    .definition();
             assertThat(definition.provenance().agent()).endsWith("@2.0.0");
-            assertThat(definition.provenance().resolvedTarget()).isEqualTo(new ResolvedTarget(List.of("^2.0"), "2.0.0"));
-            assertThat(definition.provenance().extensions()).containsExactly("tenant.t001.finance/anomaly-analyst-ext@0.3.0");
+            assertThat(definition.provenance().resolvedTarget())
+                    .isEqualTo(new ResolvedTarget(List.of("^2.0"), "2.0.0"));
+            assertThat(definition.provenance().extensions())
+                    .containsExactly("tenant.t001.finance/anomaly-analyst-ext@0.3.0");
         }
 
         @Test
@@ -366,7 +430,10 @@ class AssemblerTest {
         @Test
         @DisplayName("范围不覆盖当前版本的扩展本次不生效，给出警告而不是让整个 Agent 不可用")
         void staleExtensionWarns() {
-            Result result = run().extensions(Fixtures.extension()).assets(versions).statuses(statuses).go();
+            Result result = run().extensions(Fixtures.extension())
+                    .assets(versions)
+                    .statuses(statuses)
+                    .go();
             assertThat(result.definition().provenance().agent()).endsWith("@2.0.0");
             assertThat(result.definition().provenance().extensions()).isEmpty();
             assertThat(result.issues()).hasSize(1);
@@ -384,8 +451,10 @@ class AssemblerTest {
         @Test
         @DisplayName("只应用 target 指向本 Agent 的扩展；Agent 不存在时报 AGENT_NOT_FOUND")
         void onlyTargetingExtensions() {
-            var other = Fixtures.extension(with().name("other").spec("target", "vendor.pur/supplier-performance-analyst@^1.0"));
-            assertThat(run().extensions(other).go().definition().provenance().extensions()).isEmpty();
+            var other = Fixtures.extension(
+                    with().name("other").spec("target", "vendor.pur/supplier-performance-analyst@^1.0"));
+            assertThat(run().extensions(other).go().definition().provenance().extensions())
+                    .isEmpty();
             assertThat(codes(run().agent("vendor.fin/missing").go())).containsExactly("AGENT_NOT_FOUND");
         }
 
@@ -393,7 +462,9 @@ class AssemblerTest {
         @DisplayName("扩展使用未声明的扩展点时报 EXTENSION_POINT_UNDECLARED")
         void undeclaredPoint() {
             var narrow = Fixtures.agent(with().version("1.2.0").spec("extensionPoints", List.of()));
-            assertThat(codes(run().extensions(Fixtures.extension()).assets(baseWithAgent(narrow)).go()))
+            assertThat(codes(run().extensions(Fixtures.extension())
+                            .assets(baseWithAgent(narrow))
+                            .go()))
                     .containsExactly("EXTENSION_POINT_UNDECLARED");
         }
     }
@@ -401,7 +472,8 @@ class AssemblerTest {
     @Nested
     @DisplayName("规则 7：有效定义按查看者脱敏")
     class Rule7 {
-        final EffectiveDefinition definition = run().extensions(Fixtures.extension()).go().definition();
+        final EffectiveDefinition definition =
+                run().extensions(Fixtures.extension()).go().definition();
 
         @Test
         @DisplayName("租户视角下标品指令和平台规则原文是占位块，序列化后找不到原文")
@@ -416,11 +488,13 @@ class AssemblerTest {
                 for (var s : segments) if (s.get("kind").asString().equals(kind)) return s;
                 return null;
             };
-            assertThat(Visibility.isRedacted(byKind.apply("vendor-instructions").get("text"))).isTrue();
+            assertThat(Visibility.isRedacted(byKind.apply("vendor-instructions").get("text")))
+                    .isTrue();
             assertThat(byKind.apply("platform-rule").get("label").asString()).isEqualTo("租户数据隔离");
             assertThat(byKind.apply("tenant-instructions").get("text").asString())
                     .isEqualTo("单笔金额超过 50 万元的异常，结论中必须给出责任部门。");
-            assertThat(byKind.apply("semantic-instruction").get("text").asString()).isEqualTo("引用金额时必须带币种");
+            assertThat(byKind.apply("semantic-instruction").get("text").asString())
+                    .isEqualTo("引用金额时必须带币种");
         }
 
         @Test
@@ -439,12 +513,19 @@ class AssemblerTest {
                 .spec("extends", "vendor.fin/finance")
                 .spec("rules", List.of(Map.of("id", "FIN-R-101", "severity", "warn", "remedy", "跨期冲销不算异常")))
                 .spec("agent_instructions", List.of("跨期冲销按正常业务处理")));
-        var kb = Fixtures.build("KnowledgeSource", "anomaly-playbook", "tenant.t001.kb",
+        var kb = Fixtures.build(
+                "KnowledgeSource",
+                "anomaly-playbook",
+                "tenant.t001.kb",
                 Map.of("documents", List.of(Map.of("title", "异常处理手册", "path", "docs/anomaly.md"))));
         var extension = ext(Map.of(
-                "knowledge", Map.of("add", List.of("tenant.t001.semantic/finance-ext", "tenant.t001.kb/anomaly-playbook")),
+                "knowledge",
+                        Map.of("add", List.of("tenant.t001.semantic/finance-ext", "tenant.t001.kb/anomaly-playbook")),
                 "constraints", Map.of("append", List.of("FIN-R-101"))));
-        var definition = run().extensions(extension).assets(plus(base(), tenantPack, kb)).go().definition();
+        var definition = run().extensions(extension)
+                .assets(plus(base(), tenantPack, kb))
+                .go()
+                .definition();
         assertThat(definition.semanticPacks())
                 .containsExactly("vendor.fin/finance@1.0.0", "tenant.t001.semantic/finance-ext@1.0.0");
         assertThat(definition.segments().stream()
@@ -452,7 +533,9 @@ class AssemblerTest {
                         .map(s -> s.layer().name()))
                 .containsExactly("vendor", "tenant");
         assertThat(definition.segments().getLast().text()).isEqualTo("[FIN-R-101] 跨期冲销不算异常");
-        assertThat(definition.tools()).anyMatch(t -> t.name().equals("kb_anomaly_playbook") && t.type().equals("documents"));
+        assertThat(definition.tools())
+                .anyMatch(
+                        t -> t.name().equals("kb_anomaly_playbook") && t.type().equals("documents"));
     }
 
     @Nested
@@ -480,11 +563,18 @@ class AssemblerTest {
         void cannotRelax() {
             var assets = baseWithAgent(Fixtures.agent(with().version("1.2.0")
                     .spec("approvals", List.of(Map.of("tool", "invoice-lookup", "policy", "require-approval")))));
-            var auto = ext(Map.of("approvals", Map.of("add", List.of(
-                    Map.of("tool", "invoice-lookup", "policy", "auto", "when", "input.x == 1")))));
+            var auto = ext(Map.of(
+                    "approvals",
+                    Map.of(
+                            "add",
+                            List.of(Map.of("tool", "invoice-lookup", "policy", "auto", "when", "input.x == 1")))));
             assertThat(codes(run().extensions(auto).assets(assets).go())).containsExactly("APPROVAL_RELAXED");
-            var byRef = ext(Map.of("approvals", Map.of("add", List.of(
-                    Map.of("tool", "vendor.fin.skills/invoice-lookup", "policy", "require-confirmation")))));
+            var byRef = ext(Map.of(
+                    "approvals",
+                    Map.of(
+                            "add",
+                            List.of(Map.of(
+                                    "tool", "vendor.fin.skills/invoice-lookup", "policy", "require-confirmation")))));
             assertThat(codes(run().extensions(byRef).assets(assets).go())).containsExactly("APPROVAL_RELAXED");
         }
 
@@ -493,12 +583,19 @@ class AssemblerTest {
         void strictestPolicy() {
             var assets = baseWithAgent(Fixtures.agent(with().version("1.2.0")
                     .spec("approvals", List.of(Map.of("tool", "invoice-lookup", "policy", "require-confirmation")))));
-            var extension = ext(Map.of("approvals", Map.of("add", List.of(Map.of(
-                    "tool", "vendor.fin.skills/invoice-lookup",
-                    "policy", "require-approval",
-                    "when", "input.amount > 100000.0")))));
+            var extension = ext(Map.of(
+                    "approvals",
+                    Map.of(
+                            "add",
+                            List.of(Map.of(
+                                    "tool", "vendor.fin.skills/invoice-lookup",
+                                    "policy", "require-approval",
+                                    "when", "input.amount > 100000.0")))));
             var definition = run().extensions(extension).assets(assets).go().definition();
-            var tool = definition.tools().stream().filter(t -> t.name().equals("invoice-lookup")).findFirst().orElseThrow();
+            var tool = definition.tools().stream()
+                    .filter(t -> t.name().equals("invoice-lookup"))
+                    .findFirst()
+                    .orElseThrow();
             var matched = Capabilities.matchingApprovals(definition.approvals(), tool);
             assertThat(matched).hasSize(2);
             assertThat(Capabilities.strictestPolicy(matched)).isEqualTo("require-approval");
@@ -508,9 +605,11 @@ class AssemblerTest {
         @Test
         @DisplayName("租户新增工具的写级别不能超过 Agent 上限")
         void writeLevelCap() {
-            var assets = baseWithAgent(Fixtures.agent(with().version("1.2.0").spec("writePolicy", Map.of("maxLevel", "L1"))));
+            var assets = baseWithAgent(
+                    Fixtures.agent(with().version("1.2.0").spec("writePolicy", Map.of("maxLevel", "L1"))));
             var extension = ext(Map.of("tools", Map.of("add", List.of("tenant.t001.tools/notify-im"))));
-            assertThat(codes(run().extensions(extension).assets(assets).go())).containsExactly("TOOL_WRITE_LEVEL_EXCEEDED");
+            assertThat(codes(run().extensions(extension).assets(assets).go()))
+                    .containsExactly("TOOL_WRITE_LEVEL_EXCEEDED");
         }
     }
 }

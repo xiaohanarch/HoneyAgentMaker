@@ -98,7 +98,8 @@ public final class Schemas {
 
         public StringSchema startsWith(String prefix, String message) {
             rules.add(new Rule("invalid_format", s -> s.startsWith(prefix), message));
-            if (pattern == null) pattern = "^" + Pattern.quote(prefix).replace("\\Q", "").replace("\\E", "");
+            if (pattern == null)
+                pattern = "^" + Pattern.quote(prefix).replace("\\Q", "").replace("\\E", "");
             return this;
         }
 
@@ -264,7 +265,8 @@ public final class Schemas {
         @Override
         protected JsonNode check(JsonNode value, List<Object> path, Issues issues) {
             if (value == null || !value.isString() || !values.contains(value.asString())) {
-                String options = String.join("|", values.stream().map(v -> "\"" + v + "\"").toList());
+                String options = String.join(
+                        "|", values.stream().map(v -> "\"" + v + "\"").toList());
                 issues.add("invalid_value", "无效选项：期望以下之一 " + options, path);
                 return null;
             }
@@ -429,7 +431,8 @@ public final class Schemas {
                 if (!fields.containsKey(name)) unknown.add(name);
             }
             if (!unknown.isEmpty()) {
-                String keys = String.join("、", unknown.stream().map(k -> "\"" + k + "\"").toList());
+                String keys = String.join(
+                        "、", unknown.stream().map(k -> "\"" + k + "\"").toList());
                 issues.add("unrecognized_keys", "无法识别的键：" + keys, path);
             }
             ObjectNode out = NODES.objectNode();
@@ -437,7 +440,8 @@ public final class Schemas {
                 JsonNode raw = value.get(name);
                 List<Object> at = Issues.append(path, name);
                 if (raw == null || raw.isMissingNode()) {
-                    if (field.defaultValue() != null) out.set(name, field.defaultValue().deepCopy());
+                    if (field.defaultValue() != null)
+                        out.set(name, field.defaultValue().deepCopy());
                     else if (!field.optional()) field.schema().parse(null, at, issues);
                     return;
                 }

@@ -106,27 +106,31 @@ public final class Fixtures {
         spec.put("semanticPacks", List.of("vendor.fin/finance"));
         spec.put("writePolicy", Map.of("maxLevel", "L2"));
         spec.put("routing", Map.of("description", "分析交易异常"));
-        spec.put("output", Map.of(
-                "schema",
+        spec.put(
+                "output",
                 Map.of(
-                        "severity", Map.of("type", "string", "enum", List.of("low", "medium", "high", "critical")),
-                        "amount", Map.of("type", "double"))));
-        spec.put("extensionPoints", List.of(
-                Map.of("type", "instructions.append", "description", "追加本企业口径"),
-                Map.of("type", "tools.add", "description", "增加通知等工具"),
-                Map.of("type", "skills.add", "description", "增加技能"),
-                Map.of("type", "knowledge.add", "description", "增加知识"),
-                Map.of("type", "hooks", "description", "结果后续处理", "events", List.of("onResult", "onFailure")),
-                Map.of("type", "approvals.add", "description", "增加确认点"),
-                Map.of(
-                        "type",
-                        "model.select",
-                        "description",
-                        "选择模型档位",
-                        "allowedProfiles",
-                        List.of("reasoning", "fast"))));
-        return build(
-                "Agent", "transaction-anomaly-analyst", "vendor.fin", spec, options, Asset.AgentAsset.class);
+                        "schema",
+                        Map.of(
+                                "severity",
+                                        Map.of("type", "string", "enum", List.of("low", "medium", "high", "critical")),
+                                "amount", Map.of("type", "double"))));
+        spec.put(
+                "extensionPoints",
+                List.of(
+                        Map.of("type", "instructions.append", "description", "追加本企业口径"),
+                        Map.of("type", "tools.add", "description", "增加通知等工具"),
+                        Map.of("type", "skills.add", "description", "增加技能"),
+                        Map.of("type", "knowledge.add", "description", "增加知识"),
+                        Map.of("type", "hooks", "description", "结果后续处理", "events", List.of("onResult", "onFailure")),
+                        Map.of("type", "approvals.add", "description", "增加确认点"),
+                        Map.of(
+                                "type",
+                                "model.select",
+                                "description",
+                                "选择模型档位",
+                                "allowedProfiles",
+                                List.of("reasoning", "fast"))));
+        return build("Agent", "transaction-anomaly-analyst", "vendor.fin", spec, options, Asset.AgentAsset.class);
     }
 
     public static Asset.AgentExtensionAsset extension() {
@@ -200,8 +204,10 @@ public final class Fixtures {
         Map<String, Object> spec = new LinkedHashMap<>();
         spec.put("type", "http");
         spec.put("connection", "IM_WEBHOOK");
-        spec.put("tools", List.of(Map.of(
-                "name", "notify_im", "description", "发送 IM 通知", "writeLevel", "L2", "category", "notify")));
+        spec.put(
+                "tools",
+                List.of(Map.of(
+                        "name", "notify_im", "description", "发送 IM 通知", "writeLevel", "L2", "category", "notify")));
         return build("ToolSource", "notify-im", "tenant.t001.tools", spec, options, Asset.ToolSourceAsset.class);
     }
 

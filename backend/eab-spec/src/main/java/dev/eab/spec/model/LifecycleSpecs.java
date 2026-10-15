@@ -26,7 +26,8 @@ public final class LifecycleSpecs {
      * @param visibility internal 的评测集对其他层不可见（主提示词 5.2 节）
      * @param tier smoke 冒烟集全部用例须 3 分钟内完成
      */
-    public record EvalSuiteSpec(String target, String visibility, String tier, double minPassRate, List<EvalCase> cases) {}
+    public record EvalSuiteSpec(
+            String target, String visibility, String tier, double minPassRate, List<EvalCase> cases) {}
 
     public record DevRequestContext(String assistant, List<String> semanticObjects, List<String> rules) {}
 
