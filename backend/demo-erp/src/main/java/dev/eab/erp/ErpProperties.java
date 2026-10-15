@@ -7,7 +7,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 /**
  * DemoERP 配置，绑定 application.yml 里的 eab.*，取值来自与 TS 版同名的环境变量。
  *
- * @param dataDir 数据目录；为空时用仓库根目录下的 data/java（迁移期间与 TS 版的数据分开存放）
+ * @param dataDir 数据目录；为空时用仓库根目录下的 data
  * @param dbPath 数据库路径；为空时为数据目录下的 erp.db，":memory:" 用于测试
  * @param platformUrl 平台地址，用于取 JWKS、核实委托、推送事件
  * @param internalSecret 与平台共享的内部调用密钥
@@ -33,9 +33,7 @@ public record ErpProperties(
     }
 
     public Path resolvedDataDir() {
-        return blank(dataDir)
-                ? repoRoot().resolve("data").resolve("java")
-                : Path.of(dataDir).toAbsolutePath();
+        return blank(dataDir) ? repoRoot().resolve("data") : Path.of(dataDir).toAbsolutePath();
     }
 
     public String resolvedDbPath() {

@@ -21,11 +21,7 @@
           "name": "rating",
           "type": "enum",
           "label": "评级",
-          "enum": [
-            "A",
-            "B",
-            "C"
-          ]
+          "enum": ["A", "B", "C"]
         },
         {
           "name": "purchasingOrg",
@@ -89,11 +85,7 @@
           "name": "status",
           "type": "enum",
           "label": "状态",
-          "enum": [
-            "open",
-            "quoted",
-            "closed"
-          ]
+          "enum": ["open", "quoted", "closed"]
         }
       ]
     },
@@ -147,11 +139,7 @@
           "name": "status",
           "type": "enum",
           "label": "状态",
-          "enum": [
-            "open",
-            "partially_delivered",
-            "delivered"
-          ]
+          "enum": ["open", "partially_delivered", "delivered"]
         },
         {
           "name": "totalAmount",
@@ -307,11 +295,7 @@
           "name": "slowMoving",
           "type": "enum",
           "label": "呆滞标识",
-          "enum": [
-            "none",
-            "watch",
-            "slow"
-          ]
+          "enum": ["none", "watch", "slow"]
         }
       ]
     },
@@ -331,10 +315,7 @@
           "name": "direction",
           "type": "enum",
           "label": "方向",
-          "enum": [
-            "in",
-            "out"
-          ]
+          "enum": ["in", "out"]
         },
         {
           "name": "quantity",
@@ -374,12 +355,7 @@
           "name": "matchStatus",
           "type": "enum",
           "label": "匹配状态",
-          "enum": [
-            "matched",
-            "price_diff",
-            "qty_diff",
-            "unmatched"
-          ]
+          "enum": ["matched", "price_diff", "qty_diff", "unmatched"]
         }
       ]
     },
@@ -404,11 +380,7 @@
           "name": "status",
           "type": "enum",
           "label": "状态",
-          "enum": [
-            "planned",
-            "paid",
-            "on_hold"
-          ]
+          "enum": ["planned", "paid", "on_hold"]
         }
       ]
     },
@@ -428,24 +400,13 @@
           "name": "anomalyType",
           "type": "enum",
           "label": "类型",
-          "enum": [
-            "duplicate_payment",
-            "split_invoice",
-            "round_amount",
-            "off_hours",
-            "reversal"
-          ]
+          "enum": ["duplicate_payment", "split_invoice", "round_amount", "off_hours", "reversal"]
         },
         {
           "name": "severity",
           "type": "enum",
           "label": "严重程度",
-          "enum": [
-            "low",
-            "medium",
-            "high",
-            "critical"
-          ]
+          "enum": ["low", "medium", "high", "critical"]
         },
         {
           "name": "amount",
@@ -475,11 +436,7 @@
           "name": "status",
           "type": "enum",
           "label": "状态",
-          "enum": [
-            "open",
-            "closing",
-            "closed"
-          ]
+          "enum": ["open", "closing", "closed"]
         }
       ]
     },
@@ -499,11 +456,7 @@
           "name": "status",
           "type": "enum",
           "label": "状态",
-          "enum": [
-            "passed",
-            "failed",
-            "not_started"
-          ]
+          "enum": ["passed", "failed", "not_started"]
         },
         {
           "name": "owner",

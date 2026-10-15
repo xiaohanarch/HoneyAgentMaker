@@ -7,7 +7,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 /**
  * 平台配置，绑定 application.yml 里的 eab.*，取值来自与 TS 版同名的环境变量。
  *
- * @param dataDir 数据目录；为空时用仓库根目录下的 data/java（迁移期间与 TS 版的数据分开存放）
+ * @param dataDir 数据目录；为空时用仓库根目录下的 data
  * @param assetsDir 资产目录；为空时用仓库根目录下的 assets
  * @param dbPath 数据库路径；为空时为数据目录下的 platform.db，":memory:" 用于测试
  * @param ephemeralKeys 使用临时密钥（测试用），不读写数据目录里的密钥文件
@@ -34,9 +34,7 @@ public record PlatformProperties(
     }
 
     public Path resolvedDataDir() {
-        return blank(dataDir)
-                ? repoRoot().resolve("data").resolve("java")
-                : Path.of(dataDir).toAbsolutePath();
+        return blank(dataDir) ? repoRoot().resolve("data") : Path.of(dataDir).toAbsolutePath();
     }
 
     public Path resolvedAssetsDir() {

@@ -104,6 +104,11 @@ public record PlatformServices(
      * 已存在时不重复创建。
      */
     public void ensureDemoDefaults() {
+        ensureDemoDefaults(delegations, clock);
+    }
+
+    /** 同上，供 pnpm seed:reset 在不启动平台服务时调用 */
+    public static void ensureDemoDefaults(DelegationStore delegations, Clock clock) {
         if (delegations.get(DEMO_DELEGATION_ID).isPresent()) return;
         var now = clock.instant();
         delegations.create(

@@ -1,5 +1,5 @@
 /**
- * 演示用户的展示信息。用户清单来自平台的 GET /identity/v1/users（单一来源是 @eab/demo-directory），
+ * 演示用户的展示信息。用户清单来自平台的 GET /identity/v1/users（单一来源是 backend/eab-directory 的 DemoDirectory），
  * 前端不再写死用户。
  */
 export type Workspace = 'assistant' | 'studio' | 'hub'

@@ -19,7 +19,7 @@ SSH 使用专用密钥 `~/.ssh/eab_ecs`，主机地址和密钥路径可以用�
 | `deploy/bootstrap.sh` | 主机，root | 安装 Node 24 与 pnpm（走 npmmirror 镜像）、OpenJDK 21，配置 Maven 阿里云镜像，创建运行用户 `eab`，克隆仓库到 `/home/eab/app`。可重复执行 |
 | `deploy/remote-deploy.sh` | 主机，root | 拉取指定分支，安装依赖，跑单元测试、lint、类型检查、资产校验，用 systemd 重启服务，跑端到端测试，最后做一次数据快照 |
 | `deploy/eab-demo.service` | 主机 | systemd 单元，以 `eab` 用户运行 `pnpm demo` |
-| `pnpm data:backup` | 主机，eab | 用 SQLite 在线备份接口复制 `data/platform.db`，连同签名密钥打包到 `data/backups/`，保留最近 10 份 |
+| `pnpm data:backup` | 主机，eab | 用 SQLite 在线备份复制 `data/platform.db` 和 `data/erp.db`，连同签名密钥打包到 `data/backups/`，保留最近 10 份 |
 | `scripts/ecs.sh` | 本地 | 封装上面几步：`bootstrap`、`deploy [分支]`、`backup`、`restore <文件>`、`tunnel` |
 
 ## 日常流程

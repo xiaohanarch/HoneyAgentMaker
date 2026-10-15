@@ -16,7 +16,7 @@ x-app: &app
 services:
   platform:
     <<: *app
-    command: pnpm --filter @eab/platform run start
+    command: java -Dstdout.encoding=UTF-8 -jar backend/platform/target/platform-exec.jar
     environment:
       <<: *env
       EAB_PLATFORM_PORT: '4000'
@@ -32,10 +32,11 @@ services:
 
   demo-erp:
     <<: *app
-    command: pnpm --filter @eab/demo-erp run start
+    command: java -Dstdout.encoding=UTF-8 -jar backend/demo-erp/target/demo-erp-exec.jar
     environment:
       <<: *env
       EAB_DEMO_ERP_PORT: '4100'
+      EAB_PLATFORM_URL: http://platform:4000
     ports: ['127.0.0.1:4100:4100']
     healthcheck:
       test:

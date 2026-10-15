@@ -111,7 +111,7 @@ check(
 )
 
 // 3. SoD：策略引擎（鉴权点 3）与 DemoERP（鉴权点 4）都会拒绝自己审批自己提交的单据，
-//    完整链路见 apps/platform/src/identity/end-to-end.test.ts；这里用策略试算演示平台侧的裁决
+//    完整链路见 backend/platform 的 EndToEndTest；这里用策略试算演示平台侧的裁决
 const zhang = await login('zhangmin')
 const sod = await post(
   `${PLATFORM}/policy/v1/evaluate`,

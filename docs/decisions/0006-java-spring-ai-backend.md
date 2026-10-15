@@ -1,6 +1,6 @@
 # ADR 0006 后端改用 Java、Spring Boot 与 Spring AI
 
-状态：已采纳（2026-10-15，P3 进行中）。替代 ADR 0001；ADR 0002 中服务端使用的 SDK 改为 Java 版，见下文。
+状态：已采纳（2026-10-15），迁移已在 J2 完成，TS 后端已删除。替代 ADR 0001；ADR 0002 中服务端使用的 SDK 改为 Java 版，见下文。
 
 ## 背景
 
@@ -30,7 +30,7 @@
 | Nimbus JOSE JWT | 10.10，EdDSA 依赖 Tink 1.23.0 | 身份令牌（EdDSA） |
 | SQLite JDBC | 3.53.2.1（Spring Boot 管理的版本） | 演示数据库 |
 | Flyway | 12.4.0（Spring Boot 管理的版本） | 数据库迁移 |
-| springdoc-openapi | 3.1.1 | OpenAPI 描述，路径仍为 `/openapi.json` |
+| springdoc-openapi | 3.1.1 | 平台的 OpenAPI 描述，路径仍为 `/openapi.json`；DemoERP 的描述按 BO 路由声明自己生成 |
 | Maven | 3.9.16（Maven Wrapper 3.3.4） | 构建 |
 | Spotless + palantir-java-format | 3.10.4 / 2.102.0 | 代码格式 |
 | JaCoCo | 0.8.15 | 覆盖率 |
@@ -39,9 +39,13 @@
 
 - 对外 HTTP 契约不变：路径、`{success, data, error}` 响应信封、端口 4000 和 4100、令牌格式、环境变量名都沿用 TS 版。前端、`scripts/acceptance-p2.mjs` 和 Playwright 测试不需要修改，直接作为迁移的回归测试。
 - 分三步：J0 建 Java 工程骨架；J1 迁移资产层（对应 P1）；J2 迁移身份、策略和 DemoERP（对应 P2），`acceptance-p2.mjs` 原样通过后删除 TS 后端。之后在 Java 上实现 P3 及以后的阶段。
-- J2 完成之前，`pnpm demo` 默认仍启动 TS 后端，`pnpm demo:java`（等价于 `pnpm demo --backend=java`）启动 Java 后端。
+- J2 完成后 `pnpm demo` 只启动 Java 后端；资产与数据类命令（`assets:validate`、`assets:assemble`、`seed:reset`、`data:backup`）经 `scripts/java-cli.mjs` 运行 Java 命令行工具。
 - 数据访问用 Spring 的 `JdbcClient` 加仓储接口，不用 JPA，SQL 写在代码里，便于阅读。表结构沿用 TS 版。SQLite 同一时刻只有一个写入者，连接池固定为一个连接。
-- 迁移期间 Java 版的数据放在 `data/java/`，与 TS 版的 `data/` 分开，两套后端不会读写同一个数据库。
+- 迁移期间 Java 版的数据放在 `data/java/`；J2 切换后回到 `data/`。TS 版建的库没有 Flyway 迁移记录，Java 版首次打开时把它改名为 `*.pre-flyway-<时间>` 归档后重建，签名密钥与集成账号密钥文件格式相同，继续沿用。
+- 平台的迁移脚本在 `classpath:db/migration`，DemoERP 的在 `classpath:db/erp`。两个应用的可执行 jar 带 `exec` 后缀，普通 jar 供平台的联调测试引用，两个应用可以在同一个测试进程里启动。
+- 公共的基础设施（SQLite 连接与迁移、时间格式、按 JS 规则格式化数字）放在 `eab-common` 模块。
+- DemoERP 的种子数据按 TS 版的伪随机算法（mulberry32）实现，用删除 TS 版之前导出的黄金样本逐条比对。
+- Nimbus 的 `JWSVerificationKeySelector` 不能把 OKP 密钥转换为 JDK 密钥，DemoERP 校验平台令牌时按 kid 选出 Ed25519 公钥，用 `Ed25519Verifier` 直接验签。
 - SQLite JDBC 与 Flyway 用 Spring Boot 4.1.1 管理的版本（3.53.2.1、12.4.0），不另行指定，减少版本冲突；只引入库本身，不引入 Spring Boot 的数据源与 Flyway 自动配置。
 
 Agent 运行时在 Spring AI 上的做法：
