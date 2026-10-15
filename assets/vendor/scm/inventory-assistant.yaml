@@ -1,0 +1,28 @@
+apiVersion: eab.dev/v1
+kind: Assistant
+metadata:
+  name: inventory-assistant
+  namespace: vendor.scm
+  version: 1.0.0
+  displayName: 库存助手
+  description: 库存岗位的助手，编排库存经营分析 Agent
+  owner: scm-team
+  businessProcess: [plan-to-produce]
+spec:
+  members: [vendor.scm/inventory-risk-analyst]
+  routing:
+    description: 处理库存余额、缺货、呆滞、出入库相关的问题
+    examples: [哪些物料低于安全库存, 本月呆滞库存有多少]
+  triggers:
+    - { type: assistant }
+    - { type: event, event: inventory.below_safety_stock }
+  kpis:
+    - {
+        name: inventory_turnover_days,
+        displayName: 库存周转天数,
+        unit: 天,
+        target: 45,
+        direction: down,
+      }
+    - { name: slow_moving_ratio, displayName: 呆滞库存占比, unit: '%', target: 5, direction: down }
+    - { name: stockout_count, displayName: 缺货次数, unit: 次, target: 3, direction: down }

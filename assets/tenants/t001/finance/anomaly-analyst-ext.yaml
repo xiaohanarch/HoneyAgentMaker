@@ -1,0 +1,27 @@
+apiVersion: eab.dev/v1
+kind: AgentExtension
+metadata:
+  name: anomaly-analyst-ext
+  namespace: tenant.t001.finance
+  version: 0.3.0
+  displayName: 交易异常解析 · 星海制造扩展
+  description: 追加大额异常的责任部门要求，高风险异常自动创建跟进任务并经确认后发 IM 通知
+  owner: chengong
+spec:
+  target: vendor.fin/transaction-anomaly-analyst@^1.0
+  instructions:
+    append: |
+      本公司规定：单笔金额超过 50 万元的异常，结论中必须给出责任部门。
+  tools:
+    add: [tenant.t001.tools/notify-im]
+  hooks:
+    onResult:
+      workflow: tenant.t001.wf/create-followup-task
+      when: "result.severity in ['high','critical']"
+  approvals:
+    add:
+      - tool: tenant.t001.tools/notify-im
+        policy: require-confirmation
+        description: 发 IM 通知前由用户确认通知内容和接收人
+  evals:
+    suites: [tenant.t001.evals/anomaly-ext-smoke]

@@ -1,0 +1,38 @@
+apiVersion: eab.dev/v1
+kind: Skill
+metadata:
+  name: invoice-lookup
+  namespace: vendor.fin.skills
+  version: 1.0.0
+  displayName: 发票查询
+  description: 查询应付发票及其与订单、入库的三单匹配状态
+  owner: fin-team
+  businessProcess: [procure-to-pay]
+spec:
+  writeLevel: L0
+  routing:
+    description: 查询应付发票和三单匹配情况
+    examples: [查一下这张发票的匹配状态, 本月有哪些未匹配的发票]
+  inputSchema:
+    type: object
+    properties:
+      invoiceNo: { type: string }
+      supplierName: { type: string }
+      matchStatus: { type: string }
+  outputSchema:
+    type: object
+    properties:
+      invoices: { type: array }
+  steps:
+    - id: query
+      type: tool
+      name: 查询应付发票
+      tool: ap_invoice_list
+      source: vendor.erp.tools/demo-erp-bo
+      with:
+        {
+          invoiceNo: input.invoiceNo,
+          supplierName: input.supplierName,
+          matchStatus: input.matchStatus,
+        }
+      output: invoices

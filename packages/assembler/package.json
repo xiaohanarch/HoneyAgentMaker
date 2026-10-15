@@ -9,5 +9,13 @@
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@eab/spec": "workspace:^",
+    "@marcbachmann/cel-js": "^8.0.0",
+    "semver": "^7.8.5"
+  },
+  "devDependencies": {
+    "@types/semver": "^7.8.0"
   }
 }

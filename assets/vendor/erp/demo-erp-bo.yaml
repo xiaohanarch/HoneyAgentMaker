@@ -1,0 +1,93 @@
+apiVersion: eab.dev/v1
+kind: ToolSource
+metadata:
+  name: demo-erp-bo
+  namespace: vendor.erp.tools
+  version: 1.0.0
+  displayName: DemoERP 业务对象 API
+  description: 面向业务对象的 BO API，按用户与 Agent 的双重身份授权并做数据权限过滤。P3 起改为从 OpenAPI 自动生成。
+  owner: platform-team
+spec:
+  type: bo-api
+  connection: DEMO_ERP
+  openapiPath: /bo/v1/openapi.json
+  tools:
+    # ── 采购 ────────────────────────────────────────────
+    - name: supplier_list
+      description: 按名称、评级、采购组织查询供应商，结果按当前用户的采购组织过滤
+      writeLevel: L0
+      category: query
+      operation: { method: GET, path: /bo/v1/suppliers }
+    - name: supplier_get
+      description: 查询单个供应商的主数据、评级与合同条款
+      writeLevel: L0
+      category: query
+      operation: { method: GET, path: '/bo/v1/suppliers/{supplierId}' }
+    - name: rfq_list
+      description: 查询询价单及其报价行，可按供应商、时间范围筛选
+      writeLevel: L0
+      category: query
+      operation: { method: GET, path: /bo/v1/rfqs }
+    - name: purchase_order_list
+      description: 查询采购订单与订单行，可按供应商、状态、逾期天数筛选
+      writeLevel: L0
+      category: query
+      operation: { method: GET, path: /bo/v1/purchase-orders }
+    - name: purchase_order_change_delivery_date
+      description: 修改采购订单的计划交期，生成一张交期变更单，需用户确认后写入
+      writeLevel: L2
+      category: write
+      operation: { method: POST, path: '/bo/v1/purchase-orders/{poId}/delivery-date-changes' }
+    - name: delivery_list
+      description: 查询交付记录，包含计划交付日期、实际交付日期与逾期天数
+      writeLevel: L0
+      category: query
+      operation: { method: GET, path: /bo/v1/deliveries }
+    # ── 库存 ────────────────────────────────────────────
+    - name: material_list
+      description: 查询物料主数据与安全库存设置
+      writeLevel: L0
+      category: query
+      operation: { method: GET, path: /bo/v1/materials }
+    - name: inventory_balance_list
+      description: 查询各仓库的库存余额、库龄与呆滞标识
+      writeLevel: L0
+      category: query
+      operation: { method: GET, path: /bo/v1/inventory-balances }
+    - name: stock_movement_list
+      description: 查询出入库流水
+      writeLevel: L0
+      category: query
+      operation: { method: GET, path: /bo/v1/stock-movements }
+    # ── 财务 ────────────────────────────────────────────
+    - name: ap_invoice_list
+      description: 查询应付发票及其与订单、入库的匹配状态
+      writeLevel: L0
+      category: query
+      operation: { method: GET, path: /bo/v1/ap-invoices }
+    - name: payment_plan_list
+      description: 查询付款计划
+      writeLevel: L0
+      category: query
+      operation: { method: GET, path: /bo/v1/payment-plans }
+    - name: transaction_anomaly_list
+      description: 查询交易异常记录，可按严重程度、期间、公司主体筛选
+      writeLevel: L0
+      category: query
+      operation: { method: GET, path: /bo/v1/transaction-anomalies }
+    - name: transaction_anomaly_get
+      description: 查询单条交易异常的明细与关联凭证
+      writeLevel: L0
+      category: query
+      operation: { method: GET, path: '/bo/v1/transaction-anomalies/{anomalyId}' }
+    - name: period_close_checklist
+      description: 查询会计期间的结账检查项及其状态
+      writeLevel: L0
+      category: query
+      operation: { method: GET, path: '/bo/v1/accounting-periods/{periodId}/close-checks' }
+    # ── 通用 ────────────────────────────────────────────
+    - name: followup_task_create
+      description: 创建一条跟进任务并指派给负责人
+      writeLevel: L2
+      category: write
+      operation: { method: POST, path: /bo/v1/followup-tasks }

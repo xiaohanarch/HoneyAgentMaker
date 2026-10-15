@@ -1,0 +1,121 @@
+apiVersion: eab.dev/v1
+kind: SemanticPack
+metadata:
+  name: procurement
+  namespace: vendor.pur
+  version: 1.0.0
+  displayName: 采购语义包
+  description: 采购域的业务对象、关系、指标口径、规则与已验证任务
+  owner: pur-team
+  businessProcess: [source-to-pay]
+spec:
+  # 投影段只写元数据引用，运行时从元数据服务取定义；增量段补充元数据里没有的业务说明
+  objects:
+    - ref: erp.pur.Supplier@v1
+      description: 供应商主数据
+      fields:
+        - ref: rating
+          enumMeaning: { A: 战略供应商, B: 合格供应商, C: 观察期供应商 }
+        - ref: purchasingOrg
+          description: 供应商归属的采购组织，是数据权限的过滤维度
+    - ref: erp.pur.PurchasingOrg@v1
+      description: 采购组织，演示中有华东、华南两个
+    - ref: erp.pur.RFQ@v1
+      description: 询价单，一张询价单可以邀请多个供应商报价
+    - ref: erp.pur.Quotation@v1
+      description: 供应商对询价单的报价行
+      fields:
+        - ref: targetPrice
+          description: 询价时设定的目标价，用于计算报价差异
+    - ref: erp.pur.PurchaseOrder@v2
+      description: 采购订单，含订单行与计划交期
+    - ref: erp.pur.Delivery@v1
+      description: 交付记录，未交付时实际交付日期为空
+    - ref: erp.pur.Contract@v1
+      description: 供应商合同条款：价格、质保、交期、付款条件
+  relationships:
+    - from: erp.pur.PurchaseOrder
+      to: erp.pur.Supplier
+      verb: 向…采购
+      cardinality: many-to-one
+      notes: 一张订单只对应一个供应商
+    - from: erp.pur.PurchaseOrder
+      to: erp.pur.PurchasingOrg
+      verb: 归属于
+      cardinality: many-to-one
+    - from: erp.pur.Quotation
+      to: erp.pur.RFQ
+      verb: 响应
+      cardinality: many-to-one
+    - from: erp.pur.Delivery
+      to: erp.pur.PurchaseOrder
+      verb: 交付
+      cardinality: many-to-one
+      notes: 一张订单可以分批交付
+    - from: erp.pur.Contract
+      to: erp.pur.Supplier
+      verb: 约定与…的条款
+      cardinality: many-to-one
+  metrics:
+    - name: overdue_days
+      displayName: 交付逾期天数
+      definition: 计划交付日期到实际交付日期（未交付则到今天）的自然日差，取订单行最大值
+      unit: 天
+    - name: overdue_delivery_rate
+      displayName: 逾期交付率
+      definition: 统计期内计划交付的订单行中，逾期天数大于 0 的行数占比
+      unit: '%'
+    - name: quote_price_variance
+      displayName: 报价差异率
+      definition: （最低报价 − 目标价）÷ 目标价，按询价单统计
+      unit: '%'
+  rules:
+    - id: PUR-R-001
+      ref: erp.pur.rules.delivery_date_change
+      severity: block
+      description: 采购订单交期变更属于需确认的写操作
+      remedy: 修改交期前必须向用户展示变更前后的日期并取得确认
+    - id: PUR-R-003
+      ref: erp.pur.rules.segregation_of_duties
+      severity: block
+      description: 职责分离
+      remedy: 同一用户不能既提交又审批同一张单据，应转给有审批权限的其他人
+    - id: PUR-R-007
+      ref: erp.pur.rules.negotiation_eligibility
+      severity: block
+      description: 降价谈判的前置条件
+      remedy: 交付逾期超过 90 天的供应商，不建议发起降价谈判，应先处理交付问题
+  agent_instructions:
+    - 引用金额时必须带币种
+    - 对供应商下结论时，说明依据的时间范围
+    - 涉及多个采购组织时，按采购组织分别说明，并注明数据权限过滤情况
+  verified_tasks:
+    - id: PUR-VT-001
+      question: 百润精密最近一次询价的报价情况如何
+      expected_conclusion: 列出询价单号、报价行数、最低报价与目标价差异
+      fail_if: 编造询价单号
+      tools: [rfq-lookup]
+    - id: PUR-VT-002
+      question: 列出我们逾期超过 30 天的供应商
+      expected_conclusion: 只列出当前用户采购组织内、逾期天数大于 30 的供应商，并注明过滤范围
+      fail_if: 出现其他采购组织的供应商
+      tools: [purchase_order_list]
+    - id: PUR-VT-003
+      question: 百润精密最近表现怎么样
+      expected_conclusion: 从交付、质量、价格三方面给出评价，说明依据的时间范围
+      fail_if: 没有说明时间范围
+      tools: [supplier-lookup, delivery_list]
+    - id: PUR-VT-004
+      question: 华东区本季度逾期交付率是多少
+      expected_conclusion: 给出逾期交付率数值，并附指标口径说明
+      fail_if: 没有口径说明
+      tools: [delivery_list]
+    - id: PUR-VT-005
+      question: 帮我准备和百润精密的降价谈判
+      expected_conclusion: 因存在逾期超过 90 天的订单，先提示处理交付问题（PUR-R-007）
+      fail_if: 直接给出降价策略而不提交付问题
+      tools: [purchase_order_list]
+  permissions:
+    filter_dimensions: [采购组织]
+    inherit_from: pur.supplier.list
+    disclose_filtered: true

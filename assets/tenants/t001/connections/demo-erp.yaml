@@ -1,0 +1,15 @@
+apiVersion: eab.dev/v1
+kind: Connection
+metadata:
+  name: demo-erp
+  namespace: tenant.t001.connections
+  version: 1.0.0
+  owner: zhaoadmin
+spec:
+  alias: DEMO_ERP
+  type: bo-api
+  bindings:
+    private: { url: 'http://127.0.0.1:4100', auth: { type: token-exchange } }
+    dev: { url: 'http://127.0.0.1:4100', auth: { type: token-exchange } }
+    test: { url: 'http://127.0.0.1:4100', auth: { type: token-exchange } }
+    prod: { url: 'http://127.0.0.1:4100', auth: { type: token-exchange } }

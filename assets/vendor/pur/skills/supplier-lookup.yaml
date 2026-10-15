@@ -1,0 +1,39 @@
+apiVersion: eab.dev/v1
+kind: Skill
+metadata:
+  name: supplier-lookup
+  namespace: vendor.pur.skills
+  version: 1.0.0
+  displayName: 供应商查询
+  description: 按名称查询供应商主数据、评级与合同条款，结果按当前用户的采购组织过滤
+  owner: pur-team
+  businessProcess: [source-to-pay]
+spec:
+  writeLevel: L0
+  agentOnly: false
+  routing:
+    description: 查询某个供应商的基本信息、评级和合同条款
+    examples: [查一下百润精密的供应商信息, 百润精密是什么评级]
+  inputSchema:
+    type: object
+    required: [supplierName]
+    properties:
+      supplierName: { type: string, description: 供应商名称，支持模糊匹配 }
+  outputSchema:
+    type: object
+    properties:
+      suppliers: { type: array }
+      filtered: { type: boolean }
+      visibleScope: { type: array, items: { type: string } }
+  steps:
+    - id: search
+      type: tool
+      name: 按名称查询供应商
+      tool: supplier_list
+      source: vendor.erp.tools/demo-erp-bo
+      with: { name: input.supplierName }
+      output: found
+    - id: pick
+      type: transform
+      name: 整理返回字段
+      expression: "{'suppliers': found.items, 'filtered': found.filtered, 'visibleScope': found.visibleScope}"

@@ -1,0 +1,42 @@
+apiVersion: eab.dev/v1
+kind: Skill
+metadata:
+  name: create-followup-task
+  namespace: vendor.common.skills
+  version: 1.0.0
+  displayName: 创建跟进任务
+  description: 为一个业务对象创建跟进任务并指派负责人，写入前需要确认
+  owner: platform-team
+spec:
+  writeLevel: L2
+  agentOnly: true
+  inputSchema:
+    type: object
+    required: [title, assignee]
+    properties:
+      title: { type: string }
+      assignee: { type: string, description: 负责人或责任部门 }
+      relatedObject: { type: string, description: 关联的单据编号 }
+      dueDate: { type: string, format: date }
+  outputSchema:
+    type: object
+    properties:
+      taskId: { type: string }
+  steps:
+    - id: confirm
+      type: confirm
+      name: 确认创建
+      message: 将为 {{input.relatedObject}} 创建跟进任务“{{input.title}}”，指派给 {{input.assignee}}
+    - id: create
+      type: tool
+      name: 创建任务
+      tool: followup_task_create
+      source: vendor.erp.tools/demo-erp-bo
+      with:
+        {
+          title: input.title,
+          assignee: input.assignee,
+          relatedObject: input.relatedObject,
+          dueDate: input.dueDate,
+        }
+      output: task

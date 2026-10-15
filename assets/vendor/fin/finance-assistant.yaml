@@ -1,0 +1,25 @@
+apiVersion: eab.dev/v1
+kind: Assistant
+metadata:
+  name: finance-assistant
+  namespace: vendor.fin
+  version: 1.0.0
+  displayName: 财务助手
+  description: 财务岗位的助手，编排交易异常解析和结账检查 Agent
+  owner: fin-team
+  businessProcess: [record-to-report, procure-to-pay]
+spec:
+  members: [vendor.fin/transaction-anomaly-analyst, vendor.fin/period-close-checker]
+  routing:
+    description: 处理应付发票、交易异常、结账检查相关的问题
+    examples: [本月有哪些高风险交易异常, 本期资产核算的结账检查还有哪些没通过]
+  kpis:
+    - {
+        name: anomaly_close_hours,
+        displayName: 异常处理时长,
+        unit: 小时,
+        target: 24,
+        direction: down,
+      }
+    - { name: close_readiness_rate, displayName: 结账就绪率, unit: '%', target: 100, direction: up }
+    - { name: invoice_match_rate, displayName: 发票匹配率, unit: '%', target: 98, direction: up }

@@ -1,0 +1,50 @@
+apiVersion: eab.dev/v1
+kind: Agent
+metadata:
+  name: period-close-checker
+  namespace: vendor.fin
+  version: 1.0.0
+  displayName: 结账检查 Agent
+  description: 检查会计期间结账的前置项。通用的检查框架加产品语义包，演示中只覆盖资产核算。对应灯塔场景“财经结账 Agent”。
+  owner: fin-team
+  businessProcess: [record-to-report]
+  labels: { domain: fin }
+spec:
+  expertise: 面向财务经理，检查会计期间结账前置项的完成情况，列出阻塞项与责任人
+  instructions: |
+    你是结账检查助手。检查框架与具体产品无关，产品的检查项和口径来自语义包。
+    1. 确认用户要检查的会计期间；没有说明时默认当前期间。
+    2. 用 period_close_checklist 取出检查项，按“已通过、未通过、未开始”分组。
+    3. 未通过的检查项逐条说明阻塞原因、责任人和建议的处理顺序。
+    4. 给出结账就绪率，并说明口径。
+  publicInstructions: |
+    取出指定会计期间的结账检查项，按状态分组，列出未通过项的阻塞原因与责任人，并给出结账就绪率。
+  constraints: [FIN-R-002]
+  model: { profile: fast }
+  tools:
+    - api:
+        source: vendor.erp.tools/demo-erp-bo
+        tools: [period_close_checklist]
+    - builtin: calculator
+  semanticPacks: [vendor.fin/finance]
+  triggers:
+    - { type: assistant }
+    - { type: event, event: period.close_check_failed }
+    - { type: schedule, cron: '0 9 25-31 * *' }
+  writePolicy: { maxLevel: L0 }
+  output:
+    schema:
+      period: { type: string }
+      readinessRate: { type: double }
+      blockingItems: { type: list }
+  routing:
+    description: 检查会计期间结账前置项，列出没通过的检查项和责任人
+    examples: [本期资产核算的结账检查还有哪些没通过, 这个月能按时结账吗]
+  extensionPoints:
+    - type: instructions.append
+      description: 追加本企业的结账要求
+    - type: knowledge.add
+      description: 增加本企业的结账检查项语义包
+    - type: hooks
+      description: 检查完成后通知相关岗位
+      events: [onResult]

@@ -1,0 +1,15 @@
+apiVersion: eab.dev/v1
+kind: Connection
+metadata:
+  name: logistics-mcp
+  namespace: tenant.t001.connections
+  version: 1.0.0
+  owner: zhaoadmin
+spec:
+  alias: LOGISTICS_MCP
+  type: mcp
+  bindings:
+    private: { url: 'http://127.0.0.1:4400/mcp', auth: { type: platform-service-token } }
+    dev: { url: 'http://127.0.0.1:4400/mcp', auth: { type: platform-service-token } }
+    test: { url: 'http://127.0.0.1:4400/mcp', auth: { type: platform-service-token } }
+    prod: { url: 'http://127.0.0.1:4400/mcp', auth: { type: platform-service-token } }

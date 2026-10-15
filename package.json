@@ -11,7 +11,6 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
-      "better-sqlite3",
       "esbuild"
     ]
   },
@@ -24,12 +23,18 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "pnpm -r --parallel typecheck && tsc -p e2e"
+    "typecheck": "pnpm -r --parallel typecheck && tsc -p e2e",
+    "assets:validate": "tsx apps/platform/src/cli/validate-assets.ts",
+    "assets:assemble": "tsx apps/platform/src/cli/assemble-agent.ts",
+    "test:coverage": "vitest run --coverage",
+    "spec:json-schema": "tsx packages/spec/scripts/gen-json-schema.ts",
+    "data:backup": "tsx apps/platform/src/cli/backup-data.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.64.1",
     "@types/node": "^24.0.0",
+    "@vitest/coverage-v8": "^5.0.4",
     "concurrently": "^10.0.6",
     "eslint": "^10.12.0",
     "eslint-plugin-react-hooks": "^7.1.1",

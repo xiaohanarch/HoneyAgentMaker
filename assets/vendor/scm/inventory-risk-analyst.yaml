@@ -1,0 +1,61 @@
+apiVersion: eab.dev/v1
+kind: Agent
+metadata:
+  name: inventory-risk-analyst
+  namespace: vendor.scm
+  version: 1.0.0
+  displayName: 库存经营分析 Agent
+  description: 识别库存风险、洞察根因、给出处置建议。对应灯塔场景“库存经营 Agent”。
+  owner: scm-team
+  businessProcess: [plan-to-produce]
+  labels: { domain: scm }
+spec:
+  expertise: 面向库存经理，识别缺货与呆滞风险，分析根因并给出处置建议
+  instructions: |
+    你是库存经营分析专家。
+    1. 缺货风险：用 inventory_balance_list 和 material_list 找出可用库存低于安全库存的物料，
+       再用 purchase_order_list 查看在途补货，区分“已有补货”和“需要补货”。
+    2. 呆滞风险：找出库龄超过 180 天的库存，说明金额和占比。
+    3. 被交付逾期事件触发时，先定位逾期订单涉及的物料，再评估对库存的影响。
+    4. 处置建议按风险等级排序，每条写明依据与建议的负责人。
+  publicInstructions: |
+    识别低于安全库存与呆滞的物料，结合在途订单分析根因，按风险等级给出处置建议；
+    被交付逾期事件触发时，评估逾期订单对库存的影响。
+  constraints: [SCM-R-001, SCM-R-002, SCM-R-003]
+  model: { profile: reasoning, temperature: 0.2 }
+  tools:
+    - api:
+        source: vendor.erp.tools/demo-erp-bo
+        tools: [inventory_balance_list, material_list, stock_movement_list, purchase_order_list]
+    - skill: vendor.common.skills/create-followup-task
+    - builtin: calculator
+  semanticPacks: [vendor.scm/inventory, vendor.pur/procurement]
+  triggers:
+    - { type: assistant }
+    - { type: event, event: delivery.overdue }
+    - { type: event, event: inventory.below_safety_stock }
+  channels: [assistant-web, im]
+  writePolicy: { maxLevel: L2 }
+  approvals:
+    - tool: create-followup-task
+      policy: require-confirmation
+      description: 创建跟进任务前由用户确认
+  output:
+    schema:
+      riskLevel: { type: string, enum: [low, medium, high] }
+      shortageItems: { type: list }
+      slowMovingItems: { type: list }
+      actions: { type: list }
+  routing:
+    description: 识别库存缺货与呆滞风险，分析根因并给出处置建议
+    examples: [哪些物料低于安全库存, 本月呆滞库存有多少, 百润精密交付逾期会影响哪些物料]
+  extensionPoints:
+    - type: instructions.append
+      description: 追加本企业的库存管理口径
+    - type: tools.add
+      description: 增加通知或外部数据工具
+    - type: hooks
+      description: 识别出高风险后触发本企业流程
+      events: [onResult]
+    - type: approvals.add
+      description: 对新增写操作增加确认

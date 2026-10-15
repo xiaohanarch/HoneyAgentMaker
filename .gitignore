@@ -4,8 +4,9 @@ coverage/
 .turbo/
 *.tsbuildinfo
 
-# 运行期数据
+# 运行期数据；backups/ 是从演示主机拉回的数据快照，含签名私钥，不进仓库
 data/
+backups/
 *.db
 *.db-journal
 *.db-wal

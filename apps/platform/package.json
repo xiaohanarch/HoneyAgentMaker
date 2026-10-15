@@ -10,6 +10,21 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "fastify": "^5.12.7"
+    "@eab/assembler": "workspace:^",
+    "@eab/spec": "workspace:^",
+    "@fastify/swagger": "^9.9.2",
+    "better-sqlite3": "^13.0.3",
+    "canonicalize": "^5.1.0",
+    "drizzle-orm": "^0.45.4",
+    "fastify": "^5.12.7",
+    "fastify-type-provider-zod": "^7.0.0",
+    "semver": "^7.8.5",
+    "yaml": "^2.9.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/semver": "^7.8.0",
+    "drizzle-kit": "^0.31.11"
   }
 }

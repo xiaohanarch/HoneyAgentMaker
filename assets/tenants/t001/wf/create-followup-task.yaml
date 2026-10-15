@@ -1,0 +1,27 @@
+apiVersion: eab.dev/v1
+kind: Workflow
+metadata:
+  name: create-followup-task
+  namespace: tenant.t001.wf
+  version: 1.0.0
+  displayName: 高风险异常跟进
+  description: 交易异常解析结果为高风险时，为每条异常创建跟进任务并通知财务经理
+  owner: chengong
+spec:
+  inputSchema:
+    type: object
+    properties:
+      result: { type: object, description: 交易异常解析 Agent 的结构化结果 }
+  steps:
+    - id: create-tasks
+      type: skill
+      name: 创建跟进任务
+      skill: vendor.common.skills/create-followup-task
+      with:
+        title: "'高风险交易异常跟进：' + string(result.anomalyCount) + ' 条'"
+        assignee: "'财务经理'"
+    - id: notify
+      type: notify
+      name: 通知财务经理
+      channel: im
+      message: 已为 {{result.anomalyCount}} 条高风险交易异常创建跟进任务
