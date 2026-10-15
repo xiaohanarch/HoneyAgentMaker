@@ -14,10 +14,11 @@ export const AUDIENCE = {
   agentRuntime: 'eab-agent-runtime',
   bo: 'demo-erp-bo',
   open: 'demo-erp-open',
+  pages: 'demo-erp-pages',
 } as const
 
 /** 有效期（秒） */
-const TTL = { user: 8 * 3600, agent: 15 * 60, client: 3600, delegated: 300 } as const
+const TTL = { user: 8 * 3600, agent: 15 * 60, client: 3600, delegated: 300, page: 600 } as const
 export const DELEGATED_TTL_SECONDS = TTL.delegated
 
 export interface UserClaims {
@@ -104,6 +105,11 @@ export class TokenService {
 
   issueClient(claims: Omit<ClientClaims, 'kind'>): Promise<string> {
     return this.#sign({ ...claims, kind: 'client' }, AUDIENCE.open, TTL.client)
+  }
+
+  /** DemoERP 只读页面的深链接令牌：只能打开页面，按该用户的数据权限展示 */
+  issuePage(claims: { sub: string; tid: string }): Promise<string> {
+    return this.#sign({ ...claims, kind: 'page' }, AUDIENCE.pages, TTL.page)
   }
 
   issueDelegated(claims: Omit<DelegatedClaims, 'kind'>): Promise<string> {

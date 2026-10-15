@@ -75,7 +75,14 @@ export async function callBoApi(deps: DelegatedClientDeps, call: BoCall): Promis
     )
   }
 
-  const url = new URL(call.path, deps.erpUrl)
+  // 只允许 BO API 路径，并且必须落在配置的 ERP 地址上，委托令牌不会被发往别处
+  const base = new URL(deps.erpUrl)
+  if (!call.path.startsWith('/bo/v1/') || call.path.includes('//') || call.path.includes('..')) {
+    throw new DelegationError('INVALID_PATH', `不允许的 BO API 路径：${call.path}`)
+  }
+  const url = new URL(call.path, base)
+  if (url.origin !== base.origin)
+    throw new DelegationError('INVALID_PATH', 'BO API 地址与连接配置不一致')
   for (const [key, value] of Object.entries(call.query ?? {})) url.searchParams.set(key, value)
   const response = await (deps.fetch ?? fetch)(url, {
     method: call.method,

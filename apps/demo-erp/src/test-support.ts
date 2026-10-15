@@ -54,6 +54,11 @@ export function clientToken(tenant = 't001'): Promise<string> {
   return sign({ kind: 'client', sub: `client:${tenant}-integration`, tid: tenant }, 'demo-erp-open')
 }
 
+/** 平台签发的只读页面令牌 */
+export function pageToken(user: string, tenant = 't001'): Promise<string> {
+  return sign({ kind: 'page', sub: user, tid: tenant }, 'demo-erp-pages')
+}
+
 export function userToken(user: string): Promise<string> {
   return sign({ kind: 'user', sub: user, tid: 't001', roles: [] }, 'eab-platform')
 }

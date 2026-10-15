@@ -218,6 +218,31 @@ describe('P2 验收', () => {
 })
 
 describe('失败即拒绝，不退回技术账号', () => {
+  it('BO 路径不合法时拒绝，委托令牌不会发往配置之外的地址', async () => {
+    const fetchSpy = vi.fn<typeof fetch>()
+    const { token } = await services.identity.login('zhangmin')
+    for (const path of [
+      '//evil.example/bo/v1/x',
+      'https://evil.example/bo/v1/x',
+      '/bo/v1/../open/v1/suppliers',
+      '/open/v1/suppliers',
+    ]) {
+      await expect(
+        callBoApi(
+          { identity: services.identity, erpUrl, fetch: fetchSpy },
+          {
+            subject: { userToken: token },
+            agentToken: await agentToken(PURCHASING, PO_OPS),
+            operation: 'purchase_order_list',
+            method: 'GET',
+            path,
+          },
+        ),
+      ).rejects.toMatchObject({ code: 'INVALID_PATH' })
+    }
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
   it('令牌交换失败时不会发出 BO 调用', async () => {
     const fetchSpy = vi.fn<typeof fetch>()
     const { token } = await services.identity.login('chengong') // 没有业务权限，交集为空

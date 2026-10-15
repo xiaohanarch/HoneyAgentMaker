@@ -12,6 +12,7 @@ import {
   clientToken,
   createTestErp,
   delegatedToken,
+  pageToken,
   userToken,
   type TestErp,
 } from './test-support'
@@ -314,17 +315,43 @@ describe('演示控制台与只读页面', () => {
     })
   })
 
-  it('供应商和采购订单的只读页面可以作为深链接', async () => {
+  it('只读页面需要平台签发的页面令牌，并按该用户的数据权限展示', async () => {
+    const anonymous = await erp.app.inject({
+      method: 'GET',
+      url: '/pages/purchase-orders/PO-2026-0117?tenant=t001',
+    })
+    expect(anonymous.statusCode).toBe(404)
+    expect(anonymous.body).not.toContain('百润精密')
+
+    const zhang = await pageToken('zhangmin')
     const supplier = await erp.app.inject({
       method: 'GET',
-      url: '/pages/suppliers/S-0001?tenant=t001',
+      url: `/pages/suppliers/S-0001?t=${zhang}`,
     })
     expect(supplier.body).toContain('百润精密')
     const po = await erp.app.inject({
       method: 'GET',
-      url: '/pages/purchase-orders/PO-2026-0117?tenant=t001',
+      url: `/pages/purchase-orders/PO-2026-0117?t=${zhang}`,
     })
     expect(po.body).toContain('120')
+
+    // 李强的数据权限是华南，看不到华东的单据；t002 的用户看不到 t001 的单据
+    const li = await erp.app.inject({
+      method: 'GET',
+      url: `/pages/purchase-orders/PO-2026-0117?t=${await pageToken('liqiang')}`,
+    })
+    expect(li.statusCode).toBe(404)
+    const other = await erp.app.inject({
+      method: 'GET',
+      url: `/pages/suppliers/S-0001?t=${await pageToken('zhouting', 't002')}`,
+    })
+    expect(other.body).not.toContain('百润精密')
+    // 委托令牌不能当页面令牌用
+    const wrong = await erp.app.inject({
+      method: 'GET',
+      url: `/pages/suppliers/S-0001?t=${await delegatedToken({ user: 'zhangmin', scope: PO_OPS })}`,
+    })
+    expect(wrong.statusCode).toBe(404)
   })
 
   it('健康检查', async () => {
@@ -355,5 +382,83 @@ describe('业务处理中的拒绝也进入平台审计', () => {
       tenantId: 't001',
       payload: { outcome: 'deny', code: 'SOD_VIOLATION', userId: 'zhangmin' },
     })
+  })
+})
+
+describe('安全审查的回归测试', () => {
+  it('幂等键被另一个用户复用时拒绝，不回放别人的结果', async () => {
+    const zhang = await delegatedToken({ user: 'zhangmin', scope: PO_OPS })
+    const first = await erp.app.inject({
+      method: 'POST',
+      url: '/bo/v1/purchase-orders/PO-2026-0117/delivery-date-changes',
+      headers: { ...bearer(zhang), 'idempotency-key': 'shared-key' },
+      payload: { newDate: '2026-11-15', reason: '张敏提交' },
+    })
+    expect(first.statusCode).toBe(201)
+    const li = await delegatedToken({ user: 'liqiang', scope: PO_OPS })
+    const reuse = await erp.app.inject({
+      method: 'POST',
+      url: '/bo/v1/purchase-orders/PO-2026-0117/delivery-date-changes',
+      headers: { ...bearer(li), 'idempotency-key': 'shared-key' },
+      payload: { newDate: '2026-11-15', reason: '张敏提交' },
+    })
+    expect(reuse.statusCode).toBe(422)
+    expect(reuse.json().error.code).toBe('IDEMPOTENCY_KEY_REUSED')
+    expect(reuse.body).not.toContain('DC-2026-0001')
+  })
+
+  it('同一个用户用同一个键提交不同内容时拒绝', async () => {
+    const token = await delegatedToken({ user: 'zhangmin', scope: PO_OPS })
+    const send = (newDate: string) =>
+      erp.app.inject({
+        method: 'POST',
+        url: '/bo/v1/purchase-orders/PO-2026-0117/delivery-date-changes',
+        headers: { ...bearer(token), 'idempotency-key': 'k2' },
+        payload: { newDate, reason: 'x' },
+      })
+    expect((await send('2026-11-15')).statusCode).toBe(201)
+    expect((await send('2026-12-01')).json().error.code).toBe('IDEMPOTENCY_KEY_REUSED')
+  })
+
+  it('受托自主运行不能执行写操作，即使令牌里带了这个操作', async () => {
+    erp.activeDelegations.add('DLG-X')
+    const token = await delegatedToken({
+      user: 'sunkg',
+      scope: ['followup_task_create'],
+      agent: 'vendor.scm/inventory-risk-analyst',
+      mode: 'delegated',
+      delegationId: 'DLG-X',
+    })
+    const response = await erp.app.inject({
+      method: 'POST',
+      url: '/bo/v1/followup-tasks',
+      headers: bearer(token),
+      payload: { title: 't', assignee: 'a' },
+    })
+    expect(response.statusCode).toBe(403)
+    expect(response.json().error.code).toBe('DELEGATED_WRITE_FORBIDDEN')
+  })
+
+  it('同一张订单已有待审批的变更单时，不能再提交', async () => {
+    const token = await delegatedToken({ user: 'zhangmin', scope: PO_OPS })
+    const submit = () =>
+      erp.app.inject({
+        method: 'POST',
+        url: '/bo/v1/purchase-orders/PO-2026-0117/delivery-date-changes',
+        headers: bearer(token),
+        payload: { newDate: '2026-11-15', reason: 'x' },
+      })
+    expect((await submit()).statusCode).toBe(201)
+    const second = await submit()
+    expect(second.statusCode).toBe(409)
+    expect(second.json().error.code).toBe('CHANGE_PENDING')
+  })
+
+  it('审计里的目标不带查询字符串', async () => {
+    await get(
+      '/bo/v1/suppliers?name=secret',
+      await delegatedToken({ user: 'zhangmin', scope: ['purchase_order_list'] }),
+    )
+    expect(erp.link.published.at(-1)?.payload.target).toBe('/bo/v1/suppliers')
   })
 })

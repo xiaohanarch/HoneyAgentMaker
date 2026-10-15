@@ -53,6 +53,8 @@ export function recordDecision(
   audit: AuditStore,
   decision: Decision,
   context: {
+    /** 策略试算的事实由调用方提供，审计里与真实运行的裁决分开记录 */
+    trial?: boolean
     actor: string
     tenantId: string
     userId: string
@@ -64,7 +66,7 @@ export function recordDecision(
 ): void {
   audit.append({
     actor: context.actor,
-    action: `policy.${decision.checkpoint}`,
+    action: `${context.trial === true ? 'policy.trial' : 'policy'}.${decision.checkpoint}`,
     target: context.target,
     decision: decision.outcome,
     reason: `${CHECKPOINT_LABELS[decision.checkpoint]}：${decision.reason}`,
@@ -172,8 +174,15 @@ export function registerPolicyRoutes(
             message: '组装失败',
             details: outcome.issues,
           })
+        // 只认本租户、仍然有效的委托；其他租户的委托编号按不存在处理，不回显
+        const status =
+          body.delegationId === undefined
+            ? undefined
+            : services.delegations.status(body.delegationId)
         const delegation =
-          body.delegationId === undefined ? undefined : services.delegations.get(body.delegationId)
+          status?.active === true && status.delegation.tenantId === tenantId
+            ? status.delegation
+            : undefined
         decision = evaluate(
           services.policyRules,
           'tool',
@@ -194,6 +203,7 @@ export function registerPolicyRoutes(
       }
 
       recordDecision(services.audit, decision, {
+        trial: true,
         actor: user.id,
         tenantId,
         userId: user.id,

@@ -1,3 +1,4 @@
+import rateLimit from '@fastify/rate-limit'
 import swagger from '@fastify/swagger'
 import Fastify, {
   type FastifyError,
@@ -49,6 +50,9 @@ export function buildApp(options: AppOptions): FastifyInstance {
     },
     transform: jsonSchemaTransform,
   })
+
+  // 限流只对声明了 config.rateLimit 的路由生效（登录、令牌端点）
+  app.register(rateLimit, { global: false })
 
   // 未预期的异常统一返回 500，不把内部错误信息回显给调用方；参数校验错误保留 400
   app.setErrorHandler((error: FastifyError, request, reply) => {

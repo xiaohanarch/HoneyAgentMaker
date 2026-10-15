@@ -69,13 +69,19 @@ export function createHttpPlatformLink(options: HttpLinkOptions): PlatformLink {
       return body.data?.active === true
     }, options.delegationCacheMs ?? DELEGATION_CACHE_MS),
     async publish(event) {
-      const body = JSON.stringify(event)
+      // 签名覆盖时间戳和请求体，平台拒绝 5 分钟以外的事件；事件编号用于去重，防止重放
+      const body = JSON.stringify({ ...event, id: crypto.randomUUID() })
+      const timestamp = String(Math.floor(Date.now() / 1000))
+      const signature = createHmac('sha256', options.internalSecret)
+        .update(`${timestamp}.${body}`, 'utf8')
+        .digest('hex')
       try {
         await fetch(new URL('/events/v1/ingest', options.platformUrl), {
           method: 'POST',
           headers: {
             'content-type': 'application/json',
-            'x-eab-signature': `sha256=${createHmac('sha256', options.internalSecret).update(body, 'utf8').digest('hex')}`,
+            'x-eab-timestamp': timestamp,
+            'x-eab-signature': `sha256=${signature}`,
           },
           body,
           signal: AbortSignal.timeout(3_000),

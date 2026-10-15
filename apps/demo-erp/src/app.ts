@@ -91,16 +91,14 @@ export function buildApp(options: AppOptions): FastifyInstance {
 
   app.setErrorHandler((error: FastifyError, request, reply) => {
     if (error.validation !== undefined) {
-      return reply
-        .status(400)
-        .send({
-          error: {
-            code: 'BAD_REQUEST',
-            reason: '请求参数不合法',
-            suggestion: '检查参数格式',
-            details: error.validation,
-          },
-        })
+      return reply.status(400).send({
+        error: {
+          code: 'BAD_REQUEST',
+          reason: '请求参数不合法',
+          suggestion: '检查参数格式',
+          details: error.validation,
+        },
+      })
     }
     const status = error.statusCode ?? 500
     if (status < 500)

@@ -116,9 +116,9 @@ export class IdentityService {
       this.deps.audit.append({
         actor: 'identity',
         action: 'identity.token-exchange',
-        target: request.audience,
+        target: request.audience.slice(0, 64),
         decision: 'deny',
-        reason: tokenError.message,
+        reason: tokenError.message.slice(0, 300),
         ruleId: tokenError.code,
         resultSummary: '令牌交换失败，按失败即拒绝处理，未退回任何技术账号',
         ...(known.tenantId === undefined ? {} : { tenantId: known.tenantId }),

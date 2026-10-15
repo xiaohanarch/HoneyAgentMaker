@@ -23,9 +23,15 @@ const services = createPlatformServices({
   clients: ClientRegistry.fromDirectory(keysDir),
   ...(internalSecret === undefined ? {} : { internalSecret }),
 })
+const demoMode = process.env.EAB_DEMO_MODE === '1'
+// 演示模式开放选人登录和令牌交换端点，只允许监听本机回环地址
+if (demoMode && !['127.0.0.1', 'localhost', '::1'].includes(host)) {
+  console.error(`演示模式只能监听本机回环地址，当前 EAB_HOST=${host}；请改用 SSH 隧道访问`)
+  process.exit(1)
+}
 const app = buildApp({
   services,
-  demoMode: process.env.EAB_DEMO_MODE === '1',
+  demoMode,
   fastify: { logger: { level: process.env.LOG_LEVEL ?? 'info' } },
 })
 if (internalSecret === undefined) {

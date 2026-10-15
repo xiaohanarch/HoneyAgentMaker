@@ -285,6 +285,9 @@ export const idempotencyKeys = sqliteTable(
     tenantId: tenant(),
     operation: text('operation').notNull(),
     key: text('key').notNull(),
+    /** 首次请求的用户与请求指纹：其他用户或不同内容复用同一个键时拒绝，不回放别人的结果 */
+    userId: text('user_id').notNull().default(''),
+    fingerprint: text('fingerprint').notNull().default(''),
     statusCode: integer('status_code').notNull(),
     response: text('response').notNull(),
     createdAt: text('created_at').notNull(),

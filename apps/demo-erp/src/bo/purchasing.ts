@@ -237,6 +237,26 @@ export function registerPurchasingRoutes(app: FastifyInstance, deps: ErpDeps): v
       if (body.newDate <= isoDate(deps.now())) {
         throw new BoError(422, 'INVALID_DATE', '新交期必须晚于今天', '选择今天之后的日期')
       }
+      // 同一张订单只能有一张待审批的变更单，避免审批时按过期的原交期改写
+      const pending = db
+        .select()
+        .from(deliveryDateChanges)
+        .where(
+          and(
+            eq(deliveryDateChanges.tenantId, ctx.tenantId),
+            eq(deliveryDateChanges.poId, po.id),
+            eq(deliveryDateChanges.status, 'submitted'),
+          ),
+        )
+        .get()
+      if (pending !== undefined) {
+        throw new BoError(
+          409,
+          'CHANGE_PENDING',
+          `${po.id} 已有待审批的交期变更单 ${pending.id}`,
+          '等待该变更单审批后再提交',
+        )
+      }
       const oldDate = deliveryStatus(db, ctx.tenantId, [po.id], deps.now()).get(
         po.id,
       )?.nextPlannedDate

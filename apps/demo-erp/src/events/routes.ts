@@ -68,15 +68,13 @@ export function registerEventRoutes(
     },
     async (request, reply) => {
       if (!isInternal(request.headers['x-eab-internal-token'], internalSecret)) {
-        return reply
-          .status(401)
-          .send({
-            error: {
-              code: 'INTERNAL_ONLY',
-              reason: '只接受内部调用',
-              suggestion: '通过平台的演示控制台触发',
-            },
-          })
+        return reply.status(401).send({
+          error: {
+            code: 'INTERNAL_ONLY',
+            reason: '只接受内部调用',
+            suggestion: '通过平台的演示控制台触发',
+          },
+        })
       }
       const body = request.body as {
         type: (typeof BUSINESS_EVENTS)[number]

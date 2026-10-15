@@ -1,6 +1,6 @@
 import type { EffectiveDefinition } from '@eab/assembler'
 import { isBoOperation, type BoOperation } from '@eab/demo-directory'
-import { resolveAsset, type AssetResolver, type Step } from '@eab/spec'
+import { resolveAsset, type AssetResolver, type AssetStatus, type Step } from '@eab/spec'
 
 /**
  * Agent 声明的 BO 操作，作为 Agent 令牌的 scope（主提示词 7.1 节“Agent 声明的权限范围”）。
@@ -9,11 +9,13 @@ import { resolveAsset, type AssetResolver, type Step } from '@eab/spec'
 export function declaredBoOperations(
   definition: EffectiveDefinition,
   resolver: AssetResolver,
+  // 默认只认已发布的版本，草稿里声明的操作不会进入 Agent 令牌
+  statuses: readonly AssetStatus[] = ['published'],
 ): BoOperation[] {
   const ops = new Set<BoOperation>()
   // 有效定义里的来源带精确版本（namespace/name@1.1.0），可以直接作为版本范围解析
   const isBoSource = (ref: string): boolean => {
-    const source = resolveAsset(resolver, ref, { statuses: ['published', 'testing', 'draft'] })
+    const source = resolveAsset(resolver, ref, { statuses })
     return source?.kind === 'ToolSource' && source.spec.type === 'bo-api'
   }
 
@@ -22,7 +24,7 @@ export function declaredBoOperations(
       ops.add(tool.name)
     if (tool.type === 'skill') {
       const skill = resolveAsset(resolver, tool.source, {
-        statuses: ['published', 'testing', 'draft'],
+        statuses,
       })
       if (skill?.kind !== 'Skill') continue
       for (const step of flatten(skill.spec.steps)) {

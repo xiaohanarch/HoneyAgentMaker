@@ -1,4 +1,4 @@
-import { desc, eq } from 'drizzle-orm'
+import { and, desc, eq, isNull } from 'drizzle-orm'
 import type { PlatformDb } from '../db/client'
 import { delegations } from '../db/schema'
 
@@ -53,7 +53,8 @@ export class DelegationStore {
     const record = this.db
       .insert(delegations)
       .values({
-        id: id ?? `DLG-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
+        // 128 位随机编号，不能被猜测
+        id: id ?? `DLG-${crypto.randomUUID().replace(/-/g, '').toUpperCase()}`,
         tenantId: input.tenantId,
         delegatorUserId: input.delegatorUserId,
         agent: input.agent,
@@ -91,10 +92,11 @@ export class DelegationStore {
     const record = this.db
       .update(delegations)
       .set({ revokedAt: this.now().toISOString(), revokedBy })
-      .where(eq(delegations.id, id))
+      // 已撤销的委托不能再改写撤销人和时间
+      .where(and(eq(delegations.id, id), isNull(delegations.revokedAt)))
       .returning()
       .get()
-    return record === undefined ? undefined : toDelegation(record)
+    return record === undefined ? this.get(id) : toDelegation(record)
   }
 
   status(id: string): DelegationStatus {

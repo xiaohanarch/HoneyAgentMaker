@@ -31,15 +31,13 @@ export function registerMetaRoutes(app: FastifyInstance): void {
       const { ref } = request.params as { ref: string }
       const object = findMetaObject(ref)
       if (object === undefined) {
-        return reply
-          .status(404)
-          .send({
-            error: {
-              code: 'NOT_FOUND',
-              reason: `元数据对象 ${ref} 不存在或版本不符`,
-              suggestion: '先查询 /meta/v1/objects',
-            },
-          })
+        return reply.status(404).send({
+          error: {
+            code: 'NOT_FOUND',
+            reason: `元数据对象 ${ref} 不存在或版本不符`,
+            suggestion: '先查询 /meta/v1/objects',
+          },
+        })
       }
       return { ...object, ref: `${object.ref}@v${object.version}` }
     },

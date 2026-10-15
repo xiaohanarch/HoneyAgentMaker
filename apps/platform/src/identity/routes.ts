@@ -2,8 +2,8 @@ import { timingSafeEqual } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
 import { z } from 'zod'
-import { USERS, findUser, isBoOperation, toPublicUser } from '@eab/demo-directory'
-import { NameSchema, NamespaceSchema } from '@eab/spec'
+import { USERS, findTenant, findUser, isBoOperation, toPublicUser } from '@eab/demo-directory'
+import { NameSchema, NamespaceSchema, resolveAsset } from '@eab/spec'
 import { AuthHeader, type RequirePrincipal } from '../http/auth'
 import { sendError, success } from '../http/envelope'
 import { assembleFromRegistry } from '../registry/effective'
@@ -42,9 +42,9 @@ const TokenRequest = z.union([
 const DelegationBody = z.object({
   delegatorUserId: z.string(),
   agent: z.string().regex(/^[a-z0-9.-]+\/[a-z0-9-]+$/, 'Agent 写作 namespace/name'),
-  scope: z.array(z.string()).min(1),
+  scope: z.array(z.string().max(64)).min(1).max(16),
   validDays: z.number().int().min(1).max(365).default(30),
-  note: z.string().optional(),
+  note: z.string().max(500).optional(),
 })
 
 export function registerIdentityRoutes(
@@ -65,48 +65,57 @@ export function registerIdentityRoutes(
     },
   )
 
-  r.get(
-    '/identity/v1/users',
-    { schema: { tags: ['identity'], summary: '演示用户列表（选人即登录）' } },
-    async () => success(USERS.map(toPublicUser)),
-  )
+  /** 登录与令牌端点的限流：每个来源地址每分钟 30 次 */
+  const rateLimited = { rateLimit: { max: 30, timeWindow: '1 minute' } }
 
+  // 公钥对所有下游开放，任何模式下都提供
   r.get(
     '/identity/v1/jwks.json',
     { schema: { tags: ['identity'], summary: '令牌校验公钥（JWKS）' } },
     async () => tokens.jwks(),
   )
 
-  r.post(
-    '/identity/v1/login',
-    {
-      schema: {
-        tags: ['identity'],
-        summary: '选人即登录，签发用户令牌（仅用于演示，没有密码）',
-        body: z.object({ userId: z.string() }),
+  if (options.demoMode) {
+    r.get(
+      '/identity/v1/users',
+      { schema: { tags: ['identity'], summary: '演示用户列表（选人即登录）' } },
+      async () => success(USERS.map(toPublicUser)),
+    )
+
+    r.post(
+      '/identity/v1/login',
+      {
+        schema: {
+          tags: ['identity'],
+          summary: '选人即登录，签发用户令牌（仅演示模式开放，没有密码）',
+          body: z.object({ userId: z.string().max(64) }),
+        },
+        config: rateLimited,
       },
-    },
-    async (request, reply) => {
-      try {
-        const { token, user } = await identity.login(request.body.userId)
-        return success({ token, user: toPublicUser(user) })
-      } catch (error: unknown) {
-        return sendError(reply, 404, {
-          code: 'UNKNOWN_USER',
-          message: error instanceof Error ? error.message : '',
-        })
-      }
-    },
-  )
+      async (request, reply) => {
+        try {
+          const { token, user } = await identity.login(request.body.userId)
+          return success({ token, user: toPublicUser(user) })
+        } catch (error: unknown) {
+          return sendError(reply, 404, {
+            code: 'UNKNOWN_USER',
+            message: error instanceof Error ? error.message : '',
+          })
+        }
+      },
+    )
+  }
 
   r.post(
     '/identity/v1/token',
     {
       schema: {
         tags: ['identity'],
-        summary: '令牌端点：客户端凭证，或 RFC 8693 令牌交换（用户 + Agent → 委托令牌）',
+        summary: '令牌端点：客户端凭证；演示模式下另开放 RFC 8693 令牌交换（运行时在进程内交换）',
         body: TokenRequest,
       },
+      config: rateLimited,
+      bodyLimit: 16 * 1024,
     },
     async (request, reply) => {
       const body = request.body
@@ -114,6 +123,15 @@ export function registerIdentityRoutes(
         if (body.grant_type === 'client_credentials') {
           const accessToken = await identity.clientCredentials(body.client_id, body.client_secret)
           return { access_token: accessToken, token_type: 'Bearer', expires_in: 3600 }
+        }
+        // 生产形态下令牌交换由平台运行时在进程内完成，HTTP 端点只在演示模式开放，用于手工验证
+        if (!options.demoMode) {
+          return reply
+            .status(400)
+            .send({
+              error: 'unsupported_grant_type',
+              error_description: '令牌交换只在平台内部进行',
+            })
         }
         const result = await identity.exchange({
           subjectToken: body.subject_token,
@@ -182,6 +200,23 @@ export function registerIdentityRoutes(
         return sendError(reply, 422, {
           code: 'UNKNOWN_OPERATION',
           message: `未知的 BO 操作：${unknown.join('、')}`,
+        })
+      }
+      // 受托运行没有在线的人确认，只能委托只读操作（写级别以 BO 工具来源的声明为准）
+      const writes = request.body.scope.filter((op) => boWriteLevel(services, op) !== 'L0')
+      if (writes.length > 0) {
+        return sendError(reply, 422, {
+          code: 'WRITE_NOT_DELEGABLE',
+          message: `受托自主运行只能委托只读操作，不能委托：${writes.join('、')}`,
+        })
+      }
+      if (
+        resolveAsset(services.registry.resolverFor(principal.viewer), request.body.agent)?.kind !==
+        'Agent'
+      ) {
+        return sendError(reply, 422, {
+          code: 'UNKNOWN_AGENT',
+          message: `Agent ${request.body.agent} 不存在或本租户不可用`,
         })
       }
       const now = new Date()
@@ -269,6 +304,31 @@ export function registerIdentityRoutes(
     },
   )
 
+  // ── DemoERP 只读页面的深链接：带短期页面令牌，页面按该用户的数据权限展示 ──
+  r.post(
+    '/identity/v1/page-links',
+    {
+      schema: {
+        tags: ['identity'],
+        summary: '生成 DemoERP 只读页面的深链接（10 分钟有效，按当前用户的数据权限展示）',
+        headers: AuthHeader,
+        body: z.object({
+          kind: z.enum(['supplier', 'purchase-order']),
+          id: z.string().regex(/^[A-Z0-9-]{1,32}$/),
+        }),
+      },
+    },
+    async (request, reply) => {
+      const principal = await requirePrincipal(request, reply)
+      if (principal === undefined) return reply
+      const token = await tokens.issuePage({ sub: principal.user.id, tid: principal.user.tenantId })
+      const segment = request.body.kind === 'supplier' ? 'suppliers' : 'purchase-orders'
+      return success({
+        path: `/erp/pages/${segment}/${encodeURIComponent(request.body.id)}?t=${token}`,
+      })
+    },
+  )
+
   // ── 演示模式：平台运维以运行时身份为 Agent 签发令牌，用于手工验证令牌交换 ──
   if (options.demoMode) {
     r.post(
@@ -291,6 +351,12 @@ export function registerIdentityRoutes(
           })
         }
         const { namespace, name, tenantId } = request.body
+        if (findTenant(tenantId) === undefined) {
+          return sendError(reply, 422, {
+            code: 'UNKNOWN_TENANT',
+            message: `租户 ${tenantId} 不存在`,
+          })
+        }
         const scope = { type: 'tenant', tenantId } as const
         const outcome = assembleFromRegistry(services.registry, scope, {
           agent: `${namespace}/${name}`,
@@ -317,4 +383,14 @@ export function registerIdentityRoutes(
       },
     )
   }
+}
+
+/** BO 操作的写级别，以已发布的 BO 工具来源为准；找不到时按最严格的 L3 处理 */
+function boWriteLevel(services: PlatformServices, operation: string): string {
+  const source = resolveAsset(
+    services.registry.resolverFor({ type: 'platform' }),
+    'vendor.erp.tools/demo-erp-bo',
+  )
+  if (source?.kind !== 'ToolSource') return 'L3'
+  return source.spec.tools.find((t) => t.name === operation)?.writeLevel ?? 'L3'
 }

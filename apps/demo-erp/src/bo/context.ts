@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { and, eq } from 'drizzle-orm'
 import type { FastifyInstance, FastifyRequest } from 'fastify'
 import { decodeJwt } from 'jose'
@@ -198,6 +199,15 @@ async function checkCaller(
     )
   }
   const mode = caller.mode === 'delegated' ? 'delegated' : 'on-behalf'
+  // 受托自主运行没有在线的人确认，BO API 只允许只读操作（硬约束写在 API 里，不只靠平台策略）
+  if (mode === 'delegated' && OPERATION_SPECS[operation].writeLevel !== 'L0') {
+    throw new BoError(
+      403,
+      'DELEGATED_WRITE_FORBIDDEN',
+      `受托自主运行不能执行写操作 ${operation}`,
+      '改为生成建议，由用户在线确认后执行',
+    )
+  }
   const { delegationId } = caller
   if (
     mode === 'delegated' &&
@@ -312,6 +322,7 @@ export function defineBoRoute<P extends z.ZodType, Q extends z.ZodType, B extend
   spec: RouteSpec<P, Q, B>,
 ): void {
   const isWrite = OPERATION_SPECS[spec.operation].writeLevel !== 'L0'
+  const MAX_KEY_LENGTH = 128
   app.route({
     method: spec.method,
     url: spec.url,
@@ -329,6 +340,17 @@ export function defineBoRoute<P extends z.ZodType, Q extends z.ZodType, B extend
       try {
         ctx = await authorizeBo(deps, request, spec.operation)
         const key = request.headers['idempotency-key']
+        const fingerprint = createHash('sha256')
+          .update(`${request.method} ${request.url} ${JSON.stringify(request.body ?? null)}`)
+          .digest('hex')
+        if (typeof key === 'string' && key.length > MAX_KEY_LENGTH) {
+          throw new BoError(
+            400,
+            'IDEMPOTENCY_KEY_TOO_LONG',
+            `幂等键不能超过 ${MAX_KEY_LENGTH} 个字符`,
+            '使用较短的幂等键，例如 UUID',
+          )
+        }
         if (isWrite && typeof key === 'string' && key !== '') {
           const stored = deps.db
             .select()
@@ -342,6 +364,28 @@ export function defineBoRoute<P extends z.ZodType, Q extends z.ZodType, B extend
             )
             .get()
           if (stored !== undefined) {
+            // 只给同一个用户、同一份请求内容回放结果；否则拒绝，不泄露别人那次请求的响应
+            if (stored.userId !== ctx.user.id || stored.fingerprint !== fingerprint) {
+              throw new BoError(
+                422,
+                'IDEMPOTENCY_KEY_REUSED',
+                '这个幂等键已被另一份请求使用',
+                '每份请求使用新的幂等键',
+              )
+            }
+            record(deps, {
+              ctx,
+              operation: spec.operation,
+              principal: ctx.user.id,
+              agent: ctx.agent,
+              tenantId: ctx.tenantId,
+              mode: ctx.mode,
+              outcome: 'allow',
+              code: 'IDEMPOTENT_REPLAY',
+              reason: '幂等重放，返回首次结果，未重复执行',
+              target: requestTarget(request.url),
+              summary: '幂等重放',
+            })
             return reply
               .status(stored.statusCode)
               .header('idempotent-replayed', 'true')
@@ -361,6 +405,8 @@ export function defineBoRoute<P extends z.ZodType, Q extends z.ZodType, B extend
               tenantId: ctx.tenantId,
               operation: spec.operation,
               key,
+              userId: ctx.user.id,
+              fingerprint,
               statusCode: status,
               response: JSON.stringify(outcome.body),
               createdAt: deps.now().toISOString(),
@@ -409,7 +455,7 @@ export function defineBoRoute<P extends z.ZodType, Q extends z.ZodType, B extend
           outcome: 'deny',
           code: error.code,
           reason: error.reason,
-          target: request.url,
+          target: requestTarget(request.url),
           summary: '拒绝',
         })
         return reply
@@ -418,6 +464,11 @@ export function defineBoRoute<P extends z.ZodType, Q extends z.ZodType, B extend
       }
     },
   })
+}
+
+/** 审计里的请求目标只保留路径，不带查询字符串 */
+function requestTarget(url: string): string {
+  return url.split('?')[0] ?? url
 }
 
 /** 列表响应：附带数据权限过滤说明（主提示词 6.3 节） */
