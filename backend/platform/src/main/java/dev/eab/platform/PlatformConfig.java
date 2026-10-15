@@ -2,6 +2,7 @@ package dev.eab.platform;
 
 import dev.eab.platform.audit.AuditStore;
 import dev.eab.platform.http.Principals;
+import dev.eab.platform.identity.ClientRegistry;
 import dev.eab.platform.identity.IdentityKeys;
 import dev.eab.platform.identity.TokenService;
 import dev.eab.platform.registry.AssetSeeder;
@@ -37,9 +38,19 @@ public class PlatformConfig {
                 props.ephemeralKeys() ? Ed25519Signer.ephemeral() : Ed25519Signer.fromDirectory(keysDir),
                 props.ephemeralKeys() ? IdentityKeys.ephemeral() : IdentityKeys.fromDirectory(keysDir),
                 null,
-                null));
+                null,
+                props.ephemeralKeys() ? ClientRegistry.ephemeral() : ClientRegistry.fromDirectory(keysDir),
+                props.internalSecret() == null || props.internalSecret().isBlank() ? null : props.internalSecret()));
+        if (props.internalSecret() == null || props.internalSecret().isBlank()) {
+            LOG.warn("没有设置 EAB_INTERNAL_SECRET，已随机生成；DemoERP 无法推送事件和核实委托，受托调用会被拒绝");
+        }
         Runtime.getRuntime().addShutdownHook(new Thread(services.db()::close));
         return services;
+    }
+
+    @Bean
+    public DemoMode demoMode(PlatformProperties props) {
+        return new DemoMode(props.demoMode());
     }
 
     @Bean
@@ -64,8 +75,9 @@ public class PlatformConfig {
 
     /** 启动时把平台规则和标品资产签名入库；同版本同内容时跳过 */
     @Bean
-    public ApplicationRunner seedAssets(PlatformProperties props, RegistryService registry) {
+    public ApplicationRunner seedAssets(PlatformProperties props, RegistryService registry, PlatformServices services) {
         return args -> {
+            services.ensureDemoDefaults();
             if (!props.seedAssets()) return;
             var report = AssetSeeder.seed(registry, props.resolvedAssetsDir(), List.of("platform", "vendor"));
             LOG.info("平台与标品资产已签名入库：{} 个", report.published().size());

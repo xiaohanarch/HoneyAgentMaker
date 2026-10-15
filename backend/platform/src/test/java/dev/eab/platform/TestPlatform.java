@@ -33,15 +33,25 @@ public final class TestPlatform {
         return services(null);
     }
 
+    public static final String INTERNAL_SECRET = "test-internal-secret";
+
     public static PlatformServices services(RegistryService.PublishGate gate) {
-        return PlatformServices.create(
-                new PlatformServices.Options(":memory:", Ed25519Signer.ephemeral(), IDENTITY_KEYS, gate, null));
+        return PlatformServices.create(new PlatformServices.Options(
+                ":memory:", Ed25519Signer.ephemeral(), IDENTITY_KEYS, gate, null, null, INTERNAL_SECRET));
     }
 
     public static MockMvc mvc(PlatformServices services) {
+        return mvc(services, false);
+    }
+
+    /** demoMode 为 true 时开放选人登录等演示接口（相当于 TS 版 buildApp({ demoMode: true })） */
+    public static MockMvc mvc(PlatformServices services, boolean demoMode) {
         return MockMvcBuilders.standaloneSetup(
                         new RegistryController(services.registry(), services.principals()),
-                        new AuditController(services.audit(), services.principals()))
+                        new AuditController(services.audit(), services.principals()),
+                        new dev.eab.platform.identity.IdentityController(services, new DemoMode(demoMode)),
+                        new dev.eab.platform.policy.PolicyController(services),
+                        new dev.eab.platform.events.EventController(services))
                 .setControllerAdvice(new ApiExceptionHandler())
                 .setMessageConverters(
                         new org.springframework.http.converter.StringHttpMessageConverter(
