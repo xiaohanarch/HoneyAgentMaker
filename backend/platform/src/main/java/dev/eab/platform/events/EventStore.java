@@ -1,6 +1,6 @@
 package dev.eab.platform.events;
 
-import dev.eab.platform.IsoTime;
+import dev.eab.common.IsoTime;
 import dev.eab.spec.Json;
 import java.time.Clock;
 import java.util.List;

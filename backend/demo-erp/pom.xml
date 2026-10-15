@@ -16,16 +16,47 @@
 
   <dependencies>
     <dependency>
+      <groupId>dev.eab</groupId>
+      <artifactId>eab-common</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>dev.eab</groupId>
+      <artifactId>eab-directory</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-webmvc</artifactId>
     </dependency>
+    <!-- 用平台的 JWKS 校验委托令牌（EdDSA，依赖 Tink） -->
     <dependency>
-      <groupId>org.springdoc</groupId>
-      <artifactId>springdoc-openapi-starter-webmvc-api</artifactId>
+      <groupId>com.nimbusds</groupId>
+      <artifactId>nimbus-jose-jwt</artifactId>
+      <version>${nimbus-jose-jwt.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.google.crypto.tink</groupId>
+      <artifactId>tink</artifactId>
+      <version>${tink.version}</version>
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-webmvc-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- 测试里核对工具来源资产、语义包与 BO API、元数据服务一致 -->
+    <dependency>
+      <groupId>dev.eab</groupId>
+      <artifactId>eab-spec</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>dev.eab</groupId>
+      <artifactId>eab-spec</artifactId>
+      <version>${project.version}</version>
+      <type>test-jar</type>
       <scope>test</scope>
     </dependency>
   </dependencies>

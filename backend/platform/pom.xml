@@ -39,22 +39,11 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-webmvc</artifactId>
     </dependency>
-    <!-- 数据库由 PlatformDb 自己创建，只引入库本身，不引入 Spring Boot 的 JDBC 与 Flyway 自动配置 -->
+    <!-- 数据库由 eab-common 的 SqliteDatabase 创建，不引入 Spring Boot 的 JDBC 与 Flyway 自动配置 -->
     <dependency>
-      <groupId>org.springframework</groupId>
-      <artifactId>spring-jdbc</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>com.zaxxer</groupId>
-      <artifactId>HikariCP</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.xerial</groupId>
-      <artifactId>sqlite-jdbc</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.flywaydb</groupId>
-      <artifactId>flyway-core</artifactId>
+      <groupId>dev.eab</groupId>
+      <artifactId>eab-common</artifactId>
+      <version>${project.version}</version>
     </dependency>
     <dependency>
       <groupId>com.nimbusds</groupId>

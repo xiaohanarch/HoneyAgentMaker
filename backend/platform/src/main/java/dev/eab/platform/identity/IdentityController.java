@@ -2,7 +2,7 @@ package dev.eab.platform.identity;
 
 import dev.eab.directory.DemoDirectory;
 import dev.eab.directory.DemoDirectory.PublicUser;
-import dev.eab.platform.IsoTime;
+import dev.eab.common.IsoTime;
 import dev.eab.platform.DemoMode;
 import dev.eab.platform.PlatformServices;
 import dev.eab.platform.audit.AuditStore.NewAuditEvent;
