@@ -45,6 +45,8 @@ export interface EffectiveTool {
   source: string
   description: string
   writeLevel?: WriteLevel
+  /** 工具类别（query、write、payment、posting 等），付款与过账类有写级别上限 */
+  category?: string
 }
 
 export interface EffectiveApproval {

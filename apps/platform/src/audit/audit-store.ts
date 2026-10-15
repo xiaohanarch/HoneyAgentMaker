@@ -1,25 +1,46 @@
-import { and, desc, eq, type SQL } from 'drizzle-orm'
+import { and, desc, eq, gte, like, lte, type SQL } from 'drizzle-orm'
 import type { PlatformDb } from '../db/client'
 import { auditEvents } from '../db/schema'
 
 export type AuditEvent = typeof auditEvents.$inferSelect
+export type AuditDecision = AuditEvent['decision']
 
 export interface NewAuditEvent {
   actor: string
   action: string
   target: string
-  decision: 'allow' | 'deny'
+  decision: AuditDecision
   reason: string
   detail?: Record<string, unknown>
+  tenantId?: string
+  userId?: string
+  agent?: string
+  extensions?: readonly string[]
+  sessionId?: string
+  mode?: string
+  checkpoint?: string
+  tool?: string
+  dataScope?: string
+  ruleId?: string
+  resultSummary?: string
 }
 
 export interface AuditFilter {
   action?: string
-  decision?: 'allow' | 'deny'
+  decision?: AuditDecision
+  tenantId?: string
+  userId?: string
+  agent?: string
+  tool?: string
+  checkpoint?: string
+  /** 目标包含的文本，例如单据编号 PO-2026-0117 */
+  target?: string
+  from?: string
+  to?: string
   limit?: number
 }
 
-/** 审计写入与查询。P1 只覆盖注册中心，P2 扩充调用模式、数据范围等字段（主提示词 7.5 节） */
+/** 审计写入与查询（主提示词 7.5 节） */
 export interface AuditStore {
   append(event: NewAuditEvent): AuditEvent
   list(filter?: AuditFilter): AuditEvent[]
@@ -44,6 +65,17 @@ export class SqliteAuditStore implements AuditStore {
         decision: event.decision,
         reason: event.reason,
         detail: event.detail === undefined ? null : JSON.stringify(event.detail),
+        tenantId: event.tenantId ?? null,
+        userId: event.userId ?? null,
+        agent: event.agent ?? null,
+        extensions: event.extensions === undefined ? null : JSON.stringify(event.extensions),
+        sessionId: event.sessionId ?? null,
+        mode: event.mode ?? null,
+        checkpoint: event.checkpoint ?? null,
+        tool: event.tool ?? null,
+        dataScope: event.dataScope ?? null,
+        ruleId: event.ruleId ?? null,
+        resultSummary: event.resultSummary ?? null,
       })
       .returning()
       .get()
@@ -51,8 +83,19 @@ export class SqliteAuditStore implements AuditStore {
 
   list(filter: AuditFilter = {}): AuditEvent[] {
     const conditions: SQL[] = []
-    if (filter.action !== undefined) conditions.push(eq(auditEvents.action, filter.action))
-    if (filter.decision !== undefined) conditions.push(eq(auditEvents.decision, filter.decision))
+    const exact = [
+      [auditEvents.action, filter.action],
+      [auditEvents.decision, filter.decision],
+      [auditEvents.tenantId, filter.tenantId],
+      [auditEvents.userId, filter.userId],
+      [auditEvents.tool, filter.tool],
+      [auditEvents.checkpoint, filter.checkpoint],
+    ] as const
+    for (const [column, value] of exact) if (value !== undefined) conditions.push(eq(column, value))
+    if (filter.agent !== undefined) conditions.push(like(auditEvents.agent, `${filter.agent}%`))
+    if (filter.target !== undefined) conditions.push(like(auditEvents.target, `%${filter.target}%`))
+    if (filter.from !== undefined) conditions.push(gte(auditEvents.at, filter.from))
+    if (filter.to !== undefined) conditions.push(lte(auditEvents.at, filter.to))
     return this.db
       .select()
       .from(auditEvents)

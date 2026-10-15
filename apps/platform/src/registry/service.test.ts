@@ -11,9 +11,10 @@ import {
   semanticPackFixture,
   skillFixture,
 } from '@eab/spec/testing'
-import { createPlatformServices, type PlatformServices } from '../services'
+import type { PlatformServices } from '../services'
+import { createTestServices } from '../test-support'
 import { assembleFromRegistry } from './effective'
-import { Ed25519Signer, canonicalJson, contentHashOf } from './signing'
+import { canonicalJson, contentHashOf } from './signing'
 
 const VENDOR: Viewer = { type: 'vendor' }
 const PLATFORM: Viewer = { type: 'platform' }
@@ -33,11 +34,7 @@ function publish(viewer: Viewer, asset: Asset): void {
 const NO_GATE = (): [] => []
 
 beforeEach(() => {
-  services = createPlatformServices({
-    dbPath: ':memory:',
-    signer: Ed25519Signer.ephemeral(),
-    publishGate: NO_GATE,
-  })
+  services = createTestServices({ publishGate: NO_GATE })
 })
 
 describe('写入与版本', () => {
@@ -208,7 +205,7 @@ describe('签名与完整性', () => {
 
   it('换一把密钥签的资产验签失败', () => {
     publish(VENDOR, agentFixture())
-    const other = createPlatformServices({ dbPath: ':memory:', signer: Ed25519Signer.ephemeral() })
+    const other = createTestServices()
     const record = services.db.select().from(assetsTable).get()!
     other.db
       .insert(assetsTable)

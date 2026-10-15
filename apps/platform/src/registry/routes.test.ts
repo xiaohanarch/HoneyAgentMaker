@@ -11,23 +11,24 @@ import {
   skillFixture,
 } from '@eab/spec/testing'
 import { buildApp } from '../app'
-import { createPlatformServices, type PlatformServices } from '../services'
-import { Ed25519Signer } from './signing'
+import type { PlatformServices } from '../services'
+import { createTestServices, loginAll } from '../test-support'
 
 let services: PlatformServices
 let app: FastifyInstance
 
 const YAML = { 'content-type': 'application/yaml' }
-const as = (viewer: string) => ({ 'x-eab-viewer': viewer })
+let as: Awaited<ReturnType<typeof loginAll>>
 
 function publish(viewer: Viewer, asset: Asset): void {
   const result = services.registry.publishAsset(viewer, asset, stringify(asset))
   if (!result.ok) throw new Error(result.error.message)
 }
 
-beforeEach(() => {
-  services = createPlatformServices({ dbPath: ':memory:', signer: Ed25519Signer.ephemeral() })
+beforeEach(async () => {
+  services = createTestServices()
   app = buildApp({ services })
+  as = await loginAll(services)
   publish({ type: 'platform' }, platformRulesFixture())
   // 发布门禁会检查引用，被引用的资产先发布
   publish({ type: 'vendor' }, semanticPackFixture())
@@ -41,7 +42,7 @@ describe('registry API', () => {
   it('缺少身份头时返回 401', async () => {
     const response = await app.inject({ method: 'GET', url: '/registry/assets' })
     expect(response.statusCode).toBe(401)
-    expect(response.json()).toMatchObject({ success: false, error: { code: 'VIEWER_REQUIRED' } })
+    expect(response.json()).toMatchObject({ success: false, error: { code: 'UNAUTHENTICATED' } })
   })
 
   it('租户以 YAML 写入自己的扩展，返回 201 草稿', async () => {
@@ -79,12 +80,15 @@ describe('registry API', () => {
       decision: 'deny',
     })
 
-    const forbidden = await app.inject({
+    // 厂商身份看不到租户审计；租户管理员能看到本租户的越权记录
+    const vendor = await app.inject({ method: 'GET', url: '/audit/events', headers: as('vendor') })
+    expect(vendor.statusCode).toBe(403)
+    const admin = await app.inject({
       method: 'GET',
-      url: '/audit/events',
-      headers: as('tenant:t001'),
+      url: '/audit/events?action=registry.write&decision=deny',
+      headers: as('zhaoadmin'),
     })
-    expect(forbidden.statusCode).toBe(403)
+    expect(admin.json().data.map((e: { tenantId: string }) => e.tenantId)).toEqual(['t001'])
   })
 
   it('不合法的 YAML 返回 422 和带行号的问题', async () => {

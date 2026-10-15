@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@eab/assembler": "workspace:^",
+    "@eab/demo-directory": "workspace:^",
+    "@eab/policy": "workspace:^",
     "@eab/spec": "workspace:^",
     "@fastify/swagger": "^9.9.2",
     "better-sqlite3": "^13.0.3",
@@ -18,6 +20,7 @@
     "drizzle-orm": "^0.45.4",
     "fastify": "^5.12.7",
     "fastify-type-provider-zod": "^7.0.0",
+    "jose": "^6.2.12",
     "semver": "^7.8.5",
     "yaml": "^2.9.1",
     "zod": "^4.6.7"

@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
+import type { FastifyInstance } from 'fastify'
 import type { ZodTypeProvider } from 'fastify-type-provider-zod'
 import { z } from 'zod'
 import {
@@ -9,10 +9,9 @@ import {
   formatViewer,
   lintAsset,
   parseAssetYaml,
-  type Viewer,
 } from '@eab/spec'
-import type { AuditStore } from '../audit/audit-store'
-import { VIEWER_HEADER, isApiError, sendError, success, viewerOf } from '../http/envelope'
+import { AuthHeader, type RequirePrincipal } from '../http/auth'
+import { sendError, success } from '../http/envelope'
 import { assembleFromRegistry } from './effective'
 import type { RegistryErrorCode, RegistryService } from './service'
 
@@ -26,36 +25,19 @@ const STATUS_OF: Readonly<Record<RegistryErrorCode, number>> = {
   PUBLISH_BLOCKED: 422,
 }
 
-// 身份头在 handler 里校验，缺失时返回 401；这里声明为可选只为生成 OpenAPI 描述
-const ViewerHeader = z.object({
-  [VIEWER_HEADER]: z
-    .string()
-    .optional()
-    .describe('platform、vendor 或 tenant:<租户编号>（P1 临时方案）'),
-})
 // 路径参数先按资产命名规则校验，不合法直接 400，后面的代码不会拿到非法命名空间
 const AssetPath = z.object({ namespace: NamespaceSchema, name: NameSchema })
 /** 只接受 true/false 字符串；z.coerce.boolean 会把 "false" 当成 true */
 const BooleanQuery = z.enum(['true', 'false']).transform((v) => v === 'true')
 const YAML_CONTENT_TYPES = ['application/yaml', 'application/x-yaml', 'text/yaml', 'text/plain']
 
-/** 取查看者身份，失败时直接回复 401 并返回 undefined */
-function requireViewer(request: FastifyRequest, reply: FastifyReply): Viewer | undefined {
-  const viewer = viewerOf(request)
-  if (isApiError(viewer)) {
-    void sendError(reply, 401, viewer)
-    return undefined
-  }
-  return viewer
-}
-
 export interface RegistryRouteDeps {
   registry: RegistryService
-  audit: AuditStore
+  requirePrincipal: RequirePrincipal
 }
 
 export function registerRegistryRoutes(app: FastifyInstance, deps: RegistryRouteDeps): void {
-  const { registry, audit } = deps
+  const { registry, requirePrincipal } = deps
   const r = app.withTypeProvider<ZodTypeProvider>()
 
   app.addContentTypeParser(YAML_CONTENT_TYPES, { parseAs: 'string' }, (_req, body, done) => {
@@ -68,7 +50,7 @@ export function registerRegistryRoutes(app: FastifyInstance, deps: RegistryRoute
       schema: {
         tags: ['registry'],
         summary: '列出当前身份可见的资产版本',
-        headers: ViewerHeader,
+        headers: AuthHeader,
         querystring: z.object({
           kind: z.string().optional(),
           namespace: z.string().optional(),
@@ -78,8 +60,9 @@ export function registerRegistryRoutes(app: FastifyInstance, deps: RegistryRoute
       },
     },
     async (request, reply) => {
-      const viewer = requireViewer(request, reply)
-      if (viewer === undefined) return reply
+      const principal = await requirePrincipal(request, reply)
+      if (principal === undefined) return reply
+      const { viewer } = principal
       return success(registry.list(viewer, request.query))
     },
   )
@@ -90,14 +73,15 @@ export function registerRegistryRoutes(app: FastifyInstance, deps: RegistryRoute
       schema: {
         tags: ['registry'],
         summary: '读取资产（按身份裁剪，租户看不到标品指令原文）',
-        headers: ViewerHeader,
+        headers: AuthHeader,
         params: AssetPath,
         querystring: z.object({ version: z.string().optional() }),
       },
     },
     async (request, reply) => {
-      const viewer = requireViewer(request, reply)
-      if (viewer === undefined) return reply
+      const principal = await requirePrincipal(request, reply)
+      if (principal === undefined) return reply
+      const { viewer } = principal
       const { namespace, name } = request.params
       const result = registry.view(viewer, namespace, name, request.query.version)
       return result.ok
@@ -112,14 +96,15 @@ export function registerRegistryRoutes(app: FastifyInstance, deps: RegistryRoute
       schema: {
         tags: ['registry'],
         summary: '提交 YAML，新建资产的草稿版本（只能写本层命名空间）',
-        headers: ViewerHeader,
+        headers: AuthHeader,
         querystring: z.object({ changeNote: z.string().optional() }),
         body: z.string().min(1).describe('资产 YAML，Content-Type 用 application/yaml'),
       },
     },
     async (request, reply) => {
-      const viewer = requireViewer(request, reply)
-      if (viewer === undefined) return reply
+      const principal = await requirePrincipal(request, reply)
+      if (principal === undefined) return reply
+      const { viewer } = principal
       const result = registry.put(viewer, request.body, request.query.changeNote)
       return result.ok
         ? reply.status(201).send(success(result.value))
@@ -133,14 +118,15 @@ export function registerRegistryRoutes(app: FastifyInstance, deps: RegistryRoute
       schema: {
         tags: ['registry'],
         summary: '变更资产状态，标品层发布时签名',
-        headers: ViewerHeader,
+        headers: AuthHeader,
         params: AssetPath.extend({ version: SemverSchema }),
         body: z.object({ status: z.enum(ASSET_STATUSES) }),
       },
     },
     async (request, reply) => {
-      const viewer = requireViewer(request, reply)
-      if (viewer === undefined) return reply
+      const principal = await requirePrincipal(request, reply)
+      if (principal === undefined) return reply
+      const { viewer } = principal
       const { namespace, name, version } = request.params
       const result = registry.setStatus(viewer, namespace, name, version, request.body.status)
       return result.ok
@@ -155,13 +141,14 @@ export function registerRegistryRoutes(app: FastifyInstance, deps: RegistryRoute
       schema: {
         tags: ['registry'],
         summary: '校验资产 YAML 并运行静态检查，不写入（引用只在当前身份可见的范围内解析）',
-        headers: ViewerHeader,
+        headers: AuthHeader,
         body: z.string().min(1),
       },
     },
     async (request, reply) => {
-      const viewer = requireViewer(request, reply)
-      if (viewer === undefined) return reply
+      const principal = await requirePrincipal(request, reply)
+      if (principal === undefined) return reply
+      const { viewer } = principal
       const parsed = parseAssetYaml(request.body)
       if (!parsed.ok) return success({ valid: false, issues: parsed.issues, lint: [] })
       const lint = lintAsset(parsed.asset, { resolver: registry.resolverFor(viewer) })
@@ -175,7 +162,7 @@ export function registerRegistryRoutes(app: FastifyInstance, deps: RegistryRoute
       schema: {
         tags: ['registry'],
         summary: '有效定义预览：平台规则 + 标品 Agent + 租户扩展的组装结果（按身份裁剪）',
-        headers: ViewerHeader,
+        headers: AuthHeader,
         params: AssetPath,
         querystring: z.object({
           tenant: z.string().optional(),
@@ -184,8 +171,9 @@ export function registerRegistryRoutes(app: FastifyInstance, deps: RegistryRoute
       },
     },
     async (request, reply) => {
-      const viewer = requireViewer(request, reply)
-      if (viewer === undefined) return reply
+      const principal = await requirePrincipal(request, reply)
+      if (principal === undefined) return reply
+      const { viewer } = principal
       // 租户只能以自己的身份组装；厂商看不到任何租户的内容，不能带 tenant；平台身份可以指定租户
       const requested = request.query.tenant
       if (viewer.type === 'tenant' && requested !== undefined && requested !== viewer.tenantId) {
@@ -215,33 +203,6 @@ export function registerRegistryRoutes(app: FastifyInstance, deps: RegistryRoute
             message: '组装失败',
             details: outcome.issues,
           })
-    },
-  )
-
-  r.get(
-    '/audit/events',
-    {
-      schema: {
-        tags: ['audit'],
-        summary: '查询审计事件（P1 仅平台身份可用，P2 扩充）',
-        headers: ViewerHeader,
-        querystring: z.object({
-          action: z.string().optional(),
-          decision: z.enum(['allow', 'deny']).optional(),
-          limit: z.coerce.number().int().min(1).max(500).optional(),
-        }),
-      },
-    },
-    async (request, reply) => {
-      const viewer = requireViewer(request, reply)
-      if (viewer === undefined) return reply
-      if (viewer.type !== 'platform') {
-        return sendError(reply, 403, {
-          code: 'FORBIDDEN',
-          message: 'P1 阶段只有平台身份可以查询审计',
-        })
-      }
-      return success(audit.list(request.query))
     },
   )
 }

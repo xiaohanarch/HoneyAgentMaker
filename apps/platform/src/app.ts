@@ -9,6 +9,11 @@ import {
   serializerCompiler,
   validatorCompiler,
 } from 'fastify-type-provider-zod'
+import { registerAuditRoutes } from './audit/routes'
+import { registerEventRoutes } from './events/routes'
+import { createRequirePrincipal } from './http/auth'
+import { registerIdentityRoutes } from './identity/routes'
+import { registerPolicyRoutes } from './policy/routes'
 import { registerRegistryRoutes } from './registry/routes'
 import type { PlatformServices } from './services'
 
@@ -25,6 +30,8 @@ export interface HealthReport {
 export interface AppOptions {
   services: PlatformServices
   fastify?: FastifyServerOptions
+  /** 演示模式开放 /identity/v1/demo/* 接口，仅供手工验证；pnpm demo 默认开启 */
+  demoMode?: boolean
 }
 
 export function buildApp(options: AppOptions): FastifyInstance {
@@ -74,9 +81,18 @@ export function buildApp(options: AppOptions): FastifyInstance {
 
   app.get('/openapi.json', { schema: { hide: true } }, async () => app.swagger())
 
+  const requirePrincipal = createRequirePrincipal(services.tokens)
   app.register(async (instance) => {
-    registerRegistryRoutes(instance, { registry: services.registry, audit: services.audit })
+    registerRegistryRoutes(instance, { registry: services.registry, requirePrincipal })
   })
+  app.register(async (instance) => {
+    registerIdentityRoutes(instance, services, requirePrincipal, { demoMode: options.demoMode ?? false })
+  })
+  app.register(async (instance) => {
+    registerPolicyRoutes(instance, services, requirePrincipal)
+    registerAuditRoutes(instance, services.audit, requirePrincipal)
+  })
+  registerEventRoutes(app, services)
 
   app.addHook('onClose', async () => {
     services.db.$client.close()

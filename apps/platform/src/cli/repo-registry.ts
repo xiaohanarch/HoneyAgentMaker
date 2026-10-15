@@ -2,6 +2,7 @@ import { existsSync, readdirSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { seedAssets, type SeedReport } from '../registry/seed'
+import { ephemeralIdentityKeys } from '../identity/keys'
 import { Ed25519Signer } from '../registry/signing'
 import { createPlatformServices, type PlatformServices } from '../services'
 
@@ -26,7 +27,11 @@ export function assetSubdirectories(root: string = ASSETS_ROOT): string[] {
 export async function loadRepositoryRegistry(
   root: string = ASSETS_ROOT,
 ): Promise<{ services: PlatformServices; seed: SeedReport }> {
-  const services = createPlatformServices({ dbPath: ':memory:', signer: Ed25519Signer.ephemeral() })
+  const services = createPlatformServices({
+    dbPath: ':memory:',
+    signer: Ed25519Signer.ephemeral(),
+    identityKeys: await ephemeralIdentityKeys(),
+  })
   const seed = await seedAssets(services.registry, root, assetSubdirectories(root))
   return { services, seed }
 }

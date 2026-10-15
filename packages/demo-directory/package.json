@@ -1,0 +1,13 @@
+{
+  "name": "@eab/demo-directory",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "演示用的租户、用户、角色与数据权限（虚构），平台身份服务与 DemoERP 共用的单一来源",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}
