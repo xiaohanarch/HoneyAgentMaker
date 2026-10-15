@@ -37,3 +37,6 @@ Thumbs.db
 
 # 输入材料原始压缩包
 *.zip
+
+# Java 构建产物
+target/

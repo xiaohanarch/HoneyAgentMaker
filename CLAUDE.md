@@ -7,12 +7,14 @@
 ```
 pnpm install          安装依赖
 pnpm demo             启动全部服务，健康检查通过后打印地址（scripts/demo.mjs）
+pnpm demo:java        改用 Java 后端启动（迁移过渡期，J2 完成后成为默认）
 pnpm dev              开发模式，后端 tsx watch 热重载
-pnpm test             单元测试（Vitest，根目录 vitest.config.ts 收集 apps/*、packages/* 下的 *.test.ts(x)）
+pnpm test             单元测试：Vitest（apps/*、packages/* 下的 *.test.ts(x)）加 pnpm test:java
+pnpm test:java        Java 后端 mvnw verify（JUnit 测试与 JaCoCo 覆盖率报告）
 pnpm test:e2e         Playwright 端到端测试，自动拉起或复用演示环境；首次需 pnpm exec playwright install chromium
-pnpm lint             ESLint
+pnpm lint             ESLint 与 Spotless 检查（Java 格式为 palantir-java-format）
 pnpm typecheck        全部包的 tsc 检查，以及 e2e 目录
-pnpm format           Prettier
+pnpm format           Prettier 与 Spotless 格式化
 pnpm test:coverage    带覆盖率的单元测试
 pnpm assets:validate  校验 assets/ 下全部资产：schema、静态检查、试组装
 pnpm assets:assemble vendor.fin/transaction-anomaly-analyst --tenant t001 --as tenant|vendor
@@ -27,6 +29,10 @@ pnpm seed:reset       重置演示数据：DemoERP 重新生成，平台清空�
 本机只有独立安装的 `docker-compose`（没有 `docker compose` 插件），容器方式启动用 `docker-compose up --build`。
 
 ## 工程约定
+
+- 后端正在从 TypeScript 迁移到 Java（ADR 0006，计划见 J0 到 J2）：`backend/` 是 Maven 多模块工程（Spring Boot 4.1、Spring AI 2.0、JDK 21），包名 `dev.eab.*`。新的后端功能写在 Java 里；`apps/platform`、`apps/demo-erp` 和 TS 后端包只作为迁移的行为参照，J2 后删除。迁移时对外 HTTP 契约（路径、响应信封、端口、令牌、环境变量名）保持不变。
+- Java 命令都在 `backend/` 下用 Maven Wrapper 执行（Windows 用 `mvnw.cmd`），或经 `node scripts/mvnw.mjs <参数>` 调用；JAVA_HOME 指向 JDK 21。
+- Java 数据访问用 `JdbcClient` 加仓储接口，不用 JPA；测试用 JUnit 5、AssertJ 和 MockMvc，测试名用 `@DisplayName` 写中文描述。
 
 - 各包以 TypeScript 源码为入口（`exports` 指向 `src/index.ts`），不预先构建；服务用 tsx 运行。
 - 后端服务用 `buildApp()` 构造 Fastify 实例，测试用 `app.inject()`，不监听端口。

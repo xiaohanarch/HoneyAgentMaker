@@ -8,7 +8,8 @@ log() { echo "[$(date +%T)] $*"; }
 log "安装系统依赖"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y -qq git curl xz-utils ca-certificates python3-venv >/dev/null
+apt-get install -y -qq git curl xz-utils ca-certificates python3-venv openjdk-21-jdk-headless >/dev/null
+log "$(java -version 2>&1 | head -1)"
 
 if ! node -v 2>/dev/null | grep -q "v${NODE_VERSION}"; then
   log "安装 Node ${NODE_VERSION}（npmmirror）"
@@ -33,6 +34,9 @@ fi
 # 以 eab 身份在其主目录下执行，避免继承 root 的工作目录导致权限错误
 as_eab() { sudo -u eab -H bash -lc "cd ~ && $*"; }
 as_eab "pnpm config set registry $MIRROR >/dev/null"
+# Maven Wrapper 下载 Maven 与依赖时走阿里云镜像；只写在主机上，不进仓库（ADR 0006）
+as_eab "mkdir -p ~/.m2 && [ -f ~/.m2/settings.xml ] || printf '%s' '<settings><mirrors><mirror><id>aliyun</id><mirrorOf>central</mirrorOf><url>https://maven.aliyun.com/repository/public</url></mirror></mirrors></settings>' > ~/.m2/settings.xml"
+as_eab "grep -q MVNW_REPOURL ~/.profile || echo 'export MVNW_REPOURL=https://maven.aliyun.com/repository/public' >> ~/.profile"
 
 log "拉取代码"
 if [ ! -d /home/eab/app/.git ]; then

@@ -10,7 +10,7 @@ ERP 厂商的研发团队用它开发随产品交付的标品 Agent；租户和�
 
 ## 快速开始
 
-需要 Node.js 22 或更新版本、pnpm 9。演示默认使用脚本化模型，不需要任何大模型 API Key，断网也能运行。
+需要 Node.js 22 或更新版本、pnpm 9，以及 JDK 21（后端为 Java，见 docs/decisions/0006）。Maven 由仓库内的 Maven Wrapper 自动下载。演示默认使用脚本化模型，不需要任何大模型 API Key，断网也能运行。
 
 ```bash
 pnpm install
@@ -41,11 +41,12 @@ docker compose up --build      # 独立安装的旧版 Compose 用 docker-compos
 |---|---|
 | `pnpm demo` | 启动全部服务，等健康检查通过后打印地址 |
 | `pnpm dev` | 开发模式，后端热重载 |
-| `pnpm test` | 单元测试（Vitest） |
+| `pnpm demo:java` | 用 Java 后端启动（迁移完成前的过渡命令） |
+| `pnpm test` | 单元测试（Vitest 和 Maven） |
 | `pnpm test:e2e` | 端到端测试（Playwright），会自动拉起演示环境 |
-| `pnpm lint` | ESLint |
+| `pnpm lint` | ESLint 和 Spotless |
 | `pnpm typecheck` | 全部包的 TypeScript 类型检查 |
-| `pnpm format` | Prettier 格式化 |
+| `pnpm format` | Prettier 与 Spotless 格式化 |
 
 首次运行端到端测试前执行一次 `pnpm exec playwright install chromium`。
 

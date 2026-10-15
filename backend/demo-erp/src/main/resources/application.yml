@@ -1,0 +1,21 @@
+# DemoERP 配置。环境变量名与 TS 版保持一致，pnpm demo、docker-compose、systemd 单元共用。
+server:
+  port: ${EAB_DEMO_ERP_PORT:4100}
+  address: ${EAB_HOST:127.0.0.1}
+  shutdown: graceful
+
+spring:
+  application:
+    name: demo-erp
+  threads:
+    virtual:
+      enabled: true
+
+# 所有对外接口的 OpenAPI 描述（主提示词第 14 节），路径与 TS 版相同
+springdoc:
+  api-docs:
+    path: /openapi.json
+
+logging:
+  level:
+    root: ${LOG_LEVEL:info}
