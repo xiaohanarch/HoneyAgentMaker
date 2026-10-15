@@ -113,6 +113,13 @@ describe('令牌交换（RFC 8693）', () => {
     ).rejects.toMatchObject({ code: 'DELEGATION_INACTIVE' })
     const [event] = services.audit.list({ action: 'identity.token-exchange', decision: 'deny' })
     expect(event?.reason).toContain('revoked')
+    // 拒绝记录带上 Agent 令牌里已验证的租户和 Agent，以及委托人，租户管理员能查到
+    expect(event).toMatchObject({
+      tenantId: 't001',
+      userId: 'sunkg',
+      agent: `${INVENTORY_AGENT}@1.0.0`,
+      mode: 'delegated',
+    })
     expect(event?.resultSummary).toContain('未退回任何技术账号')
   })
 

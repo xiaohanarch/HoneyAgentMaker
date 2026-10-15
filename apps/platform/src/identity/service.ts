@@ -88,8 +88,10 @@ export class IdentityService {
    * 有效权限 = 用户的业务权限 ∩ Agent 声明的操作 ∩ 委托范围（受托运行时），再与申请范围取交集。
    */
   async exchange(request: ExchangeRequest): Promise<ExchangeResult> {
+    // 交换过程中逐步确认的身份（Agent 令牌验签后才写入），拒绝时用它把审计记到对应租户
+    const known: { tenantId?: string; agent?: string; userId?: string; mode?: string } = {}
     try {
-      const result = await this.#exchange(request)
+      const result = await this.#exchange(request, known)
       this.deps.audit.append({
         actor: result.claims.act.sub,
         action: 'identity.token-exchange',
@@ -119,23 +121,36 @@ export class IdentityService {
         reason: tokenError.message,
         ruleId: tokenError.code,
         resultSummary: '令牌交换失败，按失败即拒绝处理，未退回任何技术账号',
+        ...(known.tenantId === undefined ? {} : { tenantId: known.tenantId }),
+        ...(known.agent === undefined ? {} : { agent: known.agent }),
+        ...(known.userId === undefined ? {} : { userId: known.userId }),
+        ...(known.mode === undefined ? {} : { mode: known.mode }),
       })
       throw tokenError
     }
   }
 
-  async #exchange(request: ExchangeRequest): Promise<ExchangeResult> {
+  async #exchange(
+    request: ExchangeRequest,
+    known: { tenantId?: string; agent?: string; userId?: string; mode?: string },
+  ): Promise<ExchangeResult> {
     if (request.audience !== AUDIENCE.bo) {
       throw new TokenError('INVALID_TARGET', `不支持换取受众为 ${request.audience} 的令牌`)
     }
     const actor = await this.deps.tokens.verifyAgent(request.actorToken)
     const agentRef = actor.sub.replace(/^agent:/, '')
+    known.tenantId = actor.tid
+    known.agent = `${agentRef}@${actor.agent_version}`
 
     let user: DemoUser | undefined
     let delegation: Delegation | undefined
     if (request.subjectTokenType === TOKEN_TYPE.delegation) {
       const id = request.subjectToken.replace(/^delegation:/, '')
+      known.mode = 'delegated'
       const status = this.deps.delegations.status(id)
+      if (status.delegation !== undefined && status.delegation.tenantId === actor.tid) {
+        known.userId = status.delegation.delegatorUserId
+      }
       if (!status.active)
         throw new TokenError('DELEGATION_INACTIVE', `委托 ${id} 不可用：${status.reason}`)
       delegation = status.delegation
@@ -152,7 +167,9 @@ export class IdentityService {
       request.subjectTokenType === TOKEN_TYPE.jwt ||
       request.subjectTokenType === TOKEN_TYPE.accessToken
     ) {
+      known.mode = 'on-behalf'
       const subject = await this.deps.tokens.verifyUser(request.subjectToken)
+      if (subject.tid === actor.tid) known.userId = subject.sub
       if (subject.tid !== actor.tid)
         throw new TokenError('TENANT_MISMATCH', '用户与 Agent 不属于同一租户')
       user = findUser(subject.sub)
