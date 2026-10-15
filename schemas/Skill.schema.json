@@ -1,0 +1,207 @@
+{
+  "$schema" : "https://json-schema.org/draft/2020-12/schema",
+  "$id" : "https://eab.dev/schemas/v1/Skill.json",
+  "title" : "Skill",
+  "type" : "object",
+  "properties" : {
+    "apiVersion" : {
+      "type" : "string",
+      "const" : "eab.dev/v1"
+    },
+    "kind" : {
+      "type" : "string",
+      "const" : "Skill"
+    },
+    "metadata" : {
+      "type" : "object",
+      "properties" : {
+        "name" : {
+          "type" : "string",
+          "pattern" : "^[a-z0-9][a-z0-9-]*$"
+        },
+        "namespace" : {
+          "type" : "string"
+        },
+        "version" : {
+          "type" : "string"
+        },
+        "displayName" : {
+          "type" : "string",
+          "minLength" : 1
+        },
+        "description" : {
+          "type" : "string"
+        },
+        "owner" : {
+          "type" : "string"
+        },
+        "businessProcess" : {
+          "type" : "array",
+          "items" : {
+            "type" : "string"
+          }
+        },
+        "labels" : {
+          "type" : "object",
+          "propertyNames" : {
+            "type" : "string"
+          },
+          "additionalProperties" : {
+            "type" : "string"
+          }
+        }
+      },
+      "required" : [ "name", "namespace", "version" ],
+      "additionalProperties" : false
+    },
+    "spec" : {
+      "type" : "object",
+      "properties" : {
+        "inputSchema" : {
+          "type" : "object",
+          "propertyNames" : {
+            "type" : "string"
+          },
+          "additionalProperties" : { }
+        },
+        "outputSchema" : {
+          "type" : "object",
+          "propertyNames" : {
+            "type" : "string"
+          },
+          "additionalProperties" : { }
+        },
+        "steps" : {
+          "type" : "array",
+          "items" : {
+            "$ref" : "#/$defs/Step"
+          },
+          "minItems" : 1
+        },
+        "agentOnly" : {
+          "type" : "boolean",
+          "default" : false
+        },
+        "writeLevel" : {
+          "type" : "string",
+          "enum" : [ "L0", "L1", "L2", "L3" ]
+        },
+        "routing" : {
+          "type" : "object",
+          "properties" : {
+            "description" : {
+              "type" : "string",
+              "minLength" : 1
+            },
+            "examples" : {
+              "type" : "array",
+              "items" : {
+                "type" : "string",
+                "minLength" : 1
+              },
+              "default" : [ ]
+            },
+            "direct" : {
+              "type" : "boolean",
+              "default" : false
+            }
+          },
+          "required" : [ "description" ],
+          "additionalProperties" : false
+        }
+      },
+      "required" : [ "inputSchema", "outputSchema", "steps", "writeLevel" ],
+      "additionalProperties" : false
+    }
+  },
+  "required" : [ "apiVersion", "kind", "metadata", "spec" ],
+  "additionalProperties" : false,
+  "$defs" : {
+    "Step" : {
+      "type" : "object",
+      "properties" : {
+        "id" : {
+          "type" : "string",
+          "pattern" : "^[a-z0-9][a-z0-9-]*$"
+        },
+        "type" : {
+          "type" : "string",
+          "enum" : [ "tool", "skill", "agent", "transform", "condition", "parallel", "confirm", "notify", "waitEvent" ]
+        },
+        "name" : {
+          "type" : "string"
+        },
+        "tool" : {
+          "type" : "string",
+          "minLength" : 1
+        },
+        "source" : {
+          "type" : "string"
+        },
+        "skill" : {
+          "type" : "string"
+        },
+        "agent" : {
+          "type" : "string"
+        },
+        "with" : {
+          "type" : "object",
+          "propertyNames" : {
+            "type" : "string"
+          },
+          "additionalProperties" : { }
+        },
+        "expression" : {
+          "type" : "string",
+          "minLength" : 1
+        },
+        "if" : {
+          "type" : "string",
+          "minLength" : 1
+        },
+        "then" : {
+          "type" : "array",
+          "items" : {
+            "$ref" : "#/$defs/Step"
+          },
+          "minItems" : 1
+        },
+        "else" : {
+          "type" : "array",
+          "items" : {
+            "$ref" : "#/$defs/Step"
+          }
+        },
+        "branches" : {
+          "type" : "array",
+          "items" : {
+            "type" : "array",
+            "items" : {
+              "$ref" : "#/$defs/Step"
+            },
+            "minItems" : 1
+          },
+          "minItems" : 2
+        },
+        "message" : {
+          "type" : "string"
+        },
+        "channel" : {
+          "type" : "string"
+        },
+        "event" : {
+          "type" : "string"
+        },
+        "timeoutSeconds" : {
+          "type" : "integer",
+          "minimum" : 1.0
+        },
+        "output" : {
+          "type" : "string"
+        }
+      },
+      "required" : [ "id", "type" ],
+      "additionalProperties" : false
+    }
+  }
+}
