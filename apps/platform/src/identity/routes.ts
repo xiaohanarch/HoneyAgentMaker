@@ -57,16 +57,24 @@ export function registerIdentityRoutes(
   const { identity, tokens, delegations } = services
 
   // RFC 6749/8693 的令牌端点按惯例接受表单编码
-  app.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string' }, (_req, body, done) => {
-    done(null, Object.fromEntries(new URLSearchParams(String(body))))
-  })
-
-  r.get('/identity/v1/users', { schema: { tags: ['identity'], summary: '演示用户列表（选人即登录）' } }, async () =>
-    success(USERS.map(toPublicUser)),
+  app.addContentTypeParser(
+    'application/x-www-form-urlencoded',
+    { parseAs: 'string' },
+    (_req, body, done) => {
+      done(null, Object.fromEntries(new URLSearchParams(String(body))))
+    },
   )
 
-  r.get('/identity/v1/jwks.json', { schema: { tags: ['identity'], summary: '令牌校验公钥（JWKS）' } }, async () =>
-    tokens.jwks(),
+  r.get(
+    '/identity/v1/users',
+    { schema: { tags: ['identity'], summary: '演示用户列表（选人即登录）' } },
+    async () => success(USERS.map(toPublicUser)),
+  )
+
+  r.get(
+    '/identity/v1/jwks.json',
+    { schema: { tags: ['identity'], summary: '令牌校验公钥（JWKS）' } },
+    async () => tokens.jwks(),
   )
 
   r.post(
@@ -83,7 +91,10 @@ export function registerIdentityRoutes(
         const { token, user } = await identity.login(request.body.userId)
         return success({ token, user: toPublicUser(user) })
       } catch (error: unknown) {
-        return sendError(reply, 404, { code: 'UNKNOWN_USER', message: error instanceof Error ? error.message : '' })
+        return sendError(reply, 404, {
+          code: 'UNKNOWN_USER',
+          message: error instanceof Error ? error.message : '',
+        })
       }
     },
   )
@@ -109,7 +120,9 @@ export function registerIdentityRoutes(
           subjectTokenType: body.subject_token_type,
           actorToken: body.actor_token,
           audience: body.audience,
-          ...(body.scope === undefined ? {} : { scope: body.scope.split(' ').filter((s) => s !== '') }),
+          ...(body.scope === undefined
+            ? {}
+            : { scope: body.scope.split(' ').filter((s) => s !== '') }),
         })
         return {
           access_token: result.accessToken,
@@ -145,18 +158,31 @@ export function registerIdentityRoutes(
 
   r.post(
     '/identity/v1/delegations',
-    { schema: { tags: ['identity'], summary: '登记委托（租户管理员）', headers: AuthHeader, body: DelegationBody } },
+    {
+      schema: {
+        tags: ['identity'],
+        summary: '登记委托（租户管理员）',
+        headers: AuthHeader,
+        body: DelegationBody,
+      },
+    },
     async (request, reply) => {
       const principal = await requirePrincipal(request, reply)
       if (principal === undefined) return reply
       const { user } = principal
       const delegator = findUser(request.body.delegatorUserId)
       if (!user.roles.includes('tenant-admin') || delegator?.tenantId !== user.tenantId) {
-        return sendError(reply, 403, { code: 'FORBIDDEN', message: '只有本租户的租户管理员可以为本租户用户登记委托' })
+        return sendError(reply, 403, {
+          code: 'FORBIDDEN',
+          message: '只有本租户的租户管理员可以为本租户用户登记委托',
+        })
       }
       const unknown = request.body.scope.filter((op) => !isBoOperation(op))
       if (unknown.length > 0) {
-        return sendError(reply, 422, { code: 'UNKNOWN_OPERATION', message: `未知的 BO 操作：${unknown.join('、')}` })
+        return sendError(reply, 422, {
+          code: 'UNKNOWN_OPERATION',
+          message: `未知的 BO 操作：${unknown.join('、')}`,
+        })
       }
       const now = new Date()
       const delegation = delegations.create({
@@ -198,7 +224,10 @@ export function registerIdentityRoutes(
       if (principal === undefined) return reply
       const existing = delegations.get(request.params.id)
       if (existing === undefined || existing.tenantId !== principal.user.tenantId) {
-        return sendError(reply, 404, { code: 'NOT_FOUND', message: `委托 ${request.params.id} 不存在` })
+        return sendError(reply, 404, {
+          code: 'NOT_FOUND',
+          message: `委托 ${request.params.id} 不存在`,
+        })
       }
       if (!principal.user.roles.includes('tenant-admin')) {
         return sendError(reply, 403, { code: 'FORBIDDEN', message: '只有租户管理员可以撤销委托' })
@@ -256,15 +285,34 @@ export function registerIdentityRoutes(
         const principal = await requirePrincipal(request, reply)
         if (principal === undefined) return reply
         if (principal.viewer.type !== 'platform') {
-          return sendError(reply, 403, { code: 'FORBIDDEN', message: '只有平台运维可以代运行时签发 Agent 令牌' })
+          return sendError(reply, 403, {
+            code: 'FORBIDDEN',
+            message: '只有平台运维可以代运行时签发 Agent 令牌',
+          })
         }
         const { namespace, name, tenantId } = request.body
         const scope = { type: 'tenant', tenantId } as const
-        const outcome = assembleFromRegistry(services.registry, scope, { agent: `${namespace}/${name}`, tenantId })
-        if (!outcome.ok) return sendError(reply, 422, { code: 'ASSEMBLY_FAILED', message: '组装失败', details: outcome.issues })
-        const operations = declaredBoOperations(outcome.definition, services.registry.resolverFor(scope))
+        const outcome = assembleFromRegistry(services.registry, scope, {
+          agent: `${namespace}/${name}`,
+          tenantId,
+        })
+        if (!outcome.ok)
+          return sendError(reply, 422, {
+            code: 'ASSEMBLY_FAILED',
+            message: '组装失败',
+            details: outcome.issues,
+          })
+        const operations = declaredBoOperations(
+          outcome.definition,
+          services.registry.resolverFor(scope),
+        )
         const version = outcome.definition.provenance.agent.split('@')[1] ?? ''
-        const token = await identity.issueAgentToken({ agent: `${namespace}/${name}`, version, tenantId, operations })
+        const token = await identity.issueAgentToken({
+          agent: `${namespace}/${name}`,
+          version,
+          tenantId,
+          operations,
+        })
         return success({ token, operations })
       },
     )

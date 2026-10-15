@@ -40,7 +40,8 @@ export interface IdentityDeps {
   audit: AuditStore
 }
 
-const intersect = (a: readonly string[], b: readonly string[]): string[] => a.filter((x) => b.includes(x))
+const intersect = (a: readonly string[], b: readonly string[]): string[] =>
+  a.filter((x) => b.includes(x))
 const splitScope = (scope: string): string[] => scope.split(' ').filter((s) => s !== '')
 
 /**
@@ -53,7 +54,11 @@ export class IdentityService {
   async login(userId: string): Promise<{ token: string; user: DemoUser }> {
     const user = findUser(userId)
     if (user === undefined) throw new TokenError('UNKNOWN_USER', `用户 ${userId} 不存在`)
-    const token = await this.deps.tokens.issueUser({ sub: user.id, tid: user.tenantId, roles: [...user.roles] })
+    const token = await this.deps.tokens.issueUser({
+      sub: user.id,
+      tid: user.tenantId,
+      roles: [...user.roles],
+    })
     return { token, user }
   }
 
@@ -64,7 +69,12 @@ export class IdentityService {
   }
 
   /** 平台运行时在每次运行前为 Agent 签发身份，携带它声明的 BO 操作 */
-  issueAgentToken(input: { agent: string; version: string; tenantId: string; operations: readonly string[] }): Promise<string> {
+  issueAgentToken(input: {
+    agent: string
+    version: string
+    tenantId: string
+    operations: readonly string[]
+  }): Promise<string> {
     return this.deps.tokens.issueAgent({
       sub: `agent:${input.agent}`,
       tid: input.tenantId,
@@ -95,7 +105,12 @@ export class IdentityService {
       return result
     } catch (error: unknown) {
       const tokenError =
-        error instanceof TokenError ? error : new TokenError('EXCHANGE_FAILED', error instanceof Error ? error.message : String(error))
+        error instanceof TokenError
+          ? error
+          : new TokenError(
+              'EXCHANGE_FAILED',
+              error instanceof Error ? error.message : String(error),
+            )
       this.deps.audit.append({
         actor: 'identity',
         action: 'identity.token-exchange',
@@ -121,19 +136,31 @@ export class IdentityService {
     if (request.subjectTokenType === TOKEN_TYPE.delegation) {
       const id = request.subjectToken.replace(/^delegation:/, '')
       const status = this.deps.delegations.status(id)
-      if (!status.active) throw new TokenError('DELEGATION_INACTIVE', `委托 ${id} 不可用：${status.reason}`)
+      if (!status.active)
+        throw new TokenError('DELEGATION_INACTIVE', `委托 ${id} 不可用：${status.reason}`)
       delegation = status.delegation
       if (delegation.agent !== agentRef) {
-        throw new TokenError('DELEGATION_AGENT_MISMATCH', `委托 ${id} 授权的是 ${delegation.agent}，不是 ${agentRef}`)
+        throw new TokenError(
+          'DELEGATION_AGENT_MISMATCH',
+          `委托 ${id} 授权的是 ${delegation.agent}，不是 ${agentRef}`,
+        )
       }
-      if (delegation.tenantId !== actor.tid) throw new TokenError('TENANT_MISMATCH', '委托与 Agent 不属于同一租户')
+      if (delegation.tenantId !== actor.tid)
+        throw new TokenError('TENANT_MISMATCH', '委托与 Agent 不属于同一租户')
       user = findUser(delegation.delegatorUserId)
-    } else if (request.subjectTokenType === TOKEN_TYPE.jwt || request.subjectTokenType === TOKEN_TYPE.accessToken) {
+    } else if (
+      request.subjectTokenType === TOKEN_TYPE.jwt ||
+      request.subjectTokenType === TOKEN_TYPE.accessToken
+    ) {
       const subject = await this.deps.tokens.verifyUser(request.subjectToken)
-      if (subject.tid !== actor.tid) throw new TokenError('TENANT_MISMATCH', '用户与 Agent 不属于同一租户')
+      if (subject.tid !== actor.tid)
+        throw new TokenError('TENANT_MISMATCH', '用户与 Agent 不属于同一租户')
       user = findUser(subject.sub)
     } else {
-      throw new TokenError('UNSUPPORTED_SUBJECT', `不支持的 subject_token_type：${request.subjectTokenType}`)
+      throw new TokenError(
+        'UNSUPPORTED_SUBJECT',
+        `不支持的 subject_token_type：${request.subjectTokenType}`,
+      )
     }
     if (user === undefined) throw new TokenError('UNKNOWN_USER', '委托令牌的主体用户不存在')
 
@@ -141,7 +168,10 @@ export class IdentityService {
     if (delegation !== undefined) scope = intersect(scope, delegation.scope)
     if (request.scope !== undefined) scope = intersect(scope, request.scope)
     if (scope.length === 0) {
-      throw new TokenError('EMPTY_SCOPE', `用户 ${user.id} 与 ${agentRef} 的权限交集为空，不签发令牌`)
+      throw new TokenError(
+        'EMPTY_SCOPE',
+        `用户 ${user.id} 与 ${agentRef} 的权限交集为空，不签发令牌`,
+      )
     }
 
     const claims: Omit<DelegatedClaims, 'kind'> = {

@@ -10,7 +10,11 @@ import type { AuditStore } from './audit-store'
  * 用 target 可以反查“PO-2026-0117 的交期是谁通过哪个 Agent 改的”。
  * 租户身份只能看本租户的记录；平台身份能看全部；厂商身份看不到任何租户的审计。
  */
-export function registerAuditRoutes(app: FastifyInstance, audit: AuditStore, requirePrincipal: RequirePrincipal): void {
+export function registerAuditRoutes(
+  app: FastifyInstance,
+  audit: AuditStore,
+  requirePrincipal: RequirePrincipal,
+): void {
   const r = app.withTypeProvider<ZodTypeProvider>()
   r.get(
     '/audit/events',

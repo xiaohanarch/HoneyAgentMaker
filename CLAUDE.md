@@ -20,7 +20,9 @@ pnpm assets:assemble vendor.fin/transaction-anomaly-analyst --tenant t001 --as t
 pnpm spec:json-schema 修改 packages/spec 的 schema 后重新生成 JSON Schema（有测试检查同步）
 ```
 
-以下命令在对应阶段加入：`pnpm seed:reset`（P2）、`pnpm agent:run`（P3）、`pnpm eval:smoke`（P8）。
+pnpm seed:reset       重置演示数据：DemoERP 重新生成，平台清空审计、事件、委托（资产与密钥保留）
+
+以下命令在对应阶段加入：`pnpm agent:run`（P3）、`pnpm eval:smoke`（P8）。
 
 本机只有独立安装的 `docker-compose`（没有 `docker compose` 插件），容器方式启动用 `docker-compose up --build`。
 
@@ -34,6 +36,9 @@ pnpm spec:json-schema 修改 packages/spec 的 schema 后重新生成 JSON Schem
 - better-sqlite3 13 的 npm 包自带预编译二进制，不要把它加进 `pnpm.onlyBuiltDependencies`，否则 pnpm 会尝试用 node-gyp 编译。
 - zod 4 的 refine 在前一个校验失败后仍会继续执行，refine 里不要调用会抛异常的函数（例如 `parseAssetRef`），先用 `isAssetRef` 判断。
 - 测试里的资产用 `@eab/spec/testing` 的构造器生成，不手写整段 YAML。
+- 平台接口的身份只来自 Bearer 用户令牌；测试用 `apps/platform/src/test-support.ts` 的 `createTestServices`、`loginAll`。
+- 平台调用 BO API 只能走 `callBoApi`（先令牌交换再调用），不要直接请求 DemoERP，也不要引入集成账号的降级路径。
+- 演示用户、角色、数据范围只在 `packages/demo-directory` 定义。新增 BO 操作时，同步修改 `BO_OPERATIONS`、DemoERP 路由和 `assets/vendor/erp/demo-erp-bo.yaml`（并升版本号），有测试检查三者一致。
 - 标品资产改动必须升版本号：同版本不同内容在启动入库时会报错。
 
 ## 架构要点

@@ -274,7 +274,11 @@ export interface PublicUser {
 
 export function toPublicUser(user: DemoUser): PublicUser {
   const tenantName =
-    user.tenantId === 'vendor' ? '厂商' : user.tenantId === 'platform' ? '平台' : (findTenant(user.tenantId)?.name ?? user.tenantId)
+    user.tenantId === 'vendor'
+      ? '厂商'
+      : user.tenantId === 'platform'
+        ? '平台'
+        : (findTenant(user.tenantId)?.name ?? user.tenantId)
   return {
     id: user.id,
     name: user.name,

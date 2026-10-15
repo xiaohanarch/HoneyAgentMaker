@@ -76,7 +76,10 @@ export const DEMO_DELEGATION_ID = 'DLG-0001'
  * 预置演示数据：孙库管把库存只读操作委托给库存经营分析 Agent，用于受托自主运行（主提示词 7.2 节）。
  * 已存在时不重复创建。
  */
-export function ensureDemoDefaults(services: PlatformServices, now: Date = new Date()): void {
+export function ensureDemoDefaults(
+  services: Pick<PlatformServices, 'delegations'>,
+  now: Date = new Date(),
+): void {
   if (services.delegations.get(DEMO_DELEGATION_ID) !== undefined) return
   const validUntil = new Date(now.getTime() + 90 * 24 * 3600 * 1000)
   services.delegations.create(
@@ -84,7 +87,13 @@ export function ensureDemoDefaults(services: PlatformServices, now: Date = new D
       tenantId: 't001',
       delegatorUserId: 'sunkg',
       agent: 'vendor.scm/inventory-risk-analyst',
-      scope: ['inventory_balance_list', 'material_list', 'stock_movement_list', 'purchase_order_list', 'delivery_list'],
+      scope: [
+        'inventory_balance_list',
+        'material_list',
+        'stock_movement_list',
+        'purchase_order_list',
+        'delivery_list',
+      ],
       validFrom: now.toISOString(),
       validUntil: validUntil.toISOString(),
       note: '交付逾期、库存低于安全线时，库存经营分析 Agent 以孙库管的委托自主分析库存影响',

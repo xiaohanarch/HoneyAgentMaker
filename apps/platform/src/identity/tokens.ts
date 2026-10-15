@@ -16,8 +16,9 @@ export const AUDIENCE = {
   open: 'demo-erp-open',
 } as const
 
-const TTL = { user: '8h', agent: '15m', client: '1h', delegated: '5m' } as const
-export const DELEGATED_TTL_SECONDS = 300
+/** 有效期（秒） */
+const TTL = { user: 8 * 3600, agent: 15 * 60, client: 3600, delegated: 300 } as const
+export const DELEGATED_TTL_SECONDS = TTL.delegated
 
 export interface UserClaims {
   kind: 'user'
@@ -71,13 +72,19 @@ export class TokenService {
     private readonly now: () => Date = () => new Date(),
   ) {}
 
-  async #sign(claims: Record<string, unknown>, audience: string, ttl: string): Promise<string> {
+  async #sign(
+    claims: Record<string, unknown>,
+    audience: string,
+    ttlSeconds: number,
+  ): Promise<string> {
+    // 签发时间和过期时间都用注入的时钟计算；jose 的相对写法（如 '8h'）走系统时钟，不能用
+    const issuedAt = Math.floor(this.now().getTime() / 1000)
     return new SignJWT(claims)
       .setProtectedHeader({ alg: 'EdDSA', kid: this.keys.kid, typ: 'JWT' })
       .setIssuer(ISSUER)
       .setAudience(audience)
-      .setIssuedAt(Math.floor(this.now().getTime() / 1000))
-      .setExpirationTime(ttl)
+      .setIssuedAt(issuedAt)
+      .setExpirationTime(issuedAt + ttlSeconds)
       .setJti(crypto.randomUUID())
       .sign(this.keys.privateKey)
   }
@@ -104,7 +111,11 @@ export class TokenService {
   }
 
   /** 校验签名、签发者、受众、有效期和令牌种类，任何一项不符都抛 TokenError */
-  async verify<T extends { kind: string }>(token: string, audience: string, kind: T['kind']): Promise<T & JWTPayload> {
+  async verify<T extends { kind: string }>(
+    token: string,
+    audience: string,
+    kind: T['kind'],
+  ): Promise<T & JWTPayload> {
     let payload: JWTPayload
     try {
       ;({ payload } = await jwtVerify(token, this.keys.publicKey, {
@@ -114,7 +125,10 @@ export class TokenService {
         currentDate: this.now(),
       }))
     } catch (error: unknown) {
-      throw new TokenError('INVALID_TOKEN', `令牌无效：${error instanceof Error ? error.message : String(error)}`)
+      throw new TokenError(
+        'INVALID_TOKEN',
+        `令牌无效：${error instanceof Error ? error.message : String(error)}`,
+      )
     }
     if (payload.kind !== kind) {
       throw new TokenError('WRONG_TOKEN_KIND', `需要 ${kind} 令牌，收到 ${String(payload.kind)}`)

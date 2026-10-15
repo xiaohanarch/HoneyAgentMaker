@@ -86,7 +86,9 @@ export function buildApp(options: AppOptions): FastifyInstance {
     registerRegistryRoutes(instance, { registry: services.registry, requirePrincipal })
   })
   app.register(async (instance) => {
-    registerIdentityRoutes(instance, services, requirePrincipal, { demoMode: options.demoMode ?? false })
+    registerIdentityRoutes(instance, services, requirePrincipal, {
+      demoMode: options.demoMode ?? false,
+    })
   })
   app.register(async (instance) => {
     registerPolicyRoutes(instance, services, requirePrincipal)

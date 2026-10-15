@@ -21,7 +21,9 @@ export class PolicyRuleError extends Error {
 export function loadRuleSet(raw: unknown): PolicyRuleSet {
   const parsed = PolicyRuleSetSchema.safeParse(raw)
   if (!parsed.success) {
-    throw new PolicyRuleError(`策略规则集不合法：${parsed.error.issues.map((i) => i.message).join('；')}`)
+    throw new PolicyRuleError(
+      `策略规则集不合法：${parsed.error.issues.map((i) => i.message).join('；')}`,
+    )
   }
   const ids = new Set<string>()
   for (const rule of parsed.data.rules) {
@@ -29,7 +31,9 @@ export function loadRuleSet(raw: unknown): PolicyRuleSet {
     ids.add(rule.id)
     const check = ENVIRONMENT.check(rule.when)
     if (!check.valid) {
-      throw new PolicyRuleError(`规则 ${rule.id} 的条件无效：${check.error?.message.split('\n')[0] ?? ''}`)
+      throw new PolicyRuleError(
+        `规则 ${rule.id} 的条件无效：${check.error?.message.split('\n')[0] ?? ''}`,
+      )
     }
   }
   return parsed.data
@@ -38,10 +42,15 @@ export function loadRuleSet(raw: unknown): PolicyRuleSet {
 /** 规则原因里的 {{a.b}} 用事实填充，便于给出具体说明 */
 function renderReason(template: string, input: Record<string, unknown>): string {
   return template.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_, path: string) => {
-    const value = path.split('.').reduce<unknown>(
-      (acc, key) => (acc !== null && typeof acc === 'object' ? (acc as Record<string, unknown>)[key] : undefined),
-      input,
-    )
+    const value = path
+      .split('.')
+      .reduce<unknown>(
+        (acc, key) =>
+          acc !== null && typeof acc === 'object'
+            ? (acc as Record<string, unknown>)[key]
+            : undefined,
+        input,
+      )
     return value === undefined ? '' : String(value)
   })
 }
@@ -83,7 +92,8 @@ export function evaluate(
     }
     if (!hit) continue
     const reason = renderReason(rule.reason, input)
-    if (rule.effect === 'deny') return { ...base, outcome: 'deny', ruleId: rule.id, reason, requirements: [] }
+    if (rule.effect === 'deny')
+      return { ...base, outcome: 'deny', ruleId: rule.id, reason, requirements: [] }
     requirements.push({ ruleId: rule.id, effect: rule.effect, reason })
   }
   const approval = requirements.find((r) => r.effect === 'approve')

@@ -24,8 +24,13 @@ export class TenantSettingsStore {
   ) {}
 
   get(tenantId: string): TenantSettings {
-    const row = this.db.select().from(tenantSettings).where(eq(tenantSettings.tenantId, tenantId)).get()
-    if (row === undefined) return { tenantId, l3Enabled: false, assistantRoles: DEFAULT_ASSISTANT_ROLES }
+    const row = this.db
+      .select()
+      .from(tenantSettings)
+      .where(eq(tenantSettings.tenantId, tenantId))
+      .get()
+    if (row === undefined)
+      return { tenantId, l3Enabled: false, assistantRoles: DEFAULT_ASSISTANT_ROLES }
     return {
       tenantId,
       l3Enabled: row.l3Enabled,

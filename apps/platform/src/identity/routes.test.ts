@@ -2,7 +2,12 @@ import { stringify } from 'yaml'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { FastifyInstance } from 'fastify'
 import type { Asset, Viewer } from '@eab/spec'
-import { agentFixture, platformRulesFixture, semanticPackFixture, skillFixture } from '@eab/spec/testing'
+import {
+  agentFixture,
+  platformRulesFixture,
+  semanticPackFixture,
+  skillFixture,
+} from '@eab/spec/testing'
 import { buildApp } from '../app'
 import { SIGNATURE_HEADER, signPayload } from '../events/routes'
 import { DEMO_DELEGATION_ID, ensureDemoDefaults, type PlatformServices } from '../services'
@@ -35,8 +40,16 @@ describe('身份接口', () => {
   it('用户列表与选人登录', async () => {
     const users = await app.inject({ method: 'GET', url: '/identity/v1/users' })
     expect(users.json().data.map((u: { id: string }) => u.id)).toContain('zhangmin')
-    const login = await app.inject({ method: 'POST', url: '/identity/v1/login', payload: { userId: 'zhangmin' } })
-    expect(login.json().data.user).toMatchObject({ name: '张敏', role: '采购经理', dataScope: '采购组织：华东' })
+    const login = await app.inject({
+      method: 'POST',
+      url: '/identity/v1/login',
+      payload: { userId: 'zhangmin' },
+    })
+    expect(login.json().data.user).toMatchObject({
+      name: '张敏',
+      role: '采购经理',
+      dataScope: '采购组织：华东',
+    })
   })
 
   it('JWKS 公开 EdDSA 公钥', async () => {
@@ -56,7 +69,11 @@ describe('身份接口', () => {
     const bad = await app.inject({
       method: 'POST',
       url: '/identity/v1/token',
-      payload: { grant_type: 'client_credentials', client_id: 't002-integration', client_secret: 'x' },
+      payload: {
+        grant_type: 'client_credentials',
+        client_id: 't002-integration',
+        client_secret: 'x',
+      },
     })
     expect(bad.statusCode).toBe(400)
     expect(bad.json()).toMatchObject({ error: 'invalid_client' })
@@ -98,7 +115,11 @@ describe('委托管理', () => {
       method: 'POST',
       url: '/identity/v1/delegations',
       headers: as('zhangmin'),
-      payload: { delegatorUserId: 'zhangmin', agent: 'vendor.pur/supplier-performance-analyst', scope: ['purchase_order_list'] },
+      payload: {
+        delegatorUserId: 'zhangmin',
+        agent: 'vendor.pur/supplier-performance-analyst',
+        scope: ['purchase_order_list'],
+      },
     })
     expect(byUser.statusCode).toBe(403)
 
@@ -106,11 +127,19 @@ describe('委托管理', () => {
       method: 'POST',
       url: '/identity/v1/delegations',
       headers: as('zhaoadmin'),
-      payload: { delegatorUserId: 'zhangmin', agent: 'vendor.pur/supplier-performance-analyst', scope: ['purchase_order_list'] },
+      payload: {
+        delegatorUserId: 'zhangmin',
+        agent: 'vendor.pur/supplier-performance-analyst',
+        scope: ['purchase_order_list'],
+      },
     })
     expect(created.statusCode).toBe(201)
 
-    const revoke = await app.inject({ method: 'DELETE', url: `/identity/v1/delegations/${DEMO_DELEGATION_ID}`, headers: as('zhaoadmin') })
+    const revoke = await app.inject({
+      method: 'DELETE',
+      url: `/identity/v1/delegations/${DEMO_DELEGATION_ID}`,
+      headers: as('zhaoadmin'),
+    })
     expect(revoke.json().data.revokedBy).toBe('zhaoadmin')
 
     const status = await app.inject({
@@ -120,12 +149,22 @@ describe('委托管理', () => {
     })
     expect(status.json().data).toEqual({ active: false, reason: 'revoked' })
 
-    const audit = await app.inject({ method: 'GET', url: '/audit/events?action=identity.delegation.revoke', headers: as('zhaoadmin') })
-    expect(audit.json().data[0]).toMatchObject({ target: DEMO_DELEGATION_ID, agent: 'vendor.scm/inventory-risk-analyst' })
+    const audit = await app.inject({
+      method: 'GET',
+      url: '/audit/events?action=identity.delegation.revoke',
+      headers: as('zhaoadmin'),
+    })
+    expect(audit.json().data[0]).toMatchObject({
+      target: DEMO_DELEGATION_ID,
+      agent: 'vendor.scm/inventory-risk-analyst',
+    })
   })
 
   it('委托状态接口只接受内部调用', async () => {
-    const response = await app.inject({ method: 'GET', url: `/identity/v1/delegations/${DEMO_DELEGATION_ID}/status` })
+    const response = await app.inject({
+      method: 'GET',
+      url: `/identity/v1/delegations/${DEMO_DELEGATION_ID}/status`,
+    })
     expect(response.statusCode).toBe(401)
   })
 
@@ -134,14 +173,22 @@ describe('委托管理', () => {
       method: 'POST',
       url: '/identity/v1/delegations',
       headers: as('zhaoadmin'),
-      payload: { delegatorUserId: 'sunkg', agent: 'vendor.scm/inventory-risk-analyst', scope: ['drop_database'] },
+      payload: {
+        delegatorUserId: 'sunkg',
+        agent: 'vendor.scm/inventory-risk-analyst',
+        scope: ['drop_database'],
+      },
     })
     expect(response.statusCode).toBe(422)
   })
 })
 
 describe('事件推送', () => {
-  const event = JSON.stringify({ type: 'delivery.overdue', tenantId: 't001', payload: { poId: 'PO-2026-0117', overdueDays: 120 } })
+  const event = JSON.stringify({
+    type: 'delivery.overdue',
+    tenantId: 't001',
+    payload: { poId: 'PO-2026-0117', overdueDays: 120 },
+  })
 
   it('签名正确的业务事件入库并广播', async () => {
     const received: string[] = []
@@ -149,7 +196,10 @@ describe('事件推送', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/events/v1/ingest',
-      headers: { 'content-type': 'application/json', [SIGNATURE_HEADER]: signPayload(TEST_INTERNAL_SECRET, event) },
+      headers: {
+        'content-type': 'application/json',
+        [SIGNATURE_HEADER]: signPayload(TEST_INTERNAL_SECRET, event),
+      },
       payload: event,
     })
     expect(response.statusCode).toBe(202)
@@ -188,10 +238,17 @@ describe('事件推送', () => {
     await app.inject({
       method: 'POST',
       url: '/events/v1/ingest',
-      headers: { 'content-type': 'application/json', [SIGNATURE_HEADER]: signPayload(TEST_INTERNAL_SECRET, access) },
+      headers: {
+        'content-type': 'application/json',
+        [SIGNATURE_HEADER]: signPayload(TEST_INTERNAL_SECRET, access),
+      },
       payload: access,
     })
-    const audit = await app.inject({ method: 'GET', url: '/audit/events?target=PO-2026-0117', headers: as('zhaoadmin') })
+    const audit = await app.inject({
+      method: 'GET',
+      url: '/audit/events?target=PO-2026-0117',
+      headers: as('zhaoadmin'),
+    })
     expect(audit.json().data[0]).toMatchObject({
       userId: 'zhangmin',
       agent: 'vendor.pur/supplier-performance-analyst@1.0.0',
@@ -215,13 +272,25 @@ describe('策略试算', () => {
       method: 'POST',
       url: '/policy/v1/evaluate',
       headers: as('zhangmin'),
-      payload: { checkpoint: 'tool', agent: 'vendor.fin/transaction-anomaly-analyst', tool: 'wire_transfer' },
+      payload: {
+        checkpoint: 'tool',
+        agent: 'vendor.fin/transaction-anomaly-analyst',
+        tool: 'wire_transfer',
+      },
     })
     expect(tool.json().data).toMatchObject({ outcome: 'deny', ruleId: 'TOOL-001' })
 
-    const own = await app.inject({ method: 'GET', url: '/audit/events?checkpoint=entry', headers: as('zhangmin') })
+    const own = await app.inject({
+      method: 'GET',
+      url: '/audit/events?checkpoint=entry',
+      headers: as('zhangmin'),
+    })
     expect(own.json().data).toHaveLength(1)
-    const others = await app.inject({ method: 'GET', url: '/audit/events?checkpoint=entry', headers: as('liqiang') })
+    const others = await app.inject({
+      method: 'GET',
+      url: '/audit/events?checkpoint=entry',
+      headers: as('liqiang'),
+    })
     expect(others.json().data).toHaveLength(0)
   })
 

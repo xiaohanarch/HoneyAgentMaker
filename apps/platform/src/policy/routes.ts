@@ -39,7 +39,11 @@ const EvaluateBody = z.discriminatedUnion('checkpoint', [
     mode: z.enum(['on-behalf', 'delegated', 'integration']).default('on-behalf'),
     delegationId: z.string().optional(),
     document: z
-      .object({ id: z.string(), action: z.enum(['submit', 'approve', '']), submittedBy: z.string() })
+      .object({
+        id: z.string(),
+        action: z.enum(['submit', 'approve', '']),
+        submittedBy: z.string(),
+      })
       .optional(),
   }),
 ])
@@ -48,7 +52,15 @@ const EvaluateBody = z.discriminatedUnion('checkpoint', [
 export function recordDecision(
   audit: AuditStore,
   decision: Decision,
-  context: { actor: string; tenantId: string; userId: string; target: string; agent?: string; tool?: string; mode?: string },
+  context: {
+    actor: string
+    tenantId: string
+    userId: string
+    target: string
+    agent?: string
+    tool?: string
+    mode?: string
+  },
 ): void {
   audit.append({
     actor: context.actor,
@@ -67,11 +79,17 @@ export function recordDecision(
   })
 }
 
-export function registerPolicyRoutes(app: FastifyInstance, services: PlatformServices, requirePrincipal: RequirePrincipal): void {
+export function registerPolicyRoutes(
+  app: FastifyInstance,
+  services: PlatformServices,
+  requirePrincipal: RequirePrincipal,
+): void {
   const r = app.withTypeProvider<ZodTypeProvider>()
 
-  r.get('/policy/v1/rules', { schema: { tags: ['policy'], summary: '当前生效的策略规则（治理中心查看）' } }, async () =>
-    success(services.policyRules),
+  r.get(
+    '/policy/v1/rules',
+    { schema: { tags: ['policy'], summary: '当前生效的策略规则（治理中心查看）' } },
+    async () => success(services.policyRules),
   )
 
   r.post(
@@ -109,7 +127,12 @@ export function registerPolicyRoutes(app: FastifyInstance, services: PlatformSer
             tenantId,
             ...(body.assistant === undefined
               ? {}
-              : { assistant: { ref: body.assistant, allowedRoles: settings.assistantRoles[body.assistant] ?? [] } }),
+              : {
+                  assistant: {
+                    ref: body.assistant,
+                    allowedRoles: settings.assistantRoles[body.assistant] ?? [],
+                  },
+                }),
           }),
         )
       } else if (body.checkpoint === 'handoff') {
@@ -123,17 +146,34 @@ export function registerPolicyRoutes(app: FastifyInstance, services: PlatformSer
             caller: body.caller,
             target: {
               ref: body.target,
-              kind: asset?.kind === 'RemoteAgent' ? 'RemoteAgent' : asset?.kind === 'Assistant' ? 'Assistant' : 'Agent',
+              kind:
+                asset?.kind === 'RemoteAgent'
+                  ? 'RemoteAgent'
+                  : asset?.kind === 'Assistant'
+                    ? 'Assistant'
+                    : 'Agent',
               enabledForTenant: asset !== undefined,
-              allowedCallers: asset?.kind === 'RemoteAgent' ? asset.spec.allowedCallers.map((c) => formatAssetRef(parseAssetRef(c))) : [],
+              allowedCallers:
+                asset?.kind === 'RemoteAgent'
+                  ? asset.spec.allowedCallers.map((c) => formatAssetRef(parseAssetRef(c)))
+                  : [],
             },
           }),
         )
       } else {
         target = `${body.agent} → ${body.tool}`
-        const outcome = assembleFromRegistry(services.registry, viewer, { agent: body.agent, tenantId })
-        if (!outcome.ok) return sendError(reply, 422, { code: 'ASSEMBLY_FAILED', message: '组装失败', details: outcome.issues })
-        const delegation = body.delegationId === undefined ? undefined : services.delegations.get(body.delegationId)
+        const outcome = assembleFromRegistry(services.registry, viewer, {
+          agent: body.agent,
+          tenantId,
+        })
+        if (!outcome.ok)
+          return sendError(reply, 422, {
+            code: 'ASSEMBLY_FAILED',
+            message: '组装失败',
+            details: outcome.issues,
+          })
+        const delegation =
+          body.delegationId === undefined ? undefined : services.delegations.get(body.delegationId)
         decision = evaluate(
           services.policyRules,
           'tool',
@@ -144,14 +184,22 @@ export function registerPolicyRoutes(app: FastifyInstance, services: PlatformSer
             toolName: body.tool,
             ...(body.toolInput === undefined ? {} : { toolInput: body.toolInput }),
             tenant: { l3Enabled: settings.l3Enabled },
-            ...(delegation === undefined ? {} : { delegation: { id: delegation.id, scope: delegation.scope } }),
+            ...(delegation === undefined
+              ? {}
+              : { delegation: { id: delegation.id, scope: delegation.scope } }),
             ...(body.document === undefined ? {} : { document: body.document }),
           }),
         )
         extra = { agent: outcome.definition.provenance.agent, tool: body.tool, mode: body.mode }
       }
 
-      recordDecision(services.audit, decision, { actor: user.id, tenantId, userId: user.id, target, ...extra })
+      recordDecision(services.audit, decision, {
+        actor: user.id,
+        tenantId,
+        userId: user.id,
+        target,
+        ...extra,
+      })
       return success(decision)
     },
   )

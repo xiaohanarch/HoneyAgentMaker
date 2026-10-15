@@ -123,25 +123,17 @@
       "indexes": {
         "assets_ns_name_version": {
           "name": "assets_ns_name_version",
-          "columns": [
-            "namespace",
-            "name",
-            "version"
-          ],
+          "columns": ["namespace", "name", "version"],
           "isUnique": true
         },
         "assets_kind": {
           "name": "assets_kind",
-          "columns": [
-            "kind"
-          ],
+          "columns": ["kind"],
           "isUnique": false
         },
         "assets_tenant": {
           "name": "assets_tenant",
-          "columns": [
-            "tenant_id"
-          ],
+          "columns": ["tenant_id"],
           "isUnique": false
         }
       },
@@ -290,31 +282,22 @@
       "indexes": {
         "audit_at": {
           "name": "audit_at",
-          "columns": [
-            "at"
-          ],
+          "columns": ["at"],
           "isUnique": false
         },
         "audit_action": {
           "name": "audit_action",
-          "columns": [
-            "action"
-          ],
+          "columns": ["action"],
           "isUnique": false
         },
         "audit_tenant_user": {
           "name": "audit_tenant_user",
-          "columns": [
-            "tenant_id",
-            "user_id"
-          ],
+          "columns": ["tenant_id", "user_id"],
           "isUnique": false
         },
         "audit_agent": {
           "name": "audit_agent",
-          "columns": [
-            "agent"
-          ],
+          "columns": ["agent"],
           "isUnique": false
         }
       },
@@ -372,9 +355,7 @@
       "indexes": {
         "events_type": {
           "name": "events_type",
-          "columns": [
-            "type"
-          ],
+          "columns": ["type"],
           "isUnique": false
         }
       },
@@ -474,9 +455,7 @@
       "indexes": {
         "delegations_tenant": {
           "name": "delegations_tenant",
-          "columns": [
-            "tenant_id"
-          ],
+          "columns": ["tenant_id"],
           "isUnique": false
         }
       },

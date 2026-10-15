@@ -29,7 +29,9 @@ const app = buildApp({
   fastify: { logger: { level: process.env.LOG_LEVEL ?? 'info' } },
 })
 if (internalSecret === undefined) {
-  app.log.warn('没有设置 EAB_INTERNAL_SECRET，已随机生成；DemoERP 无法推送事件和核实委托，受托调用会被拒绝')
+  app.log.warn(
+    '没有设置 EAB_INTERNAL_SECRET，已随机生成；DemoERP 无法推送事件和核实委托，受托调用会被拒绝',
+  )
 }
 
 async function shutdown(signal: string): Promise<void> {

@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@eab/demo-directory": "workspace:^",
     "@eab/spec": "workspace:^",
     "@fastify/swagger": "^9.9.2",
     "better-sqlite3": "^13.0.3",
@@ -22,5 +23,11 @@
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",
     "drizzle-kit": "^0.31.11"
+  },
+  "exports": {
+    "./app": "./src/app.ts",
+    "./link": "./src/auth/platform-link.ts",
+    "./db": "./src/db/client.ts",
+    "./seed": "./src/seed/index.ts"
   }
 }

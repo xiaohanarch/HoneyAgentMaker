@@ -32,7 +32,14 @@ export async function loginAll(
   services: PlatformServices,
 ): Promise<(who: ViewerKey | string) => { authorization: string }> {
   const tokens = new Map<string, string>()
-  for (const userId of [...Object.values(VIEWER_USERS), 'zhangmin', 'liqiang', 'wangfang', 'sunkg', 'zhaoadmin']) {
+  for (const userId of [
+    ...Object.values(VIEWER_USERS),
+    'zhangmin',
+    'liqiang',
+    'wangfang',
+    'sunkg',
+    'zhaoadmin',
+  ]) {
     tokens.set(userId, (await services.identity.login(userId)).token)
   }
   return (who) => {

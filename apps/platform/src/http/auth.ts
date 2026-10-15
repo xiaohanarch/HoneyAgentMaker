@@ -22,15 +22,26 @@ export function viewerOfUser(user: DemoUser): Viewer {
 }
 
 export function subjectFacts(user: DemoUser): SubjectFacts {
-  return { userId: user.id, tenantId: user.tenantId, roles: [...user.roles], operations: permittedOperations(user) }
+  return {
+    userId: user.id,
+    tenantId: user.tenantId,
+    roles: [...user.roles],
+    operations: permittedOperations(user),
+  }
 }
 
 /** OpenAPI 描述用：Authorization 头在 handler 里校验，缺失时返回 401 */
 export const AuthHeader = z.object({
-  authorization: z.string().optional().describe('Bearer <用户令牌>，由 POST /identity/v1/login 获得'),
+  authorization: z
+    .string()
+    .optional()
+    .describe('Bearer <用户令牌>，由 POST /identity/v1/login 获得'),
 })
 
-export type RequirePrincipal = (request: FastifyRequest, reply: FastifyReply) => Promise<Principal | undefined>
+export type RequirePrincipal = (
+  request: FastifyRequest,
+  reply: FastifyReply,
+) => Promise<Principal | undefined>
 
 /**
  * 从 Bearer 用户令牌得到调用者。失败时回复 401 并返回 undefined。
@@ -39,9 +50,13 @@ export type RequirePrincipal = (request: FastifyRequest, reply: FastifyReply) =>
 export function createRequirePrincipal(tokens: TokenService): RequirePrincipal {
   return async (request, reply) => {
     const header = request.headers.authorization
-    const token = typeof header === 'string' && header.startsWith('Bearer ') ? header.slice(7) : undefined
+    const token =
+      typeof header === 'string' && header.startsWith('Bearer ') ? header.slice(7) : undefined
     if (token === undefined) {
-      void sendError(reply, 401, { code: 'UNAUTHENTICATED', message: '缺少 Authorization: Bearer <用户令牌>' })
+      void sendError(reply, 401, {
+        code: 'UNAUTHENTICATED',
+        message: '缺少 Authorization: Bearer <用户令牌>',
+      })
       return undefined
     }
     try {

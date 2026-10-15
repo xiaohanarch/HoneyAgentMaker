@@ -32,7 +32,11 @@ export interface NewDelegation {
 
 export type DelegationStatus =
   | { active: true; delegation: Delegation }
-  | { active: false; reason: 'not-found' | 'revoked' | 'not-yet-valid' | 'expired'; delegation?: Delegation }
+  | {
+      active: false
+      reason: 'not-found' | 'revoked' | 'not-yet-valid' | 'expired'
+      delegation?: Delegation
+    }
 
 function toDelegation(record: DelegationRecord): Delegation {
   return { ...record, scope: JSON.parse(record.scope) as string[] }

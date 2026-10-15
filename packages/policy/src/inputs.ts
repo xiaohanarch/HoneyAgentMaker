@@ -83,7 +83,12 @@ function applicableApprovals(
   return approvals.filter((approval) => {
     if (approval.when === undefined) return true
     try {
-      return env.evaluate(approval.when, { input: toolInput, user: { id: subject.userId, roles: [...subject.roles] } }) === true
+      return (
+        env.evaluate(approval.when, {
+          input: toolInput,
+          user: { id: subject.userId, roles: [...subject.roles] },
+        }) === true
+      )
     } catch {
       return true
     }
@@ -95,7 +100,11 @@ export function buildToolInput(ctx: ToolContext): Record<string, unknown> {
   const approvals =
     tool === undefined
       ? []
-      : applicableApprovals(matchingApprovals(ctx.definition.approvals, tool), ctx.toolInput ?? {}, ctx.subject)
+      : applicableApprovals(
+          matchingApprovals(ctx.definition.approvals, tool),
+          ctx.toolInput ?? {},
+          ctx.subject,
+        )
   const policy = strictestPolicy(approvals)
   const strictest = approvals.find((a) => a.policy === policy)
   return {

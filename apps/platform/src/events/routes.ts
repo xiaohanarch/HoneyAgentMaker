@@ -39,7 +39,12 @@ const BoAccessEvent = z.object({
 })
 
 const BusinessEvent = z.object({
-  type: z.enum(['delivery.overdue', 'inventory.below_safety_stock', 'transaction.anomaly_created', 'period.close_check_failed']),
+  type: z.enum([
+    'delivery.overdue',
+    'inventory.below_safety_stock',
+    'transaction.anomaly_created',
+    'period.close_check_failed',
+  ]),
   tenantId: z.string(),
   payload: z.record(z.string(), z.unknown()),
 })
@@ -90,7 +95,12 @@ export function registerEventRoutes(app: FastifyInstance, services: PlatformServ
         })
         return reply.status(202).send(success({ accepted: true }))
       }
-      const stored = services.events.append({ source: 'demo-erp', type: parsed.type, tenantId: parsed.tenantId, payload: parsed.payload })
+      const stored = services.events.append({
+        source: 'demo-erp',
+        type: parsed.type,
+        tenantId: parsed.tenantId,
+        payload: parsed.payload,
+      })
       return reply.status(202).send(success({ accepted: true, id: stored.id }))
     })
   })

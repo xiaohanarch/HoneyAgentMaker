@@ -161,7 +161,7 @@ export class RegistryService {
       if (blocked.length > 0) {
         this.deps.audit.append({
           actor: formatViewer(viewer),
-      ...tenantOf(viewer),
+          ...tenantOf(viewer),
           action: 'registry.publish',
           target,
           decision: 'deny',

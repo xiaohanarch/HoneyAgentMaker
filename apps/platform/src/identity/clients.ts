@@ -17,14 +17,18 @@ export class ClientRegistry {
   constructor(private readonly secrets: ReadonlyMap<string, string>) {}
 
   static ephemeral(): ClientRegistry {
-    return new ClientRegistry(new Map(INTEGRATION_CLIENTS.map((c) => [c.id, randomBytes(24).toString('base64url')])))
+    return new ClientRegistry(
+      new Map(INTEGRATION_CLIENTS.map((c) => [c.id, randomBytes(24).toString('base64url')])),
+    )
   }
 
   static fromDirectory(dir: string): ClientRegistry {
     const path = join(dir, 'clients.json')
     if (!existsSync(path)) {
       mkdirSync(dir, { recursive: true })
-      const generated = Object.fromEntries(INTEGRATION_CLIENTS.map((c) => [c.id, randomBytes(24).toString('base64url')]))
+      const generated = Object.fromEntries(
+        INTEGRATION_CLIENTS.map((c) => [c.id, randomBytes(24).toString('base64url')]),
+      )
       writeFileSync(path, `${JSON.stringify(generated, null, 2)}\n`, { mode: 0o600 })
     }
     const stored = JSON.parse(readFileSync(path, 'utf8')) as Record<string, string>
