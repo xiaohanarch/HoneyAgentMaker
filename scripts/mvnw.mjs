@@ -22,6 +22,9 @@ if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(
   try {
     runMaven(process.argv.slice(2))
   } catch (error) {
-    process.exit(typeof error.status === 'number' ? error.status : 1)
+    // 有退出码说明 Maven 已运行并输出了原因；没有退出码是启动失败（权限、找不到文件），打印出来
+    if (typeof error.status === 'number') process.exit(error.status)
+    console.error(`[mvnw] 无法运行 Maven Wrapper：${error.message}`)
+    process.exit(1)
   }
 }
