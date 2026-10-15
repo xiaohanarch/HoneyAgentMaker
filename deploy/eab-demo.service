@@ -1,0 +1,23 @@
+# systemd 单元：在演示主机上托管 pnpm demo。
+# 安装：cp deploy/eab-demo.service /etc/systemd/system/ && systemctl daemon-reload && systemctl enable --now eab-demo
+# 服务只监听 127.0.0.1，经 SSH 隧道访问（P2 完成令牌鉴权之前不要对公网开放）。
+[Unit]
+Description=ERP Agent Builder demo
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=eab
+WorkingDirectory=/home/eab/app
+Environment=EAB_HOST=127.0.0.1
+Environment=LOG_LEVEL=info
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/local/bin/pnpm demo
+Restart=on-failure
+RestartSec=5
+KillMode=control-group
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target

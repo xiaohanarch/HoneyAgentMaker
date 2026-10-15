@@ -1,0 +1,24 @@
+apiVersion: eab.dev/v1
+kind: ToolSource
+metadata:
+  name: notify-im
+  namespace: tenant.t001.tools
+  version: 1.0.0
+  displayName: IM 通知
+  description: 通过企业 IM 机器人发送通知
+  owner: chengong
+spec:
+  type: http
+  connection: IM_WEBHOOK
+  tools:
+    - name: notify_im
+      description: 向指定的人或群发送 IM 通知
+      writeLevel: L2
+      category: notify
+      operation: { method: POST, path: /hooks/notify }
+      inputSchema:
+        type: object
+        required: [to, message]
+        properties:
+          to: { type: string, description: 接收人或群名 }
+          message: { type: string }

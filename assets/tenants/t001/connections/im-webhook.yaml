@@ -1,0 +1,15 @@
+apiVersion: eab.dev/v1
+kind: Connection
+metadata:
+  name: im-webhook
+  namespace: tenant.t001.connections
+  version: 1.0.0
+  owner: zhaoadmin
+spec:
+  alias: IM_WEBHOOK
+  type: http
+  bindings:
+    private: { url: 'http://127.0.0.1:4000/channels/im', auth: { type: none } }
+    dev: { url: 'http://127.0.0.1:4000/channels/im', auth: { type: none } }
+    test: { url: 'http://127.0.0.1:4000/channels/im', auth: { type: none } }
+    prod: { url: 'http://127.0.0.1:4000/channels/im', auth: { type: none } }

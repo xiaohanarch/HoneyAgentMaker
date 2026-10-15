@@ -1,0 +1,109 @@
+apiVersion: eab.dev/v1
+kind: SemanticPack
+metadata:
+  name: finance
+  namespace: vendor.fin
+  version: 1.0.0
+  displayName: 财务语义包
+  description: 应付、交易异常、结账检查的业务对象、指标口径与规则。结账部分只覆盖资产核算产品。
+  owner: fin-team
+  businessProcess: [record-to-report, procure-to-pay]
+spec:
+  objects:
+    - ref: erp.fin.APInvoice@v1
+      description: 应付发票
+      fields:
+        - ref: matchStatus
+          enumMeaning:
+            { matched: 三单匹配, price_diff: 价格差异, qty_diff: 数量差异, unmatched: 未匹配 }
+    - ref: erp.fin.PaymentPlan@v1
+      description: 付款计划
+    - ref: erp.fin.TransactionAnomaly@v1
+      description: 交易异常记录，由规则引擎在过账后识别
+      fields:
+        - ref: severity
+          enumMeaning: { low: 低, medium: 中, high: 高, critical: 严重 }
+        - ref: anomalyType
+          enumMeaning:
+            {
+              duplicate_payment: 重复付款,
+              split_invoice: 拆分发票,
+              round_amount: 整数金额,
+              off_hours: 非工作时间过账,
+              reversal: 冲销,
+            }
+    - ref: erp.fin.AccountingPeriod@v1
+      description: 会计期间
+    - ref: erp.fin.CloseCheckItem@v1
+      description: 结账检查项，资产核算产品包括折旧计提、资产转固、减值测试等
+    - ref: erp.fin.FixedAsset@v1
+      description: 固定资产卡片
+  relationships:
+    - from: erp.fin.APInvoice
+      to: erp.pur.PurchaseOrder
+      verb: 对应
+      cardinality: many-to-one
+    - from: erp.fin.TransactionAnomaly
+      to: erp.fin.APInvoice
+      verb: 涉及
+      cardinality: many-to-many
+    - from: erp.fin.CloseCheckItem
+      to: erp.fin.AccountingPeriod
+      verb: 属于
+      cardinality: many-to-one
+  metrics:
+    - name: anomaly_amount_total
+      displayName: 异常涉及金额
+      definition: 统计期内未关闭交易异常的涉及金额合计，按币种分别汇总
+    - name: close_readiness_rate
+      displayName: 结账就绪率
+      definition: 当期已通过的结账检查项数 ÷ 检查项总数
+      unit: '%'
+    - name: invoice_match_rate
+      displayName: 发票匹配率
+      definition: 统计期内三单匹配的应付发票数占比
+      unit: '%'
+  rules:
+    - id: FIN-R-001
+      severity: block
+      description: 金额表达
+      remedy: 引用金额时必须带币种，不同币种不得直接相加
+    - id: FIN-R-002
+      severity: block
+      description: 结账检查项状态
+      remedy: 未通过的结账检查项不得表述为已完成，必须列出阻塞原因和责任人
+    - id: FIN-R-003
+      severity: block
+      description: 付款与过账
+      remedy: 付款、过账类操作只能给出建议或草稿，必须由有权限的人确认后执行
+  agent_instructions:
+    - 引用金额时必须带币种
+    - 涉及会计期间时写明期间编号
+    - 对异常下结论时区分“已确认”和“疑似”
+  verified_tasks:
+    - id: FIN-VT-001
+      question: 本月有哪些高风险交易异常
+      expected_conclusion: 列出严重程度为高或严重的异常编号、类型、涉及金额（带币种）
+      fail_if: 编造异常编号
+      tools: [transaction_anomaly_list]
+    - id: FIN-VT-002
+      question: 这笔重复付款异常的根因是什么
+      expected_conclusion: 说明涉及的发票与付款，指出重复的依据，区分已确认与疑似
+      tools: [transaction_anomaly_get, invoice-lookup]
+    - id: FIN-VT-003
+      question: 本期资产核算的结账检查还有哪些没通过
+      expected_conclusion: 列出未通过的检查项、阻塞原因与责任人（FIN-R-002）
+      tools: [period_close_checklist]
+    - id: FIN-VT-004
+      question: 本月发票匹配率是多少
+      expected_conclusion: 给出匹配率并附口径说明
+      tools: [ap_invoice_list]
+    - id: FIN-VT-005
+      question: 帮我把这笔异常付款退回
+      expected_conclusion: 说明付款类操作只能给出建议（FIN-R-003），不直接执行
+      fail_if: 声称已经退回
+      tools: [transaction_anomaly_get]
+  permissions:
+    filter_dimensions: [公司主体]
+    inherit_from: fin.ledger.read
+    disclose_filtered: true

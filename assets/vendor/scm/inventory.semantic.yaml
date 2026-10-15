@@ -1,0 +1,96 @@
+apiVersion: eab.dev/v1
+kind: SemanticPack
+metadata:
+  name: inventory
+  namespace: vendor.scm
+  version: 1.0.0
+  displayName: 库存语义包
+  description: 库存域的业务对象、指标口径、规则与已验证任务
+  owner: scm-team
+  businessProcess: [plan-to-produce]
+spec:
+  objects:
+    - ref: erp.scm.Material@v1
+      description: 物料主数据
+      fields:
+        - ref: safetyStock
+          description: 安全库存数量，低于它会产生“库存低于安全线”事件
+    - ref: erp.scm.Warehouse@v1
+      description: 仓库，演示中按公司主体划分
+    - ref: erp.scm.InventoryBalance@v1
+      description: 物料在某个仓库的库存余额
+      fields:
+        - ref: slowMoving
+          enumMeaning: { none: 正常, watch: 库龄超过 90 天, slow: 库龄超过 180 天的呆滞库存 }
+    - ref: erp.scm.StockMovement@v1
+      description: 出入库流水
+    - ref: erp.pur.PurchaseOrder@v2
+      description: 在途采购订单，用于判断低库存物料是否已有补货
+  relationships:
+    - from: erp.scm.InventoryBalance
+      to: erp.scm.Material
+      verb: 记录…的库存
+      cardinality: many-to-one
+    - from: erp.scm.InventoryBalance
+      to: erp.scm.Warehouse
+      verb: 位于
+      cardinality: many-to-one
+    - from: erp.scm.StockMovement
+      to: erp.scm.Material
+      verb: 变动
+      cardinality: many-to-one
+  metrics:
+    - name: inventory_turnover_days
+      displayName: 库存周转天数
+      definition: 统计期平均库存金额 ÷ 统计期日均出库成本
+      unit: 天
+    - name: slow_moving_ratio
+      displayName: 呆滞库存占比
+      definition: 库龄超过 180 天的库存金额占库存总金额的比例
+      unit: '%'
+    - name: below_safety_stock_count
+      displayName: 低于安全库存的物料数
+      definition: 可用库存低于安全库存的物料种数，按仓库汇总
+      unit: 种
+  rules:
+    - id: SCM-R-001
+      severity: warn
+      description: 低库存处置
+      remedy: 物料低于安全库存时，先检查在途采购订单，再给出补货建议
+    - id: SCM-R-002
+      severity: block
+      description: 呆滞处置的前置条件
+      remedy: 建议处置呆滞库存前，必须确认该物料没有未完成的生产需求
+    - id: SCM-R-003
+      severity: block
+      description: 调拨范围
+      remedy: 不建议跨公司主体调拨库存，跨主体调拨涉及关联交易
+  agent_instructions:
+    - 数量必须带计量单位
+    - 给出处置建议时，先说明风险等级，再说明依据
+  verified_tasks:
+    - id: SCM-VT-001
+      question: 哪些物料低于安全库存
+      expected_conclusion: 列出物料、仓库、可用库存与安全库存的差额
+      tools: [inventory_balance_list, material_list]
+    - id: SCM-VT-002
+      question: 本月呆滞库存有多少
+      expected_conclusion: 给出呆滞库存金额与占比，并附口径说明
+      tools: [inventory_balance_list]
+    - id: SCM-VT-003
+      question: 百润精密交付逾期会影响哪些物料的库存
+      expected_conclusion: 列出受影响物料及预计缺口，提示是否低于安全库存
+      tools: [purchase_order_list, inventory_balance_list]
+    - id: SCM-VT-004
+      question: 库存周转天数最长的五种物料是哪些
+      expected_conclusion: 按周转天数降序列出五种物料，并附口径
+      tools: [inventory_balance_list, stock_movement_list]
+    - id: SCM-VT-005
+      question: 这批呆滞物料能不能报废
+      expected_conclusion: 先确认没有未完成的生产需求（SCM-R-002），再给出建议
+      fail_if: 未检查生产需求就建议报废
+      tools: [inventory_balance_list]
+  permissions:
+    filter_dimensions: [公司主体]
+    inherit_from: scm.inventory.list
+    disclose_filtered: true

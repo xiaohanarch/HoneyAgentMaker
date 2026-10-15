@@ -1,0 +1,55 @@
+apiVersion: eab.dev/v1
+kind: Agent
+metadata:
+  name: supplier-performance-analyst
+  namespace: vendor.pur
+  version: 1.0.0
+  displayName: 供应商绩效分析 Agent
+  description: 从交付、质量、价格三方面分析供应商表现
+  owner: pur-team
+  businessProcess: [source-to-pay]
+  labels: { domain: pur }
+spec:
+  expertise: 面向采购经理和采购员，分析供应商的交付、质量与价格表现
+  instructions: |
+    你是供应商绩效分析专家。
+    1. 用 supplier-lookup 确认供应商，名称有歧义时先向用户确认。
+    2. 交付：用 delivery_list 和 purchase_order_list 统计逾期订单数、最大逾期天数、逾期交付率。
+    3. 价格：用 rfq-lookup 查看最近的询价与报价，计算报价差异率。
+    4. 质量：本版本只根据合同质保条款和评级说明，不编造质量数据。
+    5. 给出综合评价时说明依据的时间范围，并标出风险点，例如存在逾期超过 90 天的订单。
+  publicInstructions: |
+    确认供应商后，从交付（逾期订单、逾期交付率）、价格（报价差异）、质量（评级与质保条款）
+    三方面给出评价，说明时间范围并标出风险点。
+  additionalContext: 先给综合结论，再分三方面列依据
+  constraints: [PUR-R-007]
+  model: { profile: reasoning, temperature: 0.2 }
+  tools:
+    - skill: vendor.pur.skills/supplier-lookup
+    - skill: vendor.pur.skills/rfq-lookup
+    - api:
+        source: vendor.erp.tools/demo-erp-bo
+        tools: [purchase_order_list, delivery_list]
+    - builtin: calculator
+  semanticPacks: [vendor.pur/procurement]
+  triggers:
+    - { type: assistant }
+    - { type: agent }
+  writePolicy: { maxLevel: L0 }
+  output:
+    schema:
+      supplier: { type: string }
+      overallRating: { type: string, enum: [good, watch, risk] }
+      maxOverdueDays: { type: int }
+      overdueDeliveryRate: { type: double }
+      risks: { type: list }
+  routing:
+    description: 分析供应商的交付、质量、价格表现
+    examples: [百润精密最近表现怎么样, 列出我们逾期超过 30 天的供应商, 华东区本季度逾期交付率是多少]
+  extensionPoints:
+    - type: instructions.append
+      description: 追加本企业的供应商考核口径
+    - type: knowledge.add
+      description: 增加本企业的供应商考核制度
+    - type: tools.add
+      description: 增加外部数据来源，例如物流在途查询

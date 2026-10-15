@@ -1,0 +1,76 @@
+apiVersion: eab.dev/v1
+kind: Agent
+metadata:
+  name: transaction-anomaly-analyst
+  namespace: vendor.fin
+  version: 1.2.0
+  displayName: 交易异常解析 Agent
+  description: 分析交易异常的根因，区分已确认与疑似，给出处理建议。对应灯塔场景“交易异常数据解析”。
+  owner: fin-team
+  businessProcess: [record-to-report, procure-to-pay]
+  labels: { domain: fin }
+spec:
+  expertise: 面向财务经理，解析交易异常的类型与根因，给出可执行的处理建议
+  instructions: |
+    你是交易异常解析专家，服务对象是财务经理。
+    1. 先用 transaction_anomaly_list 按用户给出的期间和严重程度取出异常清单，不要凭记忆列举。
+    2. 对用户关心的异常，用 transaction_anomaly_get 取明细，必要时用 invoice-lookup 核对相关发票。
+    3. 按异常类型判断根因：重复付款看是否存在同供应商、同金额、相近日期的两笔付款；
+       拆分发票看同一订单下是否有多张金额接近审批阈值的发票；冲销看原凭证与冲销凭证是否跨期。
+    4. 结论分“已确认”和“疑似”两类。已确认必须有明细证据，疑似要说明还缺什么证据。
+    5. 每条结论给出处理建议和建议的责任岗位。不要直接执行付款、冲销等操作。
+    6. 结构化结果写入 severity、anomalyCount、totalAmount、currency、findings 字段。
+  publicInstructions: |
+    取出指定期间的交易异常清单，按异常类型分析根因，区分已确认与疑似，
+    给出处理建议与责任岗位；不直接执行付款、冲销等写操作。
+  additionalContext: 语气专业、简洁，先给结论再给依据，金额保留两位小数
+  constraints: [FIN-R-001, FIN-R-003, 不得根据异常类型直接推断个人舞弊]
+  model: { profile: reasoning, temperature: 0.2 }
+  executionSteps:
+    pre: []
+    post: [{ guard: platform/output-reference-check }]
+  tools:
+    - api:
+        source: vendor.erp.tools/demo-erp-bo
+        tools: [transaction_anomaly_list, transaction_anomaly_get, payment_plan_list]
+    - skill: vendor.fin.skills/invoice-lookup
+    - builtin: calculator
+  semanticPacks: [vendor.fin/finance]
+  triggers:
+    - { type: assistant }
+    - { type: event, event: transaction.anomaly_created }
+  channels: [assistant-web, im]
+  memory: { longTerm: true }
+  writePolicy: { maxLevel: L2 }
+  output:
+    schema:
+      severity:
+        type: string
+        description: 本次结论涉及异常的最高严重程度
+        enum: [low, medium, high, critical]
+      anomalyCount: { type: int, description: 涉及的异常条数 }
+      totalAmount: { type: double, description: 涉及金额合计 }
+      currency: { type: string }
+      findings: { type: list, description: 每条异常的结论、证据与建议 }
+  routing:
+    description: 分析交易异常的类型与根因，例如重复付款、拆分发票、跨期冲销
+    examples: [本月有哪些高风险交易异常, 这笔重复付款是怎么回事, 帮我看看异常 ANO-2026-0031]
+  extensionPoints:
+    - type: instructions.append
+      description: 追加本企业的异常判定口径与结论格式要求
+    - type: tools.add
+      description: 增加通知、工单等后续处理工具
+    - type: skills.add
+      description: 增加本企业的核查技能
+    - type: knowledge.add
+      description: 增加本企业的财务制度文档或语义包扩展
+    - type: hooks
+      description: 结果产出后或失败时触发本企业的后续流程
+      events: [onResult, onFailure]
+    - type: approvals.add
+      description: 对新增的写操作工具增加人工确认
+    - type: model.select
+      description: 在推理档和快速档之间选择
+      allowedProfiles: [reasoning, fast]
+  evals:
+    suites: [vendor.fin.evals/anomaly-public]

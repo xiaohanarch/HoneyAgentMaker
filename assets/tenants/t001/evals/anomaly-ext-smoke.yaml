@@ -1,0 +1,29 @@
+apiVersion: eab.dev/v1
+kind: EvalSuite
+metadata:
+  name: anomaly-ext-smoke
+  namespace: tenant.t001.evals
+  version: 1.0.0
+  displayName: 交易异常解析扩展 · 冒烟集
+  owner: chengong
+spec:
+  target: tenant.t001.finance/anomaly-analyst-ext
+  visibility: internal
+  tier: smoke
+  minPassRate: 1
+  cases:
+    - id: big-amount-department
+      user: wangfang
+      question: 本月有哪些高风险交易异常
+      assertions:
+        - { type: contains, text: 责任部门, description: 超过 50 万的异常给出责任部门 }
+        - { type: calledTool, tool: transaction_anomaly_list }
+    - id: followup-hook-fires
+      user: wangfang
+      question: 本月有哪些高风险交易异常
+      assertions:
+        - {
+            type: calledTool,
+            tool: create-followup-task,
+            description: 高风险时 onResult 钩子创建跟进任务,
+          }

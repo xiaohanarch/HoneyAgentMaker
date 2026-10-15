@@ -1,0 +1,43 @@
+apiVersion: eab.dev/v1
+kind: Skill
+metadata:
+  name: rfq-lookup
+  namespace: vendor.pur.skills
+  version: 1.0.0
+  displayName: 询价单查询
+  description: 查询某个供应商最近的询价单及报价行，计算最低报价与目标价的差异
+  owner: pur-team
+  businessProcess: [source-to-pay]
+spec:
+  writeLevel: L0
+  agentOnly: true
+  inputSchema:
+    type: object
+    required: [supplierName]
+    properties:
+      supplierName: { type: string }
+      latestOnly: { type: boolean, default: true }
+  outputSchema:
+    type: object
+    properties:
+      rfqs: { type: array }
+  steps:
+    - id: query
+      type: tool
+      name: 查询询价单
+      tool: rfq_list
+      source: vendor.erp.tools/demo-erp-bo
+      with: { supplierName: input.supplierName, sort: '-issuedAt' }
+      output: rfqs
+    - id: latest
+      type: condition
+      name: 只取最近一次
+      if: input.latestOnly
+      then:
+        - id: take-first
+          type: transform
+          expression: "{'rfqs': rfqs.items.size() > 0 ? [rfqs.items[0]] : []}"
+      else:
+        - id: take-all
+          type: transform
+          expression: "{'rfqs': rfqs.items}"

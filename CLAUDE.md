@@ -13,9 +13,14 @@ pnpm test:e2e         Playwright 端到端测试，自动拉起或复用演示�
 pnpm lint             ESLint
 pnpm typecheck        全部包的 tsc 检查，以及 e2e 目录
 pnpm format           Prettier
+pnpm test:coverage    带覆盖率的单元测试
+pnpm assets:validate  校验 assets/ 下全部资产：schema、静态检查、试组装
+pnpm assets:assemble vendor.fin/transaction-anomaly-analyst --tenant t001 --as tenant|vendor
+                      打印有效定义，租户视角下标品指令为占位块；加 --json 输出 JSON
+pnpm spec:json-schema 修改 packages/spec 的 schema 后重新生成 JSON Schema（有测试检查同步）
 ```
 
-以下命令在对应阶段加入：`pnpm assets:assemble`（P1）、`pnpm seed:reset`（P2）、`pnpm agent:run`（P3）、`pnpm eval:smoke`（P8）。
+以下命令在对应阶段加入：`pnpm seed:reset`（P2）、`pnpm agent:run`（P3）、`pnpm eval:smoke`（P8）。
 
 本机只有独立安装的 `docker-compose`（没有 `docker compose` 插件），容器方式启动用 `docker-compose up --build`。
 
@@ -26,6 +31,10 @@ pnpm format           Prettier
 - 前端只访问同源的 `/api`（平台）和 `/erp`（DemoERP），由 Vite 代理转发。
 - 资产来源的颜色、图标、写级别和裁决标签统一从 `@eab/ui` 取，不在页面里另写颜色；Tailwind 类名不要动态拼接。
 - TypeScript 固定在 6.0.x，typescript-eslint 目前不支持 7.x。
+- better-sqlite3 13 的 npm 包自带预编译二进制，不要把它加进 `pnpm.onlyBuiltDependencies`，否则 pnpm 会尝试用 node-gyp 编译。
+- zod 4 的 refine 在前一个校验失败后仍会继续执行，refine 里不要调用会抛异常的函数（例如 `parseAssetRef`），先用 `isAssetRef` 判断。
+- 测试里的资产用 `@eab/spec/testing` 的构造器生成，不手写整段 YAML。
+- 标品资产改动必须升版本号：同版本不同内容在启动入库时会报错。
 
 ## 架构要点
 
