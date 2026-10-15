@@ -28,7 +28,10 @@ case "${1:-}" in
     "${SSH[@]}" "bash /root/bootstrap.sh"
     ;;
   deploy)
-    "${SSH[@]}" "bash /home/eab/app/deploy/remote-deploy.sh ${2:-main} ${3:-}"
+    branch="${2:-main}"
+    # 先切到目标分支，再运行该分支自带的部署脚本（主机上的旧代码可能还没有这个脚本）
+    "${SSH[@]}" "sudo -u eab -H bash -lc 'cd /home/eab/app && git fetch -q --prune origin && git checkout -q $branch && git reset -q --hard origin/$branch'"
+    "${SSH[@]}" "bash /home/eab/app/deploy/remote-deploy.sh $branch ${3:-}"
     backup
     ;;
   backup)
