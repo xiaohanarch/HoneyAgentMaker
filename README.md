@@ -40,12 +40,13 @@ docker compose up --build      # 独立安装的旧版 Compose 用 docker-compos
 | 命令 | 作用 |
 |---|---|
 | `pnpm demo` | 启动全部服务，等健康检查通过后打印地址 |
-| `pnpm dev` | 开发模式，后端热重载 |
-| `pnpm demo:java` | 用 Java 后端启动（迁移完成前的过渡命令） |
+| `pnpm dev` | 同 `pnpm demo`，前端热更新 |
 | `pnpm test` | 单元测试（Vitest 和 Maven） |
 | `pnpm test:e2e` | 端到端测试（Playwright），会自动拉起演示环境 |
 | `pnpm lint` | ESLint 和 Spotless |
-| `pnpm typecheck` | 全部包的 TypeScript 类型检查 |
+| `pnpm typecheck` | 前端的 TypeScript 类型检查 |
+| `pnpm seed:reset` | 把演示数据重置到初始状态 |
+| `pnpm assets:validate` | 校验 `assets/` 下全部资产 |
 | `pnpm format` | Prettier 与 Spotless 格式化 |
 
 首次运行端到端测试前执行一次 `pnpm exec playwright install chromium`。
@@ -53,8 +54,10 @@ docker compose up --build      # 独立安装的旧版 Compose 用 docker-compos
 ## 目录结构
 
 ```
-apps/          可运行的服务：platform、demo-erp、studio-web
-packages/      平台的各个模块：spec、assembler、policy、runtime、router、各类网关、eval、tracing、cli、studio-mcp、ui
+backend/       Java 后端（Maven 多模块）：eab-spec、eab-assembler、eab-policy、eab-directory、eab-common，应用 platform、demo-erp
+apps/          前端 studio-web
+packages/      前端共用的视觉规范 ui
+schemas/       由资产 schema 导出的 JSON Schema
 assets/        平台层、标品层的声明式资产（YAML），以及演示租户的完成态快照
 external-agents/  外部 Agent 与 MCP Server 样例
 demo/          脚本化模型剧本、种子数据、演示讲解词

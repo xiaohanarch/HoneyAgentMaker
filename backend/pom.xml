@@ -23,9 +23,11 @@
   <name>ERP Agent Builder 后端</name>
 
   <modules>
+    <module>eab-common</module>
     <module>eab-spec</module>
     <module>eab-assembler</module>
     <module>eab-directory</module>
+    <module>eab-policy</module>
     <module>platform</module>
     <module>demo-erp</module>
   </modules>

@@ -1,6 +1,6 @@
 package dev.eab.platform.audit;
 
-import dev.eab.platform.IsoTime;
+import dev.eab.common.IsoTime;
 import dev.eab.spec.Json;
 import java.sql.ResultSet;
 import java.sql.SQLException;

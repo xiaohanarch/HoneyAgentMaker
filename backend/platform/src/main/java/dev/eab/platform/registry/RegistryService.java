@@ -1,6 +1,6 @@
 package dev.eab.platform.registry;
 
-import dev.eab.platform.IsoTime;
+import dev.eab.common.IsoTime;
 import dev.eab.platform.audit.AuditStore;
 import dev.eab.platform.audit.AuditStore.NewAuditEvent;
 import dev.eab.platform.registry.AssetRepository.AssetFilter;

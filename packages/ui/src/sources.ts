@@ -1,4 +1,4 @@
-import { layerOfNamespace } from '@eab/spec'
+import { layerOfNamespace } from './layers'
 import { Building2, Globe, Lock, ShieldCheck, type LucideIcon } from 'lucide-react'
 
 /**

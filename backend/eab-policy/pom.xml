@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>dev.eab</groupId>
+    <artifactId>eab-backend</artifactId>
+    <version>0.1.0</version>
+  </parent>
+
+  <artifactId>eab-policy</artifactId>
+  <name>策略引擎</name>
+  <description>鉴权点 1 至 3 的策略引擎（主提示词 7.3、7.4 节）：规则是 JSON，条件用 CEL，输出结构化的裁决</description>
+
+  <dependencies>
+    <dependency>
+      <groupId>dev.eab</groupId>
+      <artifactId>eab-assembler</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>dev.eab</groupId>
+      <artifactId>eab-spec</artifactId>
+      <version>${project.version}</version>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>

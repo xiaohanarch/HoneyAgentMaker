@@ -9,13 +9,17 @@ import { fileURLToPath } from 'node:url'
 
 const BACKEND_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'backend')
 
-export function runMaven(args) {
+/** toStderr 为 true 时 Maven 的输出写到 stderr，调用方的 stdout 保持干净 */
+export function runMaven(args, { toStderr = false } = {}) {
   const windows = process.platform === 'win32'
   const mvnw = windows ? '.\\mvnw.cmd' : './mvnw'
   if (!existsSync(join(BACKEND_DIR, mvnw))) throw new Error(`找不到 backend/${mvnw}`)
   // Windows 上 .cmd 不能直接 execFile，经 cmd.exe 调用；参数逐个传入，不拼接成命令行字符串
   const [command, commandArgs] = windows ? ['cmd.exe', ['/d', '/c', mvnw, ...args]] : [mvnw, args]
-  execFileSync(command, commandArgs, { cwd: BACKEND_DIR, stdio: 'inherit' })
+  execFileSync(command, commandArgs, {
+    cwd: BACKEND_DIR,
+    stdio: toStderr ? ['inherit', 2, 2] : 'inherit',
+  })
 }
 
 if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
