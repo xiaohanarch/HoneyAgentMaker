@@ -39,7 +39,8 @@ public final class PolicyEngine {
     public static final List<String> RULE_EFFECTS = List.of("deny", "approve", "confirm");
 
     /** @param when CEL 条件，变量为 input；条件为真时规则命中 */
-    public record PolicyRule(String id, String checkpoint, String description, String effect, String when, String reason) {}
+    public record PolicyRule(
+            String id, String checkpoint, String description, String effect, String when, String reason) {}
 
     public record PolicyRuleSet(String version, List<PolicyRule> rules) {}
 
@@ -86,8 +87,11 @@ public final class PolicyEngine {
             if (rule.id() == null || !RULE_ID.matcher(rule.id()).matches()) {
                 throw new PolicyRuleException("策略规则集不合法：规则编号格式应为 前缀-三位数字，例如 TOOL-005");
             }
-            if (!CHECKPOINTS.contains(rule.checkpoint()) || !RULE_EFFECTS.contains(rule.effect())
-                    || isBlank(rule.description()) || isBlank(rule.when()) || isBlank(rule.reason())) {
+            if (!CHECKPOINTS.contains(rule.checkpoint())
+                    || !RULE_EFFECTS.contains(rule.effect())
+                    || isBlank(rule.description())
+                    || isBlank(rule.when())
+                    || isBlank(rule.reason())) {
                 throw new PolicyRuleException("策略规则集不合法：规则 " + rule.id() + " 的字段不完整或取值不对");
             }
             if (!ids.add(rule.id())) throw new PolicyRuleException("规则编号 " + rule.id() + " 重复");
@@ -153,9 +157,18 @@ public final class PolicyEngine {
                 if (!(value instanceof Boolean b)) throw new PolicyRuleException("规则 " + rule.id() + " 的条件结果不是布尔值");
                 hit = b;
             } catch (RuntimeException e) {
-                String detail = e.getMessage() == null ? "" : e.getMessage().lines().findFirst().orElse("");
-                return new Decision(checkpoint, "deny", rule.id(),
-                        "策略规则 " + rule.id() + " 求值失败，按失败即拒绝处理：" + detail, List.of(), ruleSet.version(), at, input);
+                String detail = e.getMessage() == null
+                        ? ""
+                        : e.getMessage().lines().findFirst().orElse("");
+                return new Decision(
+                        checkpoint,
+                        "deny",
+                        rule.id(),
+                        "策略规则 " + rule.id() + " 求值失败，按失败即拒绝处理：" + detail,
+                        List.of(),
+                        ruleSet.version(),
+                        at,
+                        input);
             }
             if (!hit) continue;
             String reason = renderReason(rule.reason(), input);
@@ -164,7 +177,10 @@ public final class PolicyEngine {
             }
             requirements.add(new Requirement(rule.id(), rule.effect(), reason));
         }
-        Requirement approval = requirements.stream().filter(r -> r.effect().equals("approve")).findFirst().orElse(null);
+        Requirement approval = requirements.stream()
+                .filter(r -> r.effect().equals("approve"))
+                .findFirst()
+                .orElse(null);
         Requirement first = approval != null ? approval : requirements.isEmpty() ? null : requirements.getFirst();
         if (first == null) {
             return new Decision(checkpoint, "allow", null, "没有命中限制规则", requirements, ruleSet.version(), at, input);

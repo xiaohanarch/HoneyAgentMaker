@@ -51,7 +51,8 @@ public final class DelegationStore {
 
     public Delegation create(NewDelegation input) {
         // 128 位随机编号，不能被猜测
-        return create(input, "DLG-" + UUID.randomUUID().toString().replace("-", "").toUpperCase());
+        return create(
+                input, "DLG-" + UUID.randomUUID().toString().replace("-", "").toUpperCase());
     }
 
     public Delegation create(NewDelegation input, String id) {
@@ -60,15 +61,26 @@ public final class DelegationStore {
                           revoked_at, revoked_by, note, created_by, created_at)
                         VALUES (?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?)
                         """)
-                .params(id, input.tenantId(), input.delegatorUserId(), input.agent(),
-                        Json.MAPPER.writeValueAsString(input.scope()), input.validFrom(), input.validUntil(), input.note(),
-                        input.createdBy(), IsoTime.now(clock))
+                .params(
+                        id,
+                        input.tenantId(),
+                        input.delegatorUserId(),
+                        input.agent(),
+                        Json.MAPPER.writeValueAsString(input.scope()),
+                        input.validFrom(),
+                        input.validUntil(),
+                        input.note(),
+                        input.createdBy(),
+                        IsoTime.now(clock))
                 .update();
         return get(id).orElseThrow();
     }
 
     public Optional<Delegation> get(String id) {
-        return jdbc.sql("SELECT * FROM delegations WHERE id = ?").param(id).query(DelegationStore::map).optional();
+        return jdbc.sql("SELECT * FROM delegations WHERE id = ?")
+                .param(id)
+                .query(DelegationStore::map)
+                .optional();
     }
 
     public List<Delegation> listByTenant(String tenantId) {

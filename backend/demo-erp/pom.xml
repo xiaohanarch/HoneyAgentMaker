@@ -64,9 +64,13 @@
   <build>
     <finalName>demo-erp</finalName>
     <plugins>
+      <!-- 可执行 jar 带 exec 后缀，普通 jar 留给平台的联调测试引用 -->
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
+        <configuration>
+          <classifier>exec</classifier>
+        </configuration>
       </plugin>
     </plugins>
   </build>

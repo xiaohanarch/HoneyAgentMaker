@@ -51,11 +51,13 @@ public final class ClientRegistry {
         try {
             if (!Files.exists(path)) {
                 Files.createDirectories(dir);
-                Files.writeString(path, Json.MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(generate()) + "\n",
+                Files.writeString(
+                        path,
+                        Json.MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(generate()) + "\n",
                         StandardCharsets.UTF_8);
             }
-            return new ClientRegistry(Json.MAPPER.readValue(Files.readString(path, StandardCharsets.UTF_8),
-                    new TypeReference<Map<String, String>>() {}));
+            return new ClientRegistry(Json.MAPPER.readValue(
+                    Files.readString(path, StandardCharsets.UTF_8), new TypeReference<Map<String, String>>() {}));
         } catch (IOException e) {
             throw new UncheckedIOException("无法读写集成账号密钥文件 " + path, e);
         }

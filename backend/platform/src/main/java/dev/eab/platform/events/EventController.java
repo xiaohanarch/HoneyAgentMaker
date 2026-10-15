@@ -52,7 +52,8 @@ public class EventController {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
-            return "sha256=" + HexFormat.of().formatHex(mac.doFinal((timestamp + "." + body).getBytes(StandardCharsets.UTF_8)));
+            return "sha256="
+                    + HexFormat.of().formatHex(mac.doFinal((timestamp + "." + body).getBytes(StandardCharsets.UTF_8)));
         } catch (GeneralSecurityException e) {
             throw new IllegalStateException("签名计算失败", e);
         }
@@ -61,16 +62,28 @@ public class EventController {
     private static boolean verifySignature(String secret, String timestamp, String body, String header) {
         if (header == null) return false;
         return MessageDigest.isEqual(
-                signPayload(secret, timestamp, body).getBytes(StandardCharsets.UTF_8), header.getBytes(StandardCharsets.UTF_8));
+                signPayload(secret, timestamp, body).getBytes(StandardCharsets.UTF_8),
+                header.getBytes(StandardCharsets.UTF_8));
     }
 
     private static final List<String> ACCESS_FIELDS = List.of(
-            "at", "operation", "userId", "agent", "mode", "outcome", "code", "reason", "dataScope", "target", "resultSummary");
+            "at",
+            "operation",
+            "userId",
+            "agent",
+            "mode",
+            "outcome",
+            "code",
+            "reason",
+            "dataScope",
+            "target",
+            "resultSummary");
 
     /** 签名基于原始请求体，这里按字符串接收 */
     @PostMapping("/events/v1/ingest")
     @ResponseStatus(HttpStatus.ACCEPTED)
-    public ApiResponse<Map<String, Object>> ingest(HttpServletRequest request, @RequestBody(required = false) String raw) {
+    public ApiResponse<Map<String, Object>> ingest(
+            HttpServletRequest request, @RequestBody(required = false) String raw) {
         String body = raw == null ? "" : raw;
         String timestamp = request.getHeader(TIMESTAMP_HEADER);
         long skew;
@@ -96,9 +109,16 @@ public class EventController {
         String tenantId = text(event, "tenantId");
         JsonNode payload = event.get("payload");
         boolean access = "bo.access".equals(type);
-        boolean valid = id != null && !id.isEmpty() && id.length() <= 64 && tenantId != null && payload != null && payload.isObject()
-                && (access ? ACCESS_FIELDS.stream().allMatch(f -> payload.path(f).isString())
-                        && List.of("allow", "deny").contains(payload.get("outcome").asString())
+        boolean valid = id != null
+                && !id.isEmpty()
+                && id.length() <= 64
+                && tenantId != null
+                && payload != null
+                && payload.isObject()
+                && (access
+                        ? ACCESS_FIELDS.stream().allMatch(f -> payload.path(f).isString())
+                                && List.of("allow", "deny")
+                                        .contains(payload.get("outcome").asString())
                         : EventStore.BUSINESS_EVENT_TYPES.contains(type));
         if (!valid) throw new ApiException(400, "BAD_EVENT", "事件格式不合法");
         if (DemoDirectory.findTenant(tenantId).isEmpty()) throw new ApiException(400, "UNKNOWN_TENANT", "事件的租户不存在");
@@ -109,18 +129,23 @@ public class EventController {
 
         if (access) {
             String delegationId = text(payload, "delegationId");
-            services.audit().append(NewAuditEvent.of(text(payload, "userId"), "bo.access", text(payload, "target"),
-                            text(payload, "outcome"), "鉴权点 4 · BO API：" + text(payload, "reason"))
-                    .tenantId(tenantId)
-                    .userId(text(payload, "userId"))
-                    .agent(text(payload, "agent"))
-                    .mode(text(payload, "mode"))
-                    .checkpoint("bo-api")
-                    .tool(text(payload, "operation"))
-                    .dataScope(text(payload, "dataScope"))
-                    .ruleId(text(payload, "code"))
-                    .resultSummary(text(payload, "resultSummary"))
-                    .detail(delegationId == null ? null : Map.of("delegationId", delegationId)));
+            services.audit()
+                    .append(NewAuditEvent.of(
+                                    text(payload, "userId"),
+                                    "bo.access",
+                                    text(payload, "target"),
+                                    text(payload, "outcome"),
+                                    "鉴权点 4 · BO API：" + text(payload, "reason"))
+                            .tenantId(tenantId)
+                            .userId(text(payload, "userId"))
+                            .agent(text(payload, "agent"))
+                            .mode(text(payload, "mode"))
+                            .checkpoint("bo-api")
+                            .tool(text(payload, "operation"))
+                            .dataScope(text(payload, "dataScope"))
+                            .ruleId(text(payload, "code"))
+                            .resultSummary(text(payload, "resultSummary"))
+                            .detail(delegationId == null ? null : Map.of("delegationId", delegationId)));
             return ApiResponse.success(Map.of("accepted", true));
         }
         @SuppressWarnings("unchecked")

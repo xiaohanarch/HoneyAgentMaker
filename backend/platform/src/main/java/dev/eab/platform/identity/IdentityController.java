@@ -1,8 +1,8 @@
 package dev.eab.platform.identity;
 
+import dev.eab.common.IsoTime;
 import dev.eab.directory.DemoDirectory;
 import dev.eab.directory.DemoDirectory.PublicUser;
-import dev.eab.common.IsoTime;
 import dev.eab.platform.DemoMode;
 import dev.eab.platform.PlatformServices;
 import dev.eab.platform.audit.AuditStore.NewAuditEvent;
@@ -86,7 +86,8 @@ public class IdentityController {
     @Operation(summary = "演示用户列表（选人即登录）")
     public ApiResponse<List<PublicUser>> users() {
         requireDemoMode();
-        return ApiResponse.success(DemoDirectory.USERS.stream().map(DemoDirectory::toPublicUser).toList());
+        return ApiResponse.success(
+                DemoDirectory.USERS.stream().map(DemoDirectory::toPublicUser).toList());
     }
 
     public record LoginBody(String userId) {}
@@ -122,7 +123,8 @@ public class IdentityController {
 
     @PostMapping(value = "/identity/v1/token", consumes = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "令牌端点：客户端凭证；演示模式下另开放 RFC 8693 令牌交换")
-    public ResponseEntity<Map<String, Object>> tokenJson(HttpServletRequest request, @RequestBody Map<String, String> body) {
+    public ResponseEntity<Map<String, Object>> tokenJson(
+            HttpServletRequest request, @RequestBody Map<String, String> body) {
         return token(request, body);
     }
 
@@ -135,26 +137,32 @@ public class IdentityController {
                 return ResponseEntity.ok(Map.of("access_token", token, "token_type", "Bearer", "expires_in", 3600));
             }
             if (!"urn:ietf:params:oauth:grant-type:token-exchange".equals(grant)) {
-                return ResponseEntity.badRequest().body(Map.of("error", "unsupported_grant_type",
-                        "error_description", "不支持的 grant_type"));
+                return ResponseEntity.badRequest()
+                        .body(Map.of("error", "unsupported_grant_type", "error_description", "不支持的 grant_type"));
             }
             // 生产形态下令牌交换由平台运行时在进程内完成，HTTP 端点只在演示模式开放，用于手工验证
             if (!demoMode) {
-                return ResponseEntity.badRequest().body(Map.of("error", "unsupported_grant_type",
-                        "error_description", "令牌交换只在平台内部进行"));
+                return ResponseEntity.badRequest()
+                        .body(Map.of("error", "unsupported_grant_type", "error_description", "令牌交换只在平台内部进行"));
             }
             for (String field : List.of("subject_token", "subject_token_type", "actor_token", "audience")) {
                 if (body.get(field) == null) {
-                    return ResponseEntity.badRequest().body(Map.of("error", "invalid_request", "error_description", "缺少 " + field));
+                    return ResponseEntity.badRequest()
+                            .body(Map.of("error", "invalid_request", "error_description", "缺少 " + field));
                 }
             }
             String scope = body.get("scope");
-            var result = services.identity().exchange(new IdentityService.ExchangeRequest(
-                    body.get("subject_token"),
-                    body.get("subject_token_type"),
-                    body.get("actor_token"),
-                    body.get("audience"),
-                    scope == null ? null : Arrays.stream(scope.split(" ")).filter(s -> !s.isEmpty()).toList()));
+            var result = services.identity()
+                    .exchange(new IdentityService.ExchangeRequest(
+                            body.get("subject_token"),
+                            body.get("subject_token_type"),
+                            body.get("actor_token"),
+                            body.get("audience"),
+                            scope == null
+                                    ? null
+                                    : Arrays.stream(scope.split(" "))
+                                            .filter(s -> !s.isEmpty())
+                                            .toList()));
             Map<String, Object> response = new LinkedHashMap<>();
             response.put("access_token", result.accessToken());
             response.put("issued_token_type", IdentityService.TokenType.ACCESS_TOKEN);
@@ -164,10 +172,11 @@ public class IdentityController {
             return ResponseEntity.ok(response);
         } catch (TokenException e) {
             // RFC 6749 的错误格式；令牌交换失败绝不退回任何技术账号
-            return ResponseEntity.badRequest().body(Map.of(
-                    "error", e.code().equals("INVALID_CLIENT") ? "invalid_client" : "invalid_grant",
-                    "error_code", e.code(),
-                    "error_description", e.getMessage()));
+            return ResponseEntity.badRequest()
+                    .body(Map.of(
+                            "error", e.code().equals("INVALID_CLIENT") ? "invalid_client" : "invalid_grant",
+                            "error_code", e.code(),
+                            "error_description", e.getMessage()));
         }
     }
 
@@ -181,54 +190,73 @@ public class IdentityController {
         return ApiResponse.success(services.delegations().listByTenant(t.tenantId()));
     }
 
-    public record DelegationBody(String delegatorUserId, String agent, List<String> scope, Integer validDays, String note) {}
+    public record DelegationBody(
+            String delegatorUserId, String agent, List<String> scope, Integer validDays, String note) {}
 
     @PostMapping("/identity/v1/delegations")
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "登记委托（租户管理员）")
-    public ApiResponse<DelegationStore.Delegation> createDelegation(HttpServletRequest request, @RequestBody DelegationBody body) {
+    public ApiResponse<DelegationStore.Delegation> createDelegation(
+            HttpServletRequest request, @RequestBody DelegationBody body) {
         var principal = services.principals().require(request);
         validate(body);
         var user = principal.user();
         var delegator = DemoDirectory.findUser(body.delegatorUserId()).orElse(null);
-        if (!user.roles().contains("tenant-admin") || delegator == null || !delegator.tenantId().equals(user.tenantId())) {
+        if (!user.roles().contains("tenant-admin")
+                || delegator == null
+                || !delegator.tenantId().equals(user.tenantId())) {
             throw new ApiException(403, "FORBIDDEN", "只有本租户的租户管理员可以为本租户用户登记委托");
         }
-        List<String> unknown = body.scope().stream().filter(op -> !DemoDirectory.isBoOperation(op)).toList();
-        if (!unknown.isEmpty()) throw new ApiException(422, "UNKNOWN_OPERATION", "未知的 BO 操作：" + String.join("、", unknown));
+        List<String> unknown = body.scope().stream()
+                .filter(op -> !DemoDirectory.isBoOperation(op))
+                .toList();
+        if (!unknown.isEmpty())
+            throw new ApiException(422, "UNKNOWN_OPERATION", "未知的 BO 操作：" + String.join("、", unknown));
         // 受托运行没有在线的人确认，只能委托只读操作（写级别以 BO 工具来源的声明为准）
-        List<String> writes = body.scope().stream().filter(op -> !boWriteLevel(op).equals("L0")).toList();
+        List<String> writes = body.scope().stream()
+                .filter(op -> !boWriteLevel(op).equals("L0"))
+                .toList();
         if (!writes.isEmpty()) {
             throw new ApiException(422, "WRITE_NOT_DELEGABLE", "受托自主运行只能委托只读操作，不能委托：" + String.join("、", writes));
         }
-        boolean agentExists = services.registry().resolverFor(principal.viewer())
+        boolean agentExists = services.registry()
+                .resolverFor(principal.viewer())
                 .resolveOfKind(body.agent(), AgentAsset.class, dev.eab.spec.AssetResolver.PUBLISHED)
                 .isPresent();
         if (!agentExists) throw new ApiException(422, "UNKNOWN_AGENT", "Agent " + body.agent() + " 不存在或本租户不可用");
         var now = services.clock().instant();
         int days = body.validDays() == null ? 30 : body.validDays();
-        var delegation = services.delegations().create(new DelegationStore.NewDelegation(
-                user.tenantId(),
-                delegator.id(),
-                body.agent(),
-                body.scope(),
-                IsoTime.format(now),
-                IsoTime.format(now.plus(Duration.ofDays(days))),
-                body.note(),
-                user.id()));
-        services.audit().append(NewAuditEvent.of(user.id(), "identity.delegation.create", delegation.id(), "allow",
-                        delegator.name() + " 委托 " + delegation.agent())
-                .tenantId(user.tenantId())
-                .userId(delegator.id())
-                .agent(delegation.agent()));
+        var delegation = services.delegations()
+                .create(new DelegationStore.NewDelegation(
+                        user.tenantId(),
+                        delegator.id(),
+                        body.agent(),
+                        body.scope(),
+                        IsoTime.format(now),
+                        IsoTime.format(now.plus(Duration.ofDays(days))),
+                        body.note(),
+                        user.id()));
+        services.audit()
+                .append(NewAuditEvent.of(
+                                user.id(),
+                                "identity.delegation.create",
+                                delegation.id(),
+                                "allow",
+                                delegator.name() + " 委托 " + delegation.agent())
+                        .tenantId(user.tenantId())
+                        .userId(delegator.id())
+                        .agent(delegation.agent()));
         return ApiResponse.success(delegation);
     }
 
     private static void validate(DelegationBody body) {
         boolean ok = body != null
                 && body.delegatorUserId() != null
-                && body.agent() != null && AGENT_REF.matcher(body.agent()).matches()
-                && body.scope() != null && !body.scope().isEmpty() && body.scope().size() <= 16
+                && body.agent() != null
+                && AGENT_REF.matcher(body.agent()).matches()
+                && body.scope() != null
+                && !body.scope().isEmpty()
+                && body.scope().size() <= 16
                 && body.scope().stream().allMatch(s -> s != null && s.length() <= 64)
                 && (body.validDays() == null || (body.validDays() >= 1 && body.validDays() <= 365))
                 && (body.note() == null || body.note().length() <= 500);
@@ -239,18 +267,26 @@ public class IdentityController {
     @Operation(summary = "撤销委托，即时生效（租户管理员）")
     public ApiResponse<DelegationStore.Delegation> revoke(HttpServletRequest request, @PathVariable String id) {
         var principal = services.principals().require(request);
-        var existing = services.delegations().get(id)
+        var existing = services.delegations()
+                .get(id)
                 .filter(d -> d.tenantId().equals(principal.user().tenantId()))
                 .orElseThrow(() -> new ApiException(404, "NOT_FOUND", "委托 " + id + " 不存在"));
         if (!principal.user().roles().contains("tenant-admin")) {
             throw new ApiException(403, "FORBIDDEN", "只有租户管理员可以撤销委托");
         }
-        var revoked = services.delegations().revoke(existing.id(), principal.user().id()).orElseThrow();
-        services.audit().append(NewAuditEvent.of(principal.user().id(), "identity.delegation.revoke", existing.id(), "allow",
-                        "撤销 " + existing.agent() + " 的委托")
-                .tenantId(existing.tenantId())
-                .userId(existing.delegatorUserId())
-                .agent(existing.agent()));
+        var revoked = services.delegations()
+                .revoke(existing.id(), principal.user().id())
+                .orElseThrow();
+        services.audit()
+                .append(NewAuditEvent.of(
+                                principal.user().id(),
+                                "identity.delegation.revoke",
+                                existing.id(),
+                                "allow",
+                                "撤销 " + existing.agent() + " 的委托")
+                        .tenantId(existing.tenantId())
+                        .userId(existing.delegatorUserId())
+                        .agent(existing.agent()));
         return ApiResponse.success(revoked);
     }
 
@@ -261,9 +297,16 @@ public class IdentityController {
             throw new ApiException(401, "INTERNAL_ONLY", "只接受内部调用");
         }
         var status = services.delegations().status(id);
-        return ApiResponse.success(status.active()
-                ? Map.of("active", true, "tenantId", status.delegation().tenantId(), "agent", status.delegation().agent())
-                : Map.of("active", false, "reason", status.reason()));
+        return ApiResponse.success(
+                status.active()
+                        ? Map.of(
+                                "active",
+                                true,
+                                "tenantId",
+                                status.delegation().tenantId(),
+                                "agent",
+                                status.delegation().agent())
+                        : Map.of("active", false, "reason", status.reason()));
     }
 
     // ── DemoERP 只读页面的深链接：带短期页面令牌，页面按该用户的数据权限展示 ──
@@ -274,13 +317,17 @@ public class IdentityController {
     @Operation(summary = "生成 DemoERP 只读页面的深链接（10 分钟有效，按当前用户的数据权限展示）")
     public ApiResponse<Map<String, String>> pageLink(HttpServletRequest request, @RequestBody PageLinkBody body) {
         var principal = services.principals().require(request);
-        if (body == null || !List.of("supplier", "purchase-order").contains(body.kind())
-                || body.id() == null || !PAGE_ID.matcher(body.id()).matches()) {
+        if (body == null
+                || !List.of("supplier", "purchase-order").contains(body.kind())
+                || body.id() == null
+                || !PAGE_ID.matcher(body.id()).matches()) {
             throw new ApiException(400, "BAD_REQUEST", "请求参数不合法");
         }
-        String token = services.tokens().issuePage(principal.user().id(), principal.user().tenantId());
+        String token = services.tokens()
+                .issuePage(principal.user().id(), principal.user().tenantId());
         String segment = body.kind().equals("supplier") ? "suppliers" : "purchase-orders";
-        return ApiResponse.success(Map.of("path",
+        return ApiResponse.success(Map.of(
+                "path",
                 "/erp/pages/" + segment + "/" + URLEncoder.encode(body.id(), StandardCharsets.UTF_8) + "?t=" + token));
     }
 
@@ -298,8 +345,12 @@ public class IdentityController {
         if (!(principal.viewer() instanceof Viewer.Platform)) {
             throw new ApiException(403, "FORBIDDEN", "只有平台运维可以代运行时签发 Agent 令牌");
         }
-        if (body == null || body.namespace() == null || !Layers.isValidNamespace(body.namespace())
-                || body.name() == null || !body.name().matches("^[a-z0-9][a-z0-9-]*$") || body.tenantId() == null) {
+        if (body == null
+                || body.namespace() == null
+                || !Layers.isValidNamespace(body.namespace())
+                || body.name() == null
+                || !body.name().matches("^[a-z0-9][a-z0-9-]*$")
+                || body.tenantId() == null) {
             throw new ApiException(400, "BAD_REQUEST", "请求参数不合法");
         }
         if (DemoDirectory.findTenant(body.tenantId()).isEmpty()) {
@@ -307,11 +358,13 @@ public class IdentityController {
         }
         Viewer scope = Viewer.tenant(body.tenantId());
         String agent = body.namespace() + "/" + body.name();
-        var outcome = EffectiveAssembly.assemble(services.registry(), scope, EffectiveAssembly.Request.of(agent, body.tenantId()));
+        var outcome = EffectiveAssembly.assemble(
+                services.registry(), scope, EffectiveAssembly.Request.of(agent, body.tenantId()));
         if (!(outcome instanceof EffectiveAssembly.Outcome.Ok success)) {
             throw new ApiException(422, new ApiError("ASSEMBLY_FAILED", "组装失败", outcome.issues(), null));
         }
-        var operations = AgentScope.declaredBoOperations(success.definition(), services.registry().resolverFor(scope));
+        var operations = AgentScope.declaredBoOperations(
+                success.definition(), services.registry().resolverFor(scope));
         String version = success.definition().provenance().agent().split("@")[1];
         String token = services.identity().issueAgentToken(agent, version, body.tenantId(), operations);
         return ApiResponse.success(new AgentToken(token, operations));
@@ -319,9 +372,15 @@ public class IdentityController {
 
     /** BO 操作的写级别，以已发布的 BO 工具来源为准；找不到时按最严格的 L3 处理 */
     private String boWriteLevel(String operation) {
-        return services.registry().resolverFor(Viewer.PLATFORM)
-                .resolveOfKind(AssetRef.key("vendor.erp.tools", "demo-erp-bo"), ToolSourceAsset.class, dev.eab.spec.AssetResolver.PUBLISHED)
-                .flatMap(source -> source.spec().tools().stream().filter(t -> t.name().equals(operation)).findFirst())
+        return services.registry()
+                .resolverFor(Viewer.PLATFORM)
+                .resolveOfKind(
+                        AssetRef.key("vendor.erp.tools", "demo-erp-bo"),
+                        ToolSourceAsset.class,
+                        dev.eab.spec.AssetResolver.PUBLISHED)
+                .flatMap(source -> source.spec().tools().stream()
+                        .filter(t -> t.name().equals(operation))
+                        .findFirst())
                 .map(t -> t.writeLevel() == null ? "L3" : t.writeLevel())
                 .orElse("L3");
     }

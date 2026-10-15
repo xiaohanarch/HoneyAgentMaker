@@ -20,9 +20,6 @@ public class ErpConfig {
 
     private static final Logger LOG = LoggerFactory.getLogger(ErpConfig.class);
 
-    /** 委托状态的缓存时间：撤销在缓存过期后对已签发的令牌生效 */
-    private static final long DELEGATION_CACHE_MILLIS = 5_000;
-
     @Bean(destroyMethod = "")
     public ErpServices erpServices(ErpProperties props) {
         String secret = props.internalSecret();
@@ -32,7 +29,7 @@ public class ErpConfig {
         }
         ErpDb db = ErpDb.open(props.resolvedDbPath());
         Runtime.getRuntime().addShutdownHook(new Thread(db::close));
-        var link = new HttpPlatformLink(props.resolvedPlatformUrl(), secret, DELEGATION_CACHE_MILLIS);
+        var link = new HttpPlatformLink(props.resolvedPlatformUrl(), secret, props.delegationCacheMillis());
         return ErpServices.create(db, link, Clock.systemUTC(), secret);
     }
 

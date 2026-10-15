@@ -14,9 +14,13 @@ import tools.jackson.core.type.TypeReference;
 public final class EventStore {
 
     public static final List<String> BUSINESS_EVENT_TYPES = List.of(
-            "delivery.overdue", "inventory.below_safety_stock", "transaction.anomaly_created", "period.close_check_failed");
+            "delivery.overdue",
+            "inventory.below_safety_stock",
+            "transaction.anomaly_created",
+            "period.close_check_failed");
 
-    public record BusinessEvent(long id, String receivedAt, String source, String type, String tenantId, Map<String, Object> payload) {}
+    public record BusinessEvent(
+            long id, String receivedAt, String source, String type, String tenantId, Map<String, Object> payload) {}
 
     private final JdbcClient jdbc;
     private final Clock clock;
@@ -29,7 +33,8 @@ public final class EventStore {
 
     public BusinessEvent append(String source, String type, String tenantId, Map<String, Object> payload) {
         String receivedAt = IsoTime.now(clock);
-        long id = jdbc.sql("INSERT INTO business_events (received_at, source, type, tenant_id, payload) VALUES (?, ?, ?, ?, ?) RETURNING id")
+        long id = jdbc.sql(
+                        "INSERT INTO business_events (received_at, source, type, tenant_id, payload) VALUES (?, ?, ?, ?, ?) RETURNING id")
                 .params(receivedAt, source, type, tenantId, Json.MAPPER.writeValueAsString(payload))
                 .query(Long.class)
                 .single();

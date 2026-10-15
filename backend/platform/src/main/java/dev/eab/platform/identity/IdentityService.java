@@ -61,7 +61,8 @@ public final class IdentityService {
 
     /** 平台运行时在每次运行前为 Agent 签发身份，携带它声明的 BO 操作 */
     public String issueAgentToken(String agent, String version, String tenantId, List<String> operations) {
-        return tokens.issueAgent(new TokenService.AgentClaims("agent:" + agent, tenantId, String.join(" ", operations), version));
+        return tokens.issueAgent(
+                new TokenService.AgentClaims("agent:" + agent, tenantId, String.join(" ", operations), version));
     }
 
     /** 交换过程中逐步确认的身份（Agent 令牌验签后才写入），拒绝时用它把审计记到对应租户 */
@@ -84,7 +85,11 @@ public final class IdentityService {
             @SuppressWarnings("unchecked")
             String actor = ((Map<String, Object>) c.get("act")).get("sub").toString();
             boolean delegated = "delegated".equals(c.get("mode"));
-            audit.append(NewAuditEvent.of(actor, "identity.token-exchange", TokenService.Audience.BO, "allow",
+            audit.append(NewAuditEvent.of(
+                            actor,
+                            "identity.token-exchange",
+                            TokenService.Audience.BO,
+                            "allow",
                             "签发委托令牌：" + (delegated ? "受托运行（" + c.getOrDefault("delegation_id", "") + "）" : "代用户操作"))
                     .tenantId((String) c.get("tid"))
                     .userId((String) c.get("sub"))
@@ -97,8 +102,11 @@ public final class IdentityService {
                     ? t
                     : new TokenException("EXCHANGE_FAILED", String.valueOf(error.getMessage()));
             String target = request.audience() == null ? "" : request.audience();
-            audit.append(NewAuditEvent.of("identity", "identity.token-exchange",
-                            target.substring(0, Math.min(64, target.length())), "deny",
+            audit.append(NewAuditEvent.of(
+                            "identity",
+                            "identity.token-exchange",
+                            target.substring(0, Math.min(64, target.length())),
+                            "deny",
                             truncate(tokenError.getMessage(), 300))
                     .ruleId(tokenError.code())
                     .resultSummary("令牌交换失败，按失败即拒绝处理，未退回任何技术账号")
@@ -132,15 +140,18 @@ public final class IdentityService {
             if (status.delegation() != null && status.delegation().tenantId().equals(actor.tid())) {
                 known.userId = status.delegation().delegatorUserId();
             }
-            if (!status.active()) throw new TokenException("DELEGATION_INACTIVE", "委托 " + id + " 不可用：" + status.reason());
+            if (!status.active())
+                throw new TokenException("DELEGATION_INACTIVE", "委托 " + id + " 不可用：" + status.reason());
             delegation = status.delegation();
             if (!delegation.agent().equals(agentRef)) {
-                throw new TokenException("DELEGATION_AGENT_MISMATCH",
-                        "委托 " + id + " 授权的是 " + delegation.agent() + "，不是 " + agentRef);
+                throw new TokenException(
+                        "DELEGATION_AGENT_MISMATCH", "委托 " + id + " 授权的是 " + delegation.agent() + "，不是 " + agentRef);
             }
-            if (!delegation.tenantId().equals(actor.tid())) throw new TokenException("TENANT_MISMATCH", "委托与 Agent 不属于同一租户");
+            if (!delegation.tenantId().equals(actor.tid()))
+                throw new TokenException("TENANT_MISMATCH", "委托与 Agent 不属于同一租户");
             user = DemoDirectory.findUser(delegation.delegatorUserId()).orElse(null);
-        } else if (TokenType.JWT.equals(request.subjectTokenType()) || TokenType.ACCESS_TOKEN.equals(request.subjectTokenType())) {
+        } else if (TokenType.JWT.equals(request.subjectTokenType())
+                || TokenType.ACCESS_TOKEN.equals(request.subjectTokenType())) {
             known.mode = "on-behalf";
             var subject = tokens.verifyUser(request.subjectToken());
             if (subject.tid().equals(actor.tid())) known.userId = subject.sub();
@@ -151,7 +162,8 @@ public final class IdentityService {
         }
         if (user == null) throw new TokenException("UNKNOWN_USER", "委托令牌的主体用户不存在");
 
-        List<String> actorScope = List.of(actor.scope() == null ? new String[0] : actor.scope().split(" "));
+        List<String> actorScope =
+                List.of(actor.scope() == null ? new String[0] : actor.scope().split(" "));
         List<String> scope = new ArrayList<>(DemoDirectory.permittedOperations(user));
         scope.retainAll(actorScope);
         if (delegation != null) scope.retainAll(delegation.scope());
@@ -168,7 +180,8 @@ public final class IdentityService {
         claims.put("mode", delegation == null ? "on-behalf" : "delegated");
         if (delegation != null) claims.put("delegation_id", delegation.id());
         claims.put("agent_version", actor.agentVersion());
-        return new ExchangeResult(tokens.issueDelegated(claims), List.copyOf(scope), TokenService.DELEGATED_TTL, claims);
+        return new ExchangeResult(
+                tokens.issueDelegated(claims), List.copyOf(scope), TokenService.DELEGATED_TTL, claims);
     }
 
     /** 解析令牌声明，供测试和演示控制台查看 */

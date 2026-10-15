@@ -37,7 +37,8 @@ public final class TenantSettingsStore {
                 .query((rs, row) -> new TenantSettings(
                         tenantId,
                         rs.getInt("l3_enabled") != 0,
-                        Json.MAPPER.readValue(rs.getString("assistant_roles"), new TypeReference<Map<String, List<String>>>() {})))
+                        Json.MAPPER.readValue(
+                                rs.getString("assistant_roles"), new TypeReference<Map<String, List<String>>>() {})))
                 .optional()
                 .orElse(new TenantSettings(tenantId, false, DEFAULT_ASSISTANT_ROLES));
     }
@@ -48,8 +49,11 @@ public final class TenantSettingsStore {
                         ON CONFLICT (tenant_id) DO UPDATE SET l3_enabled = excluded.l3_enabled,
                           assistant_roles = excluded.assistant_roles, updated_at = excluded.updated_at
                         """)
-                .params(settings.tenantId(), settings.l3Enabled() ? 1 : 0,
-                        Json.MAPPER.writeValueAsString(settings.assistantRoles()), IsoTime.now(clock))
+                .params(
+                        settings.tenantId(),
+                        settings.l3Enabled() ? 1 : 0,
+                        Json.MAPPER.writeValueAsString(settings.assistantRoles()),
+                        IsoTime.now(clock))
                 .update();
         return get(settings.tenantId());
     }

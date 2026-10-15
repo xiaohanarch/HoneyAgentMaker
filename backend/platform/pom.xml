@@ -65,6 +65,13 @@
       <artifactId>spring-boot-starter-webmvc-test</artifactId>
       <scope>test</scope>
     </dependency>
+    <!-- 平台与 DemoERP 的联调测试（对应 TS 版 identity/end-to-end.test.ts） -->
+    <dependency>
+      <groupId>dev.eab</groupId>
+      <artifactId>demo-erp</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
     <dependency>
       <groupId>dev.eab</groupId>
       <artifactId>eab-spec</artifactId>
@@ -77,9 +84,13 @@
   <build>
     <finalName>platform</finalName>
     <plugins>
+      <!-- 可执行 jar 带 exec 后缀，与 DemoERP 一致 -->
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
+        <configuration>
+          <classifier>exec</classifier>
+        </configuration>
       </plugin>
     </plugins>
   </build>

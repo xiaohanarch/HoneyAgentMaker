@@ -7,7 +7,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 
 /**
  * DemoERP 的业务数据（主提示词 6.1 节）：采购、库存、财务三个域，外加交期变更单、跟进任务、幂等键与访问日志。
- * 每张业务表都带 tenant_id，所有查询都按租户隔离；日期统一存 YYYY-MM-DD 字符串。path 为 ":memory:" 时用于测试。
+ * 每张业务表都带 tenant_id，所有查询都按租户隔离；日期统一存 YYYY-MM-DD 字符串。迁移脚本在 db/erp。path 为 ":memory:" 时用于测试。
  */
 public final class ErpDb implements AutoCloseable {
 
@@ -18,7 +18,7 @@ public final class ErpDb implements AutoCloseable {
     }
 
     public static ErpDb open(String path) {
-        return new ErpDb(SqliteDatabase.open(path, "demo-erp-db"));
+        return new ErpDb(SqliteDatabase.open(path, "demo-erp-db", "classpath:db/erp"));
     }
 
     public JdbcClient jdbc() {

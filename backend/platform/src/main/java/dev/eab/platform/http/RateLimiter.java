@@ -26,9 +26,13 @@ public final class RateLimiter {
     /** 超出限额时抛 429 */
     public void check(String key) {
         long now = clock.millis();
-        Window window = windows.compute(key, (k, w) ->
-                w == null || now - w.start() >= windowMillis ? new Window(now, 1) : new Window(w.start(), w.count() + 1));
+        Window window = windows.compute(
+                key,
+                (k, w) -> w == null || now - w.start() >= windowMillis
+                        ? new Window(now, 1)
+                        : new Window(w.start(), w.count() + 1));
         if (window.count() > max) throw new ApiException(429, "RATE_LIMITED", "请求过于频繁，请稍后再试");
-        if (windows.size() > 10_000) windows.entrySet().removeIf(e -> now - e.getValue().start() >= windowMillis);
+        if (windows.size() > 10_000)
+            windows.entrySet().removeIf(e -> now - e.getValue().start() >= windowMillis);
     }
 }

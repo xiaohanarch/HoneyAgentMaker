@@ -1,7 +1,6 @@
 package dev.eab.platform;
 
 import dev.eab.common.IsoTime;
-
 import dev.eab.platform.audit.AuditStore;
 import dev.eab.platform.audit.JdbcAuditStore;
 import dev.eab.platform.db.PlatformDb;
@@ -58,7 +57,12 @@ public record PlatformServices(
             ClientRegistry clients,
             String internalSecret) {
 
-        public Options(String dbPath, Signer signer, IdentityKeys identityKeys, RegistryService.PublishGate publishGate, Clock clock) {
+        public Options(
+                String dbPath,
+                Signer signer,
+                IdentityKeys identityKeys,
+                RegistryService.PublishGate publishGate,
+                Clock clock) {
             this(dbPath, signer, identityKeys, publishGate, clock, null, null);
         }
     }
@@ -107,7 +111,12 @@ public record PlatformServices(
                         "t001",
                         "sunkg",
                         "vendor.scm/inventory-risk-analyst",
-                        List.of("inventory_balance_list", "material_list", "stock_movement_list", "purchase_order_list", "delivery_list"),
+                        List.of(
+                                "inventory_balance_list",
+                                "material_list",
+                                "stock_movement_list",
+                                "purchase_order_list",
+                                "delivery_list"),
                         IsoTime.format(now),
                         IsoTime.format(now.plus(Duration.ofDays(90))),
                         "交付逾期、库存低于安全线时，库存经营分析 Agent 以孙库管的委托自主分析库存影响",

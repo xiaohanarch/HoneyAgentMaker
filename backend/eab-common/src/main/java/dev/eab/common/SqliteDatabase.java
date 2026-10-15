@@ -12,7 +12,7 @@ import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * SQLite 数据库，迁移由 Flyway 执行（classpath:db/migration）。path 为 ":memory:" 时用于测试。
+ * SQLite 数据库，迁移由 Flyway 执行，各应用的迁移脚本放在各自的 classpath 目录里，避免同一进程里互相干扰。path 为 ":memory:" 时用于测试。
  * 数据访问只经过仓储接口，换 PostgreSQL 时只需替换仓储实现。
  *
  * <p>SQLite 同一时刻只允许一个写入者，连接池固定为一个连接：请求在虚拟线程上排队，避免 SQLITE_BUSY；
@@ -30,7 +30,10 @@ public final class SqliteDatabase implements AutoCloseable {
         this.transactions = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
     }
 
-    public static SqliteDatabase open(String path, String poolName) {
+    /**
+     * @param migrations Flyway 迁移脚本位置，例如 classpath:db/migration
+     */
+    public static SqliteDatabase open(String path, String poolName, String migrations) {
         boolean memory = path.equals(":memory:");
         if (!memory) {
             try {
@@ -49,8 +52,12 @@ public final class SqliteDatabase implements AutoCloseable {
         config.setConnectionInitSql("PRAGMA foreign_keys = ON");
         config.setPoolName(poolName);
         HikariDataSource dataSource = new HikariDataSource(config);
-        if (!memory) JdbcClient.create(dataSource).sql("PRAGMA journal_mode = WAL").query().singleRow();
-        Flyway.configure().dataSource(dataSource).locations("classpath:db/migration").load().migrate();
+        if (!memory)
+            JdbcClient.create(dataSource)
+                    .sql("PRAGMA journal_mode = WAL")
+                    .query()
+                    .singleRow();
+        Flyway.configure().dataSource(dataSource).locations(migrations).load().migrate();
         return new SqliteDatabase(dataSource);
     }
 

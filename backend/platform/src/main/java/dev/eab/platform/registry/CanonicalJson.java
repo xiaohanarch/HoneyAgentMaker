@@ -1,7 +1,6 @@
 package dev.eab.platform.registry;
 
 import dev.eab.common.JsNumbers;
-
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;

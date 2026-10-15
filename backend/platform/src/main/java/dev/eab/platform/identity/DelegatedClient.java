@@ -64,12 +64,15 @@ public final class DelegatedClient {
     private final IdentityService identity;
     /** DemoERP 的地址，P3 起由连接别名 DEMO_ERP 按环境绑定 */
     private final String erpUrl;
+
     private final HttpClient http;
 
     public DelegatedClient(IdentityService identity, String erpUrl, HttpClient http) {
         this.identity = identity;
         this.erpUrl = erpUrl;
-        this.http = http == null ? HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build() : http;
+        this.http = http == null
+                ? HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build()
+                : http;
     }
 
     public BoResponse callBoApi(BoCall call) {
@@ -79,10 +82,17 @@ public final class DelegatedClient {
         String accessToken;
         try {
             var request = call.subject().userToken() != null
-                    ? new IdentityService.ExchangeRequest(call.subject().userToken(), IdentityService.TokenType.JWT,
-                            call.agentToken(), TokenService.Audience.BO, List.of(call.operation()))
-                    : new IdentityService.ExchangeRequest("delegation:" + call.subject().delegationId(),
-                            IdentityService.TokenType.DELEGATION, call.agentToken(), TokenService.Audience.BO,
+                    ? new IdentityService.ExchangeRequest(
+                            call.subject().userToken(),
+                            IdentityService.TokenType.JWT,
+                            call.agentToken(),
+                            TokenService.Audience.BO,
+                            List.of(call.operation()))
+                    : new IdentityService.ExchangeRequest(
+                            "delegation:" + call.subject().delegationId(),
+                            IdentityService.TokenType.DELEGATION,
+                            call.agentToken(),
+                            TokenService.Audience.BO,
                             List.of(call.operation()));
             accessToken = identity.exchange(request).accessToken();
         } catch (RuntimeException e) {
@@ -98,10 +108,11 @@ public final class DelegatedClient {
         URI base = URI.create(erpUrl);
         String query = call.query() == null || call.query().isEmpty()
                 ? ""
-                : "?" + call.query().entrySet().stream()
-                        .map(e -> URLEncoder.encode(e.getKey(), StandardCharsets.UTF_8) + "="
-                                + URLEncoder.encode(e.getValue(), StandardCharsets.UTF_8))
-                        .collect(Collectors.joining("&"));
+                : "?"
+                        + call.query().entrySet().stream()
+                                .map(e -> URLEncoder.encode(e.getKey(), StandardCharsets.UTF_8) + "="
+                                        + URLEncoder.encode(e.getValue(), StandardCharsets.UTF_8))
+                                .collect(Collectors.joining("&"));
         URI uri = base.resolve(path + query);
         if (!uri.getScheme().equals(base.getScheme()) || !uri.getAuthority().equals(base.getAuthority())) {
             throw new DelegationException("INVALID_PATH", "BO API 地址与连接配置不一致");
@@ -112,12 +123,15 @@ public final class DelegatedClient {
         if (call.idempotencyKey() != null) builder.header("idempotency-key", call.idempotencyKey());
         if (call.body() != null) {
             builder.header("content-type", "application/json")
-                    .method(call.method(), HttpRequest.BodyPublishers.ofString(Json.MAPPER.writeValueAsString(call.body())));
+                    .method(
+                            call.method(),
+                            HttpRequest.BodyPublishers.ofString(Json.MAPPER.writeValueAsString(call.body())));
         } else {
             builder.method(call.method(), HttpRequest.BodyPublishers.noBody());
         }
         try {
-            HttpResponse<String> response = http.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            HttpResponse<String> response =
+                    http.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
             return new BoResponse(response.statusCode(), Json.MAPPER.readTree(response.body()));
         } catch (IOException e) {
             throw new DelegationException("BO_UNREACHABLE", "调用 BO API 失败：" + e.getMessage());

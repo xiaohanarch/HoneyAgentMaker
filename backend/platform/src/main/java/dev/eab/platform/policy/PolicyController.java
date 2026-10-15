@@ -43,10 +43,22 @@ public class PolicyController {
      * 每一次裁决写入审计（主提示词 7.3 节）。策略试算的事实由调用方提供，审计里与真实运行的裁决分开记录。
      */
     public static void recordDecision(
-            AuditStore audit, Decision decision, boolean trial, String actor, String tenantId, String userId,
-            String target, String agent, String tool, String mode) {
-        audit.append(NewAuditEvent.of(actor, (trial ? "policy.trial" : "policy") + "." + decision.checkpoint(), target,
-                        decision.outcome(), PolicyEngine.CHECKPOINT_LABELS.get(decision.checkpoint()) + "：" + decision.reason())
+            AuditStore audit,
+            Decision decision,
+            boolean trial,
+            String actor,
+            String tenantId,
+            String userId,
+            String target,
+            String agent,
+            String tool,
+            String mode) {
+        audit.append(NewAuditEvent.of(
+                        actor,
+                        (trial ? "policy.trial" : "policy") + "." + decision.checkpoint(),
+                        target,
+                        decision.outcome(),
+                        PolicyEngine.CHECKPOINT_LABELS.get(decision.checkpoint()) + "：" + decision.reason())
                 .tenantId(tenantId)
                 .userId(userId)
                 .checkpoint(decision.checkpoint())
@@ -87,7 +99,8 @@ public class PolicyController {
         if (!(principal.viewer() instanceof Viewer.Tenant tenant)) {
             throw new ApiException(403, "TENANT_ONLY", "策略试算以租户用户身份进行");
         }
-        if (body == null || body.checkpoint() == null) throw new ApiException(400, "BAD_REQUEST", "请求参数不合法：缺少 checkpoint");
+        if (body == null || body.checkpoint() == null)
+            throw new ApiException(400, "BAD_REQUEST", "请求参数不合法：缺少 checkpoint");
         String tenantId = tenant.tenantId();
         var subjectFacts = Principals.subjectFacts(principal.user());
         var subject = new PolicyInputs.SubjectFacts(
@@ -103,13 +116,17 @@ public class PolicyController {
             case "entry" -> {
                 requireRef(body.assistant(), true);
                 target = body.assistant() == null ? "统一入口" : body.assistant();
-                decision = PolicyEngine.evaluate(services.policyRules(), "entry", PolicyInputs.entry(
-                        subject,
-                        tenantId,
-                        body.assistant() == null
-                                ? null
-                                : new PolicyInputs.Assistant(body.assistant(),
-                                        settings.assistantRoles().getOrDefault(body.assistant(), List.of()))),
+                decision = PolicyEngine.evaluate(
+                        services.policyRules(),
+                        "entry",
+                        PolicyInputs.entry(
+                                subject,
+                                tenantId,
+                                body.assistant() == null
+                                        ? null
+                                        : new PolicyInputs.Assistant(
+                                                body.assistant(),
+                                                settings.assistantRoles().getOrDefault(body.assistant(), List.of()))),
                         services.clock().instant());
             }
             case "handoff" -> {
@@ -117,16 +134,27 @@ public class PolicyController {
                 target = body.target();
                 var caller = body.caller() == null ? new CallerBody("router", "router", 0) : body.caller();
                 if (!List.of("router", "assistant", "agent", "external").contains(caller.type())
-                        || caller.depth() == null || caller.depth() < 0 || caller.ref() == null) {
+                        || caller.depth() == null
+                        || caller.depth() < 0
+                        || caller.ref() == null) {
                     throw new ApiException(400, "BAD_REQUEST", "请求参数不合法：caller");
                 }
-                Asset asset = services.registry().resolverFor(principal.viewer()).resolve(body.target()).orElse(null);
-                String kind = asset instanceof Asset.RemoteAgentAsset ? "RemoteAgent"
+                Asset asset = services.registry()
+                        .resolverFor(principal.viewer())
+                        .resolve(body.target())
+                        .orElse(null);
+                String kind = asset instanceof Asset.RemoteAgentAsset
+                        ? "RemoteAgent"
                         : asset instanceof Asset.AssistantAsset ? "Assistant" : "Agent";
                 List<String> allowedCallers = asset instanceof Asset.RemoteAgentAsset remote
-                        ? remote.spec().allowedCallers().stream().map(c -> AssetRef.parse(c).key()).toList()
+                        ? remote.spec().allowedCallers().stream()
+                                .map(c -> AssetRef.parse(c).key())
+                                .toList()
                         : List.of();
-                decision = PolicyEngine.evaluate(services.policyRules(), "handoff", PolicyInputs.handoff(
+                decision = PolicyEngine.evaluate(
+                        services.policyRules(),
+                        "handoff",
+                        PolicyInputs.handoff(
                                 subject,
                                 new PolicyInputs.Caller(caller.type(), caller.ref(), caller.depth()),
                                 new PolicyInputs.HandoffTarget(body.target(), kind, asset != null, allowedCallers)),
@@ -150,26 +178,51 @@ public class PolicyController {
                 if (body.delegationId() != null) {
                     var status = services.delegations().status(body.delegationId());
                     if (status.active() && status.delegation().tenantId().equals(tenantId)) {
-                        delegation = new PolicyInputs.Delegation(status.delegation().id(), status.delegation().scope());
+                        delegation = new PolicyInputs.Delegation(
+                                status.delegation().id(), status.delegation().scope());
                     }
                 }
                 var document = body.document() == null
                         ? null
-                        : new PolicyInputs.Document(body.document().id(), body.document().action(), body.document().submittedBy());
-                decision = PolicyEngine.evaluate(services.policyRules(), "tool", PolicyInputs.tool(new PolicyInputs.ToolContext(
-                                subject, mode, ok.definition(), body.tool(), body.toolInput(), settings.l3Enabled(), delegation, document)),
+                        : new PolicyInputs.Document(
+                                body.document().id(),
+                                body.document().action(),
+                                body.document().submittedBy());
+                decision = PolicyEngine.evaluate(
+                        services.policyRules(),
+                        "tool",
+                        PolicyInputs.tool(new PolicyInputs.ToolContext(
+                                subject,
+                                mode,
+                                ok.definition(),
+                                body.tool(),
+                                body.toolInput(),
+                                settings.l3Enabled(),
+                                delegation,
+                                document)),
                         services.clock().instant());
                 agent = ok.definition().provenance().agent();
                 tool = body.tool();
             }
             default -> throw new ApiException(400, "BAD_REQUEST", "请求参数不合法：checkpoint 只能是 entry、handoff、tool");
         }
-        recordDecision(services.audit(), decision, true, principal.user().id(), tenantId, principal.user().id(), target, agent, tool, mode);
+        recordDecision(
+                services.audit(),
+                decision,
+                true,
+                principal.user().id(),
+                tenantId,
+                principal.user().id(),
+                target,
+                agent,
+                tool,
+                mode);
         return ApiResponse.success(decision);
     }
 
     private static void requireRef(String ref, boolean optional) {
         if (ref == null && optional) return;
-        if (ref == null || !REF.matcher(ref).matches()) throw new ApiException(400, "BAD_REQUEST", "请求参数不合法：引用写作 namespace/name");
+        if (ref == null || !REF.matcher(ref).matches())
+            throw new ApiException(400, "BAD_REQUEST", "请求参数不合法：引用写作 namespace/name");
     }
 }

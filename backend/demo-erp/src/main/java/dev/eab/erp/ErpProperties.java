@@ -12,10 +12,16 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * @param platformUrl 平台地址，用于取 JWKS、核实委托、推送事件
  * @param internalSecret 与平台共享的内部调用密钥
  * @param seedData 启动时数据库为空则生成演示数据
+ * @param delegationCacheMillis 委托状态的缓存时间：撤销在缓存过期后对已签发的令牌生效，新的令牌交换立即失败
  */
 @ConfigurationProperties(prefix = "eab")
 public record ErpProperties(
-        String dataDir, String dbPath, String platformUrl, String internalSecret, boolean seedData) {
+        String dataDir,
+        String dbPath,
+        String platformUrl,
+        String internalSecret,
+        boolean seedData,
+        long delegationCacheMillis) {
 
     /** 从当前目录往上找 pnpm-workspace.yaml，找不到时用当前目录 */
     public static Path repoRoot() {

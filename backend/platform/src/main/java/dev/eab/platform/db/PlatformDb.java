@@ -13,7 +13,7 @@ public final class PlatformDb implements AutoCloseable {
     }
 
     public static PlatformDb open(String path) {
-        return new PlatformDb(SqliteDatabase.open(path, "platform-db"));
+        return new PlatformDb(SqliteDatabase.open(path, "platform-db", "classpath:db/migration"));
     }
 
     public JdbcClient jdbc() {

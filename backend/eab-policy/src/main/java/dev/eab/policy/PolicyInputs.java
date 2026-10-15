@@ -107,10 +107,15 @@ public final class PolicyInputs {
                 .orElse(null);
         List<EffectiveApproval> approvals = tool == null
                 ? List.of()
-                : applicable(Capabilities.matchingApprovals(ctx.definition().approvals(), tool),
-                        ctx.toolInput() == null ? Map.of() : ctx.toolInput(), ctx.subject());
+                : applicable(
+                        Capabilities.matchingApprovals(ctx.definition().approvals(), tool),
+                        ctx.toolInput() == null ? Map.of() : ctx.toolInput(),
+                        ctx.subject());
         String policy = Capabilities.strictestPolicy(approvals);
-        EffectiveApproval strictest = approvals.stream().filter(a -> a.policy().equals(policy)).findFirst().orElse(null);
+        EffectiveApproval strictest = approvals.stream()
+                .filter(a -> a.policy().equals(policy))
+                .findFirst()
+                .orElse(null);
 
         Map<String, Object> toolMap = new LinkedHashMap<>();
         toolMap.put("name", ctx.toolName());
@@ -118,8 +123,11 @@ public final class PolicyInputs {
         toolMap.put("writeLevel", tool == null || tool.writeLevel() == null ? "" : tool.writeLevel());
         toolMap.put("category", tool == null || tool.category() == null ? "" : tool.category());
         toolMap.put("approvalPolicy", policy);
-        toolMap.put("approverRole", strictest == null || strictest.approverRole() == null ? "" : strictest.approverRole());
-        toolMap.put("inDelegationScope", ctx.delegation() != null && ctx.delegation().scope().contains(ctx.toolName()));
+        toolMap.put(
+                "approverRole", strictest == null || strictest.approverRole() == null ? "" : strictest.approverRole());
+        toolMap.put(
+                "inDelegationScope",
+                ctx.delegation() != null && ctx.delegation().scope().contains(ctx.toolName()));
 
         Map<String, Object> input = new LinkedHashMap<>();
         input.put("subject", ctx.subject().toMap());
@@ -127,7 +135,9 @@ public final class PolicyInputs {
         input.put("agent", Map.of("ref", ctx.definition().provenance().agent()));
         input.put("tool", toolMap);
         input.put("tenant", Map.of("l3Enabled", ctx.l3Enabled()));
-        input.put("delegation", Map.of("id", ctx.delegation() == null ? "" : ctx.delegation().id()));
+        input.put(
+                "delegation",
+                Map.of("id", ctx.delegation() == null ? "" : ctx.delegation().id()));
         Map<String, Object> document = new LinkedHashMap<>();
         document.put("id", ctx.document() == null ? "" : ctx.document().id());
         document.put("action", ctx.document() == null ? "" : ctx.document().action());

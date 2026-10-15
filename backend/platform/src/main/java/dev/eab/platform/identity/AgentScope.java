@@ -29,7 +29,8 @@ public final class AgentScope {
             EffectiveDefinition definition, AssetResolver resolver, List<Status> statuses) {
         Set<String> ops = new LinkedHashSet<>();
         for (var tool : definition.tools()) {
-            if (tool.type().equals("api") && isBoSource(resolver, tool.source(), statuses)
+            if (tool.type().equals("api")
+                    && isBoSource(resolver, tool.source(), statuses)
                     && DemoDirectory.isBoOperation(tool.name())) {
                 ops.add(tool.name());
             }
@@ -38,8 +39,11 @@ public final class AgentScope {
             var skill = resolver.resolveOfKind(tool.source(), SkillAsset.class, statuses);
             if (skill.isEmpty()) continue;
             for (var step : StepSpecs.flatten(skill.get().spec().steps())) {
-                if (step.type().equals("tool") && step.tool() != null && step.source() != null
-                        && isBoSource(resolver, step.source(), statuses) && DemoDirectory.isBoOperation(step.tool())) {
+                if (step.type().equals("tool")
+                        && step.tool() != null
+                        && step.source() != null
+                        && isBoSource(resolver, step.source(), statuses)
+                        && DemoDirectory.isBoOperation(step.tool())) {
                     ops.add(step.tool());
                 }
             }
