@@ -16,6 +16,7 @@
     "@eab/spec": "workspace:^",
     "@fastify/rate-limit": "^11.2.1",
     "@fastify/swagger": "^9.9.2",
+    "@modelcontextprotocol/sdk": "1.32.1",
     "better-sqlite3": "^13.0.3",
     "canonicalize": "^5.1.0",
     "drizzle-orm": "^0.45.4",

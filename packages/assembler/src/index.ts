@@ -11,6 +11,8 @@ export {
 } from './capabilities'
 export {
   checkExpression,
+  evaluateExpression,
+  toPlainValue,
   hookEnvironment,
   approvalEnvironment,
   type CheckOutcome,

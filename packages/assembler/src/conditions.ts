@@ -66,3 +66,29 @@ export function checkExpression(env: Environment, expression: string): CheckOutc
 function firstLine(text: string): string {
   return text.split('\n')[0]?.trim() ?? text
 }
+
+/**
+ * 运行时求值用的环境：未声明的变量按 dyn 处理，技能、工作流、剧本里的表达式可以直接引用上下文变量。
+ * 类型检查在组装和静态检查阶段做，这里只负责求值。
+ */
+const RUNTIME_ENV = new Environment({ unlistedVariablesAreDyn: true })
+
+/** 求值 CEL 表达式，并把结果转成普通 JSON 值（CEL 的 int 是 BigInt，不能直接序列化） */
+export function evaluateExpression(
+  expression: string,
+  variables: Record<string, unknown>,
+): unknown {
+  return toPlainValue(RUNTIME_ENV.evaluate(expression, variables))
+}
+
+export function toPlainValue(value: unknown): unknown {
+  if (typeof value === 'bigint') return Number(value)
+  if (Array.isArray(value)) return value.map(toPlainValue)
+  if (value instanceof Map) {
+    return Object.fromEntries([...value.entries()].map(([k, v]) => [String(k), toPlainValue(v)]))
+  }
+  if (value !== null && typeof value === 'object' && value.constructor === Object) {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, toPlainValue(v)]))
+  }
+  return value
+}
