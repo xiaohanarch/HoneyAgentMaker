@@ -72,6 +72,10 @@ const TRANSITIONS: Readonly<Record<AssetStatus, readonly AssetStatus[]>> = {
 /** 标品层和平台层资产发布时签名，读取时验签 */
 const isSignedLayer = (namespace: string): boolean => layerOfNamespace(namespace) !== 'tenant'
 
+/** 租户身份的操作在审计里带上租户编号，租户管理员可以查到本租户的记录 */
+const tenantOf = (viewer: Viewer): { tenantId?: string } =>
+  viewer.type === 'tenant' ? { tenantId: viewer.tenantId } : {}
+
 const refOf = (r: { namespace: string; name: string; version: string }): string =>
   `${r.namespace}/${r.name}@${r.version}`
 
@@ -157,6 +161,7 @@ export class RegistryService {
       if (blocked.length > 0) {
         this.deps.audit.append({
           actor: formatViewer(viewer),
+          ...tenantOf(viewer),
           action: 'registry.publish',
           target,
           decision: 'deny',
@@ -175,6 +180,7 @@ export class RegistryService {
     })
     this.deps.audit.append({
       actor: formatViewer(viewer),
+      ...tenantOf(viewer),
       action: 'registry.status',
       target,
       decision: 'allow',
@@ -265,6 +271,7 @@ export class RegistryService {
     })
     this.deps.audit.append({
       actor: formatViewer(viewer),
+      ...tenantOf(viewer),
       action: 'registry.write',
       target,
       decision: 'allow',
@@ -278,6 +285,7 @@ export class RegistryService {
     if (canWriteNamespace(viewer, namespace)) return true
     this.deps.audit.append({
       actor: formatViewer(viewer),
+      ...tenantOf(viewer),
       action,
       target,
       decision: 'deny',

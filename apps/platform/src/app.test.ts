@@ -1,11 +1,10 @@
 import { afterAll, describe, expect, it } from 'vitest'
 import { buildApp } from './app'
-import { Ed25519Signer } from './registry/signing'
-import { createPlatformServices } from './services'
+import { createTestServices } from './test-support'
 
 describe('platform /health', () => {
   const app = buildApp({
-    services: createPlatformServices({ dbPath: ':memory:', signer: Ed25519Signer.ephemeral() }),
+    services: createTestServices(),
   })
   afterAll(() => app.close())
 

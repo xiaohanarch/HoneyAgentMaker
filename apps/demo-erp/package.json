@@ -10,6 +10,24 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "fastify": "^5.12.7"
+    "@eab/demo-directory": "workspace:^",
+    "@eab/spec": "workspace:^",
+    "@fastify/swagger": "^9.9.2",
+    "better-sqlite3": "^13.0.3",
+    "drizzle-orm": "^0.45.4",
+    "fastify": "^5.12.7",
+    "fastify-type-provider-zod": "^7.0.0",
+    "jose": "^6.2.12",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "drizzle-kit": "^0.31.11"
+  },
+  "exports": {
+    "./app": "./src/app.ts",
+    "./link": "./src/auth/platform-link.ts",
+    "./db": "./src/db/client.ts",
+    "./seed": "./src/seed/index.ts"
   }
 }

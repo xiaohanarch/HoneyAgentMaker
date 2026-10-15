@@ -19,16 +19,16 @@ import {
 } from '@eab/spec/testing'
 import { buildApp } from '../app'
 import { assets as assetsTable } from '../db/schema'
-import { createPlatformServices, type PlatformServices } from '../services'
+import type { PlatformServices } from '../services'
+import { createTestServices, loginAll } from '../test-support'
 import { assembleFromRegistry } from './effective'
-import { Ed25519Signer } from './signing'
 
 const PLATFORM: Viewer = { type: 'platform' }
 const VENDOR: Viewer = { type: 'vendor' }
 const T001: Viewer = { type: 'tenant', tenantId: 't001' }
 const T002: Viewer = { type: 'tenant', tenantId: 't002' }
 const AGENT = 'vendor.fin/transaction-anomaly-analyst'
-const as = (viewer: string) => ({ 'x-eab-viewer': viewer })
+let as: Awaited<ReturnType<typeof loginAll>>
 const YAML = { 'content-type': 'application/yaml' }
 
 let services: PlatformServices
@@ -41,9 +41,10 @@ function publish(viewer: Viewer, asset: Asset): void {
 }
 
 /** 使用真实的发布门禁，按依赖顺序发布一套最小可组装的资产 */
-beforeEach(() => {
-  services = createPlatformServices({ dbPath: ':memory:', signer: Ed25519Signer.ephemeral() })
+beforeEach(async () => {
+  services = createTestServices()
   app = buildApp({ services })
+  as = await loginAll(services)
   publish(PLATFORM, platformRulesFixture())
   publish(VENDOR, semanticPackFixture())
   publish(VENDOR, skillFixture())

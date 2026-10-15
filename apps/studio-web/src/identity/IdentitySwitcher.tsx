@@ -3,16 +3,27 @@ import { useNavigate } from 'react-router'
 import { DropdownMenu } from 'radix-ui'
 import { Check, ChevronDown } from 'lucide-react'
 import { cn } from '@eab/ui'
-import { DEMO_USERS } from './demo-users'
+import type { DemoUser } from './demo-users'
 import { useIdentity } from './identity-context'
 
-function Initial({ name, tone }: { name: string; tone: 'tenant' | 'vendor' }): ReactNode {
+type Tone = 'tenant' | 'vendor' | 'platform'
+
+const toneOf = (user: DemoUser): Tone =>
+  user.tenantId === 'vendor' ? 'vendor' : user.tenantId === 'platform' ? 'platform' : 'tenant'
+
+const TONE_CLASS: Readonly<Record<Tone, string>> = {
+  tenant: 'bg-tenant-soft text-tenant',
+  vendor: 'bg-vendor-soft text-vendor',
+  platform: 'bg-platform-soft text-platform',
+}
+
+function Initial({ name, tone }: { name: string; tone: Tone }): ReactNode {
   return (
     <span
       aria-hidden
       className={cn(
         'grid size-7 shrink-0 place-items-center rounded-full text-xs font-semibold',
-        tone === 'vendor' ? 'bg-vendor-soft text-vendor' : 'bg-tenant-soft text-tenant',
+        TONE_CLASS[tone],
       )}
     >
       {name.slice(0, 1)}
@@ -21,7 +32,7 @@ function Initial({ name, tone }: { name: string; tone: 'tenant' | 'vendor' }): R
 }
 
 export function IdentitySwitcher(): ReactNode {
-  const { user, switchUser } = useIdentity()
+  const { user, users, switchUser } = useIdentity()
   const navigate = useNavigate()
 
   return (
@@ -31,7 +42,7 @@ export function IdentitySwitcher(): ReactNode {
         aria-label={`切换演示身份，当前 ${user.name}，${user.tenantName} ${user.role}`}
         data-testid="identity-switcher"
       >
-        <Initial name={user.name} tone={user.tenantId === 'vendor' ? 'vendor' : 'tenant'} />
+        <Initial name={user.name} tone={toneOf(user)} />
         <span className="leading-tight">
           <span className="block text-sm font-medium">{user.name}</span>
           <span className="block text-[11px] text-ink-muted">
@@ -50,16 +61,15 @@ export function IdentitySwitcher(): ReactNode {
           <DropdownMenu.Label className="px-2 pt-1 pb-2 text-[11px] font-medium tracking-wide text-ink-faint">
             演示身份（选人即登录）
           </DropdownMenu.Label>
-          {DEMO_USERS.map((u) => (
+          {users.map((u) => (
             <DropdownMenu.Item
               key={u.id}
               onSelect={() => {
-                const next = switchUser(u.id)
-                void navigate(`/${next.home}`)
+                void switchUser(u.id).then((next) => navigate(`/${next.home}`))
               }}
               className="flex cursor-default items-center gap-2.5 rounded-lg px-2 py-1.5 outline-none data-[highlighted]:bg-surface-sunken"
             >
-              <Initial name={u.name} tone={u.tenantId === 'vendor' ? 'vendor' : 'tenant'} />
+              <Initial name={u.name} tone={toneOf(u)} />
               <span className="min-w-0 flex-1 leading-tight">
                 <span className="block text-sm">
                   {u.name}

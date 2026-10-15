@@ -28,7 +28,8 @@
     "assets:assemble": "tsx apps/platform/src/cli/assemble-agent.ts",
     "test:coverage": "vitest run --coverage",
     "spec:json-schema": "tsx packages/spec/scripts/gen-json-schema.ts",
-    "data:backup": "tsx apps/platform/src/cli/backup-data.ts"
+    "data:backup": "tsx apps/platform/src/cli/backup-data.ts",
+    "seed:reset": "tsx apps/platform/src/cli/reset-demo.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

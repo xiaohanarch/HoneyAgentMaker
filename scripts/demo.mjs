@@ -4,6 +4,7 @@
 //   pnpm dev         开发模式（后端 tsx watch 热重载）
 // 后续阶段新增的服务（外部 Agent、MCP Server）在 SERVICES 里追加即可；
 // optional 为 true 的服务启动失败不会拖垮整个演示环境。
+import { randomBytes } from 'node:crypto'
 import { concurrently } from 'concurrently'
 
 const watch = process.argv.includes('--watch')
@@ -11,6 +12,10 @@ const HOST = process.env.EAB_HOST ?? '127.0.0.1'
 const HEALTH_TIMEOUT_MS = 90_000
 const POLL_MS = 500
 const READY_BANNER = 'ERP Agent Builder 演示环境已启动'
+// 平台与 DemoERP 之间的内部调用密钥（事件推送签名、委托核实），每次启动随机生成，不落盘
+const INTERNAL_SECRET = process.env.EAB_INTERNAL_SECRET ?? randomBytes(24).toString('base64url')
+const PLATFORM_URL = 'http://127.0.0.1:4000'
+const DEMO_ERP_URL = 'http://127.0.0.1:4100'
 
 /**
  * 端口通过各服务专用的环境变量显式下发，避免继承开发者 shell 里的通用 PORT。
@@ -21,14 +26,23 @@ const SERVICES = [
     name: 'platform',
     color: 'magenta',
     command: `pnpm --filter @eab/platform run ${watch ? 'dev' : 'start'}`,
-    env: { EAB_PLATFORM_PORT: '4000' },
+    env: {
+      EAB_PLATFORM_PORT: '4000',
+      EAB_INTERNAL_SECRET: INTERNAL_SECRET,
+      EAB_DEMO_MODE: '1',
+      EAB_DEMO_ERP_URL: DEMO_ERP_URL,
+    },
     healthUrl: 'http://127.0.0.1:4000/health',
   },
   {
     name: 'demo-erp',
     color: 'cyan',
     command: `pnpm --filter @eab/demo-erp run ${watch ? 'dev' : 'start'}`,
-    env: { EAB_DEMO_ERP_PORT: '4100' },
+    env: {
+      EAB_DEMO_ERP_PORT: '4100',
+      EAB_INTERNAL_SECRET: INTERNAL_SECRET,
+      EAB_PLATFORM_URL: PLATFORM_URL,
+    },
     healthUrl: 'http://127.0.0.1:4100/health',
   },
   {
@@ -36,8 +50,8 @@ const SERVICES = [
     color: 'green',
     command: 'pnpm --filter @eab/studio-web run start',
     env: {
-      EAB_PLATFORM_URL: 'http://127.0.0.1:4000',
-      EAB_DEMO_ERP_URL: 'http://127.0.0.1:4100',
+      EAB_PLATFORM_URL: PLATFORM_URL,
+      EAB_DEMO_ERP_URL: DEMO_ERP_URL,
     },
     healthUrl: 'http://127.0.0.1:5173/',
     url: 'http://localhost:5173',

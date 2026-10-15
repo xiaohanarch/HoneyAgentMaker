@@ -170,6 +170,7 @@ function expandEntry(
           source,
           description: t.description,
           ...(t.writeLevel === undefined ? {} : { writeLevel: t.writeLevel }),
+          ...(t.category === undefined ? {} : { category: t.category }),
         }))
       return { tools, issues: [] }
     }

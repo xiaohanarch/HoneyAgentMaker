@@ -60,7 +60,7 @@
 
 平台启动时把 `assets/platform` 和 `assets/vendor` 以本层身份发布入库，同版本同内容跳过，同版本不同内容报错（修改标品必须升版本号）。`assets/tenants/t001` 是演示完成态快照，启动时不加载。
 
-HTTP 接口的请求校验和 OpenAPI 描述都从 zod 生成（`GET /openapi.json`），响应统一为 `{ success, data | error }` 信封。P1 的查看者身份暂时从请求头 `x-eab-viewer` 读取，P2 起改为平台签发的令牌。
+HTTP 接口的请求校验和 OpenAPI 描述都从 zod 生成（`GET /openapi.json`），响应统一为 `{ success, data | error }` 信封。调用者身份从 Bearer 用户令牌推导（见下一节）。
 
 | 接口 | 作用 |
 |---|---|
@@ -70,9 +70,90 @@ HTTP 接口的请求校验和 OpenAPI 描述都从 zod 生成（`GET /openapi.js
 | `PATCH /registry/assets/:namespace/:name/:version/status` | 变更状态，标品发布时签名 |
 | `POST /registry/validate` | 校验 YAML 并运行静态检查 |
 | `GET /registry/agents/:namespace/:name/effective` | 有效定义预览 |
-| `GET /audit/events` | 审计查询（P1 仅平台身份） |
 
 `pnpm assets:validate` 和 `pnpm assets:assemble` 两个开发命令用内存数据库和临时密钥建一个注册中心，把仓库里全部资产按发布路径灌进去，然后做校验或打印有效定义，走的是和平台启动相同的代码路径。
+
+## 身份与四处鉴权（P2）
+
+一次请求要经过四处鉴权（主提示词 7.3 节）。前三处在平台：鉴权点 1 是入口，鉴权点 2 是 Agent 交接，鉴权点 3 是工具与 MCP 网关；第四处在 DemoERP 的 BO API。每一处的裁决都写进同一张审计表。身份与令牌的设计见 ADR 0005。
+
+### 演示目录
+
+`packages/demo-directory` 定义租户、组织（公司主体、采购组织）、角色与其允许的 BO 操作，以及用户和用户的数据范围。平台的身份服务和 DemoERP 都从这里读，是演示身份数据的唯一来源。
+
+用户包括主提示词 6.2 节的 6 个，另加三个：
+
+- t002 的采购经理周婷，用来证明租户隔离；
+- 平台运维；
+- t001 的库存经理孙库管，作为受托运行的委托人。
+
+### 平台身份服务
+
+身份服务位于 `apps/platform/src/identity/`，提供以下接口：
+
+| 接口 | 作用 |
+|---|---|
+| `GET /identity/v1/users` | 演示用户列表 |
+| `POST /identity/v1/login` | 选人即登录，签发用户令牌（仅演示） |
+| `POST /identity/v1/token` | 客户端凭证模式，或 RFC 8693 令牌交换模式 |
+| `GET /identity/v1/jwks.json` | 令牌校验公钥 |
+| `GET/POST/DELETE /identity/v1/delegations` | 委托的查询、登记、撤销（租户管理员） |
+| `GET /identity/v1/delegations/:id/status` | 委托核实，供 DemoERP 调用，需要内部调用密钥 |
+| `POST /identity/v1/demo/agent-token` | 演示模式下由平台运维代运行时签发 Agent 令牌，用于手工验证 |
+
+平台调用 BO API 的唯一通道是 `callBoApi`（`identity/delegated-client.ts`）：先换取委托令牌，再带着它调用。失败时抛出 `DelegationError`，不存在使用集成账号的路径。
+
+### 策略引擎
+
+`packages/policy` 负责鉴权点 1 到 3。
+
+- **规则**：规则是 JSON（`rules/default.json`），条件用 CEL 编写，加载时逐条校验。
+- **判定**：引擎是纯函数，判定顺序是：命中 deny 立即拒绝；命中 approve（需要审批）、confirm（需要确认）的规则会累积起来，结果取其中最严的一种；都没有命中则允许。规则求值出错时一律拒绝。
+- **事实**：由 `buildEntryInput`、`buildHandoffInput`、`buildToolInput` 从有效定义、租户设置、单据和委托整理出来。确认点按条件过滤后取最严，复用组装器的 `matchingApprovals`、`strictestPolicy`。
+- **租户设置**：租户级开关（L3 是否开启、岗位助手开放给哪些角色）存放在 `tenant_settings` 表。
+- **接口**：`GET /policy/v1/rules` 查看规则，`POST /policy/v1/evaluate` 做策略试算，试算结果写入审计。
+
+### DemoERP
+
+DemoERP 位于 `apps/demo-erp`，数据存放在 `data/erp.db`。
+
+- **数据**：包括采购、库存、财务三个域，另有交期变更单、跟进任务、幂等键和访问日志。业务单号在租户内唯一，主键是“租户编号 + 单号”。
+- **种子数据**：用固定种子生成，可重复执行。日期相对于生成当天，逾期天数在查询时计算，口径与语义包指标 `overdue_days` 一致。
+
+鉴权点 4 由 `bo/context.ts` 的 `defineBoRoute` 实现。每个 BO 操作都按下面的顺序检查：
+
+1. 用平台 JWKS 验证委托令牌；
+2. 令牌必须带 `act`（Agent 身份）；
+3. 令牌的租户与用户一致；
+4. 用户有这个操作的业务权限；
+5. Agent 声明过这个操作；
+6. 受托运行时，委托仍然有效；
+7. 按数据范围过滤，采购域按采购组织，库存和财务按公司主体。
+
+写操作支持 `Idempotency-Key`。错误统一为 `{ code, reason, suggestion }`。列表响应带 `filtered`、`visibleScope`、`scopeLabel`。交期变更单的审批在 ERP 侧也做职责分离检查。
+
+每次裁决都写入 ERP 访问日志，并以带 HMAC 签名的 webhook 推送到平台的 `/events/v1/ingest`，平台写入审计。令牌验签通过之后，任何一步被拒绝，都带着调用方身份推送，所以拒绝记录也能在租户审计里查到。
+
+DemoERP 的其他接口：
+
+| 接口 | 作用 |
+|---|---|
+| `/bo/v1/...` | BO API，`operationId` 与工具名一致，OpenAPI 在 `/bo/v1/openapi.json`，带 `x-write-level` |
+| `/open/v1/...` | 集成接口，只做租户隔离，作为反面对照 |
+| `/meta/v1/...` | 元数据服务：对象、字段、枚举、规则、权限维度 |
+| `/demo/v1/events/trigger` | 演示控制台触发业务事件，需要内部调用密钥 |
+| `/pages/...` | 供应商、采购订单的只读页面，用作导航型交互的深链接 |
+
+### 审计
+
+审计表记录的字段有：时间、租户、用户、Agent（含版本）、扩展、会话、调用模式、鉴权点、工具、数据范围、命中的规则、裁决、结果摘要。
+
+查询接口 `GET /audit/events` 支持按用户、Agent、工具、鉴权点、目标（例如单据编号）、时间过滤。不同身份能查到的范围不同：
+
+- 普通租户用户只能查自己的记录；
+- 租户管理员能查本租户的记录；
+- 平台身份能查全部；
+- 厂商身份不能查。
 
 ## 技术选型
 
@@ -86,3 +167,4 @@ HTTP 接口的请求校验和 OpenAPI 描述都从 zod 生成（`GET /openapi.js
 | 资产 schema | zod 4（中文报错用自带的 zh-CN 语言包）、yaml 2 | 主提示词第 14 节 |
 | 存储 | SQLite：better-sqlite3 13（npm 包内自带各平台预编译二进制，不需要编译工具链）+ Drizzle 0.45 | 主提示词第 14 节 |
 | 条件表达式 | CEL，@marcbachmann/cel-js 8 | ADR 0003 |
+| 令牌 | jose 6，EdDSA | ADR 0005 |
