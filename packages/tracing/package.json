@@ -1,0 +1,13 @@
+{
+  "name": "@eab/tracing",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "链路追踪，span 兼容 OpenTelemetry 语义",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}

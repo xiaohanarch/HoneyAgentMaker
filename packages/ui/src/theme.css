@@ -1,0 +1,108 @@
+/*
+ * ERP Agent Builder 视觉规范（主提示词第 16 节）。
+ *
+ * 三类资产来源在所有页面使用同一套颜色和图标：
+ *   标品（vendor）   靛紫，锁形图标
+ *   租户（tenant）   青绿，楼宇图标
+ *   外部（external） 琥珀，地球图标
+ *   平台（platform） 石板灰，盾牌图标
+ * 裁决与写操作级别用“柔底 + 深字”的标签，醒目但不刺眼。
+ * 刻意避开常见 ERP 套件的品牌蓝。
+ */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --font-sans:
+    'Inter Variable', 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', 'Noto Sans SC',
+    system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', 'Cascadia Mono', Consolas, monospace;
+
+  --color-canvas: var(--eab-canvas);
+  --color-surface: var(--eab-surface);
+  --color-surface-sunken: var(--eab-surface-sunken);
+  --color-ink: var(--eab-ink);
+  --color-ink-muted: var(--eab-ink-muted);
+  --color-ink-faint: var(--eab-ink-faint);
+  --color-line: var(--eab-line);
+  --color-line-strong: var(--eab-line-strong);
+  --color-focus: var(--eab-focus);
+
+  --color-vendor: var(--eab-vendor);
+  --color-vendor-soft: var(--eab-vendor-soft);
+  --color-tenant: var(--eab-tenant);
+  --color-tenant-soft: var(--eab-tenant-soft);
+  --color-external: var(--eab-external);
+  --color-external-soft: var(--eab-external-soft);
+  --color-platform: var(--eab-platform);
+  --color-platform-soft: var(--eab-platform-soft);
+
+  --color-allow: var(--eab-allow);
+  --color-allow-soft: var(--eab-allow-soft);
+  --color-deny: var(--eab-deny);
+  --color-deny-soft: var(--eab-deny-soft);
+  --color-pending: var(--eab-pending);
+  --color-pending-soft: var(--eab-pending-soft);
+  --color-info: var(--eab-info);
+  --color-info-soft: var(--eab-info-soft);
+}
+
+:root {
+  --eab-canvas: oklch(97.6% 0.004 250);
+  --eab-surface: oklch(100% 0 0);
+  --eab-surface-sunken: oklch(95.8% 0.006 250);
+  --eab-ink: oklch(23% 0.02 260);
+  --eab-ink-muted: oklch(45% 0.018 260);
+  --eab-ink-faint: oklch(52% 0.014 260);
+  --eab-line: oklch(91% 0.008 260);
+  --eab-line-strong: oklch(84% 0.012 260);
+  --eab-focus: oklch(55% 0.16 280);
+
+  --eab-vendor: oklch(46% 0.17 282);
+  --eab-vendor-soft: oklch(95% 0.03 282);
+  --eab-tenant: oklch(50% 0.1 178);
+  --eab-tenant-soft: oklch(95.5% 0.03 178);
+  --eab-external: oklch(55% 0.14 58);
+  --eab-external-soft: oklch(96% 0.045 75);
+  --eab-platform: oklch(42% 0.03 255);
+  --eab-platform-soft: oklch(95% 0.008 255);
+
+  --eab-allow: oklch(50% 0.12 152);
+  --eab-allow-soft: oklch(95.5% 0.035 152);
+  --eab-deny: oklch(52% 0.17 25);
+  --eab-deny-soft: oklch(95.5% 0.03 25);
+  --eab-pending: oklch(50% 0.12 65);
+  --eab-pending-soft: oklch(96% 0.045 85);
+  --eab-info: oklch(50% 0.09 235);
+  --eab-info-soft: oklch(95.5% 0.025 235);
+}
+
+.dark {
+  --eab-canvas: oklch(18% 0.012 262);
+  --eab-surface: oklch(22% 0.014 262);
+  --eab-surface-sunken: oklch(16% 0.012 262);
+  --eab-ink: oklch(93% 0.008 260);
+  --eab-ink-muted: oklch(74% 0.014 260);
+  --eab-ink-faint: oklch(68% 0.014 260);
+  --eab-line: oklch(30% 0.014 262);
+  --eab-line-strong: oklch(38% 0.016 262);
+  --eab-focus: oklch(72% 0.14 282);
+
+  --eab-vendor: oklch(76% 0.12 282);
+  --eab-vendor-soft: oklch(30% 0.07 282);
+  --eab-tenant: oklch(78% 0.1 178);
+  --eab-tenant-soft: oklch(29% 0.05 178);
+  --eab-external: oklch(80% 0.12 68);
+  --eab-external-soft: oklch(31% 0.06 60);
+  --eab-platform: oklch(78% 0.02 255);
+  --eab-platform-soft: oklch(29% 0.015 255);
+
+  --eab-allow: oklch(78% 0.12 152);
+  --eab-allow-soft: oklch(29% 0.05 152);
+  --eab-deny: oklch(76% 0.13 25);
+  --eab-deny-soft: oklch(30% 0.06 25);
+  --eab-pending: oklch(82% 0.12 80);
+  --eab-pending-soft: oklch(31% 0.06 75);
+  --eab-info: oklch(78% 0.09 235);
+  --eab-info-soft: oklch(29% 0.045 235);
+}

@@ -1,0 +1,13 @@
+{
+  "name": "@eab/spec",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "资产 schema（zod）、YAML 解析与校验，前后端、CLI、Studio MCP 共用的唯一来源",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}

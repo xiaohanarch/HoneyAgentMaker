@@ -1,0 +1,59 @@
+# docker compose up --build（独立安装的旧版 Compose 用 docker-compose up --build）
+# 浏览器打开 http://localhost:5173
+# 端口只绑定在本机回环地址；需要在局域网演示时，只放开 web 的 5173。
+# 后续阶段在这里追加外部 Agent（4200、4300）和第三方 MCP Server（4400）。
+
+x-env: &env
+  EAB_HOST: 0.0.0.0
+  LOG_LEVEL: info
+
+x-app: &app
+  build: .
+  image: erp-agent-builder:local
+  # 由 init 进程转发 SIGTERM，服务里的优雅关闭逻辑才能执行
+  init: true
+
+services:
+  platform:
+    <<: *app
+    command: pnpm --filter @eab/platform run start
+    environment:
+      <<: *env
+      EAB_PLATFORM_PORT: '4000'
+    ports: ['127.0.0.1:4000:4000']
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 5s
+      retries: 12
+
+  demo-erp:
+    <<: *app
+    command: pnpm --filter @eab/demo-erp run start
+    environment:
+      <<: *env
+      EAB_DEMO_ERP_PORT: '4100'
+    ports: ['127.0.0.1:4100:4100']
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:4100/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 5s
+      retries: 12
+
+  web:
+    <<: *app
+    command: pnpm --filter @eab/studio-web run start
+    environment:
+      <<: *env
+      EAB_PLATFORM_URL: http://platform:4000
+      EAB_DEMO_ERP_URL: http://demo-erp:4100
+    ports: ['127.0.0.1:5173:5173']
+    depends_on:
+      platform: { condition: service_healthy }
+      demo-erp: { condition: service_healthy }

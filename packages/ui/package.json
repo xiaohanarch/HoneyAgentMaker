@@ -1,0 +1,29 @@
+{
+  "name": "@eab/ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "共享前端组件与视觉规范：资产来源标识、写操作级别、鉴权裁决",
+  "exports": {
+    ".": "./src/index.ts",
+    "./theme.css": "./src/theme.css"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@eab/spec": "workspace:*",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.57.0",
+    "tailwind-merge": "^3.7.0"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  }
+}
