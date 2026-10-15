@@ -1,6 +1,6 @@
 # ADR 0002 A2A 与 MCP 的协议版本和 SDK 版本
 
-状态：已采纳（P0，2026-10-14）。P7 动手实现 A2A 前再核对一次版本，有变化就更新本文。
+状态：已采纳（P0，2026-10-14）；2026-10-15 因后端改用 Java（ADR 0006）补充 Java SDK 版本。P7 动手实现 A2A 前再核对一次版本，有变化就更新本文。
 
 ## 背景
 
@@ -31,6 +31,17 @@
 - 传输层统一用 Streamable HTTP，不提供已废弃的 HTTP+SSE 传输。
 - SDK 同时支持 2025-06-18、2025-03-26 等旧版本，客户端协商时自动降级，不需要额外处理。
 - 平台对外 MCP 端点的授权：完整的 MCP 授权规范基于 OAuth 2.1，超出演示范围。演示中由模拟身份服务为用户签发绑定租户和用户的访问令牌，外部 MCP 客户端以 bearer 方式携带；令牌同样经过鉴权点 3。生产环境应按 MCP 授权规范接入企业 IdP。
+
+### 后端改用 Java 之后（2026-10-15）
+
+平台和 DemoERP 改为 Java 实现后，服务端使用 Java 版 SDK，协议版本不变：
+
+| 组件 | 选用版本 | 用在哪里 |
+|---|---|---|
+| MCP Java SDK `io.modelcontextprotocol.sdk:mcp` | 2.0.1，经 Spring AI 2.0.1 的 MCP starter 引入 | MCP 网关接入外部 MCP Server，平台对外 MCP 端点（Streamable HTTP） |
+| A2A Java SDK `org.a2aproject.sdk` | 1.4.0.Final | A2A 网关的出站与入站 |
+
+A2A Java SDK 在 2026 年把 groupId 从 `io.github.a2asdk` 改为 `org.a2aproject.sdk`，包名从 `io.a2a` 改为 `org.a2aproject.sdk`，查资料时注意区分。上文 TypeScript SDK 的兼容层用法在 P7 按 Java SDK 的接口重新核对。外部 Agent 样例仍按上表使用 Python 和 JS SDK。
 
 ## 影响
 

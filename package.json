@@ -17,11 +17,11 @@
   "scripts": {
     "demo": "node scripts/demo.mjs",
     "dev": "node scripts/demo.mjs --watch",
-    "test": "vitest run",
+    "test": "vitest run && pnpm test:java",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "lint": "eslint .",
-    "format": "prettier --write .",
+    "lint": "eslint . && node scripts/mvnw.mjs -q -B spotless:check",
+    "format": "prettier --write . && node scripts/mvnw.mjs -q -B spotless:apply",
     "format:check": "prettier --check .",
     "typecheck": "pnpm -r --parallel typecheck && tsc -p e2e",
     "assets:validate": "tsx apps/platform/src/cli/validate-assets.ts",
@@ -29,7 +29,9 @@
     "test:coverage": "vitest run --coverage",
     "spec:json-schema": "tsx packages/spec/scripts/gen-json-schema.ts",
     "data:backup": "tsx apps/platform/src/cli/backup-data.ts",
-    "seed:reset": "tsx apps/platform/src/cli/reset-demo.ts"
+    "seed:reset": "tsx apps/platform/src/cli/reset-demo.ts",
+    "test:java": "node scripts/mvnw.mjs -q -B verify",
+    "demo:java": "node scripts/demo.mjs --backend=java"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

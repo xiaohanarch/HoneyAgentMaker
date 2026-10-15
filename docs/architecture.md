@@ -4,7 +4,7 @@
 
 ## 工程结构（P0）
 
-仓库是 pnpm workspace 单仓，全部使用 TypeScript（strict），由三部分组成。
+仓库是 pnpm workspace 单仓，由三部分组成。后端正在按 ADR 0006 从 TypeScript 迁移到 Java（Spring Boot 4.1 与 Spring AI 2.0），新的 Maven 工程在 `backend/` 下，迁移期间两套后端的对外接口保持一致；下文描述的 TypeScript 后端在迁移完成后由 Java 模块替代。
 
 `apps/` 下是三个可运行的服务。`platform`（端口 4000）和 `demo-erp`（端口 4100）基于 Fastify；每个服务通过 `buildApp()` 构造实例，测试直接调用 `app.inject()`，不监听端口。`studio-web`（端口 5173）是 React + Vite 前端，按主提示词第 20 节的默认决策，统一入口、Studio、治理中心是同一个前端工程里的三个路由入口，开发服务器把 `/api` 转发到 platform、`/erp` 转发到 demo-erp，前端只访问同源地址。
 
@@ -159,7 +159,7 @@ DemoERP 的其他接口：
 
 | 方面 | 选择 | 依据 |
 |---|---|---|
-| 后端框架 | Fastify 5 | ADR 0001 |
+| 后端框架 | Fastify 5，迁移中改为 Spring Boot 4.1 与 Spring AI 2.0 | ADR 0001、ADR 0006 |
 | 协议 SDK | A2A JS SDK 1.3.0（协议 v1.0，带 0.3 兼容层）、MCP TS SDK 1.32.1（协议 2025-11-25） | ADR 0002 |
 | 前端 | React 19、Vite 8、Tailwind CSS 4、Radix 原语（shadcn/ui 风格）、TanStack Query、React Router | 主提示词第 14 节 |
 | 测试 | Vitest 5、Playwright | 主提示词第 14 节 |

@@ -7,3 +7,4 @@ test-results
 docs/brief
 *.md
 packages/spec/json-schema
+backend/**/target

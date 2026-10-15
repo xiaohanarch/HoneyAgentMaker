@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ERP Agent Builder 后端：Maven 多模块工程（ADR 0006）。
+  平台主服务 platform 与模拟 ERP demo-erp 是两个 Spring Boot 应用，
+  共享的领域模块（资产模型、组装器、策略、演示目录、追踪、运行时）在后续阶段逐个加入。
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>4.1.1</version>
+    <relativePath/>
+  </parent>
+
+  <groupId>dev.eab</groupId>
+  <artifactId>eab-backend</artifactId>
+  <version>0.1.0</version>
+  <packaging>pom</packaging>
+  <name>ERP Agent Builder 后端</name>
+
+  <modules>
+    <module>platform</module>
+    <module>demo-erp</module>
+  </modules>
+
+  <properties>
+    <java.version>21</java.version>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <spring-ai.version>2.0.1</spring-ai.version>
+    <springdoc.version>3.1.1</springdoc.version>
+    <spotless.version>3.10.4</spotless.version>
+    <palantir-java-format.version>2.102.0</palantir-java-format.version>
+    <jacoco.version>0.8.15</jacoco.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.springframework.ai</groupId>
+        <artifactId>spring-ai-bom</artifactId>
+        <version>${spring-ai.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.springdoc</groupId>
+        <artifactId>springdoc-openapi-starter-webmvc-api</artifactId>
+        <version>${springdoc.version}</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.springframework.boot</groupId>
+          <artifactId>spring-boot-maven-plugin</artifactId>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+    <plugins>
+      <!-- 代码格式：pnpm lint 调用 spotless:check，pnpm format 调用 spotless:apply -->
+      <plugin>
+        <groupId>com.diffplug.spotless</groupId>
+        <artifactId>spotless-maven-plugin</artifactId>
+        <version>${spotless.version}</version>
+        <configuration>
+          <java>
+            <palantirJavaFormat>
+              <version>${palantir-java-format.version}</version>
+            </palantirJavaFormat>
+            <removeUnusedImports/>
+          </java>
+        </configuration>
+      </plugin>
+      <!-- 覆盖率报告，目标 80%（规则见 docs/decisions/0006） -->
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <version>${jacoco.version}</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>prepare-agent</goal>
+            </goals>
+          </execution>
+          <execution>
+            <id>report</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>report</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

@@ -2,12 +2,23 @@
 // 一条命令启动演示环境：并行拉起各服务，等健康检查全部通过后打印访问地址。
 //   pnpm demo        正常启动
 //   pnpm dev         开发模式（后端 tsx watch 热重载）
+//   pnpm demo --backend=java   改用 Java 后端（ADR 0006；J2 完成功能对等之前，TS 后端仍是默认）
 // 后续阶段新增的服务（外部 Agent、MCP Server）在 SERVICES 里追加即可；
 // optional 为 true 的服务启动失败不会拖垮整个演示环境。
 import { randomBytes } from 'node:crypto'
+import { join } from 'node:path'
 import { concurrently } from 'concurrently'
+import { runMaven } from './mvnw.mjs'
 
 const watch = process.argv.includes('--watch')
+const BACKEND =
+  process.argv.find((a) => a.startsWith('--backend='))?.slice('--backend='.length) ??
+  process.env.EAB_BACKEND ??
+  'ts'
+if (!['ts', 'java'].includes(BACKEND)) {
+  console.error(`[demo] --backend 只能是 ts 或 java，实际为 ${BACKEND}`)
+  process.exit(1)
+}
 const HOST = process.env.EAB_HOST ?? '127.0.0.1'
 const HEALTH_TIMEOUT_MS = 90_000
 const POLL_MS = 500
@@ -17,6 +28,18 @@ const INTERNAL_SECRET = process.env.EAB_INTERNAL_SECRET ?? randomBytes(24).toStr
 const PLATFORM_URL = 'http://127.0.0.1:4000'
 const DEMO_ERP_URL = 'http://127.0.0.1:4100'
 
+/** Java 后端：先用 Maven Wrapper 打包，再用 java -jar 启动；JAVA_HOME 优先，否则用 PATH 上的 java */
+function javaCommand(module) {
+  const home = process.env.JAVA_HOME
+  const java = home === undefined || home === '' ? 'java' : join(home, 'bin', 'java')
+  return `"${java}" -jar backend/${module}/target/${module}.jar`
+}
+
+function buildJavaBackend() {
+  console.info('[demo] 打包 Java 后端（mvnw package -DskipTests）')
+  runMaven(['-q', '-B', 'package', '-DskipTests'])
+}
+
 /**
  * 端口通过各服务专用的环境变量显式下发，避免继承开发者 shell 里的通用 PORT。
  * @type {Array<{name: string, color: string, command: string, env: Record<string, string>, healthUrl: string, url?: string, optional?: boolean}>}
@@ -25,7 +48,10 @@ const SERVICES = [
   {
     name: 'platform',
     color: 'magenta',
-    command: `pnpm --filter @eab/platform run ${watch ? 'dev' : 'start'}`,
+    command:
+      BACKEND === 'java'
+        ? javaCommand('platform')
+        : `pnpm --filter @eab/platform run ${watch ? 'dev' : 'start'}`,
     env: {
       EAB_PLATFORM_PORT: '4000',
       EAB_INTERNAL_SECRET: INTERNAL_SECRET,
@@ -37,7 +63,10 @@ const SERVICES = [
   {
     name: 'demo-erp',
     color: 'cyan',
-    command: `pnpm --filter @eab/demo-erp run ${watch ? 'dev' : 'start'}`,
+    command:
+      BACKEND === 'java'
+        ? javaCommand('demo-erp')
+        : `pnpm --filter @eab/demo-erp run ${watch ? 'dev' : 'start'}`,
     env: {
       EAB_DEMO_ERP_PORT: '4100',
       EAB_INTERNAL_SECRET: INTERNAL_SECRET,
@@ -76,6 +105,8 @@ async function waitForHealthy(service, stopped) {
   }
   return false
 }
+
+if (BACKEND === 'java') buildJavaBackend()
 
 const { result, commands } = concurrently(
   SERVICES.map((s) => ({

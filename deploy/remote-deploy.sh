@@ -26,10 +26,13 @@ log "安装依赖"
 as_eab "pnpm install --frozen-lockfile --reporter=silent"
 
 log "单元测试、静态检查、资产校验"
-as_eab "pnpm test --reporter=dot"
+as_eab "pnpm exec vitest run --reporter=dot"
 as_eab "pnpm lint"
 as_eab "pnpm typecheck"
 as_eab "pnpm assets:validate"
+
+log "Java 后端构建与测试（Maven 镜像在 /home/eab/.m2/settings.xml）"
+as_eab "pnpm -s test:java"
 
 log "重启服务"
 install -m 644 "$APP/deploy/eab-demo.service" /etc/systemd/system/eab-demo.service
