@@ -1,0 +1,75 @@
+package dev.eab.platform;
+
+import dev.eab.platform.audit.AuditStore;
+import dev.eab.platform.http.Principals;
+import dev.eab.platform.identity.IdentityKeys;
+import dev.eab.platform.identity.TokenService;
+import dev.eab.platform.registry.AssetSeeder;
+import dev.eab.platform.registry.Ed25519Signer;
+import dev.eab.platform.registry.RegistryService;
+import java.net.InetAddress;
+import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+/** 把 PlatformServices 里的对象注册成 Spring Bean，并在启动时灌入平台规则和标品资产 */
+@Configuration
+@EnableConfigurationProperties(PlatformProperties.class)
+public class PlatformConfig {
+
+    private static final Logger LOG = LoggerFactory.getLogger(PlatformConfig.class);
+
+    @Bean(destroyMethod = "")
+    public PlatformServices platformServices(
+            PlatformProperties props, @Value("${server.address:127.0.0.1}") String host) throws Exception {
+        // 演示模式开放选人登录和令牌交换端点，只允许监听本机回环地址
+        if (props.demoMode() && !InetAddress.getByName(host).isLoopbackAddress()) {
+            throw new IllegalStateException("演示模式只能监听本机回环地址，当前 EAB_HOST=" + host + "；请改用 SSH 隧道访问");
+        }
+        var keysDir = props.resolvedDataDir().resolve("keys");
+        PlatformServices services = PlatformServices.create(new PlatformServices.Options(
+                props.resolvedDbPath(),
+                props.ephemeralKeys() ? Ed25519Signer.ephemeral() : Ed25519Signer.fromDirectory(keysDir),
+                props.ephemeralKeys() ? IdentityKeys.ephemeral() : IdentityKeys.fromDirectory(keysDir),
+                null,
+                null));
+        Runtime.getRuntime().addShutdownHook(new Thread(services.db()::close));
+        return services;
+    }
+
+    @Bean
+    public RegistryService registryService(PlatformServices services) {
+        return services.registry();
+    }
+
+    @Bean
+    public AuditStore auditStore(PlatformServices services) {
+        return services.audit();
+    }
+
+    @Bean
+    public TokenService tokenService(PlatformServices services) {
+        return services.tokens();
+    }
+
+    @Bean
+    public Principals principals(PlatformServices services) {
+        return services.principals();
+    }
+
+    /** 启动时把平台规则和标品资产签名入库；同版本同内容时跳过 */
+    @Bean
+    public ApplicationRunner seedAssets(PlatformProperties props, RegistryService registry) {
+        return args -> {
+            if (!props.seedAssets()) return;
+            var report = AssetSeeder.seed(registry, props.resolvedAssetsDir(), List.of("platform", "vendor"));
+            LOG.info("平台与标品资产已签名入库：{} 个", report.published().size());
+            report.failed().forEach(f -> LOG.error("资产入库失败 {}：{}", f.file(), f.message()));
+        };
+    }
+}

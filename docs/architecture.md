@@ -155,6 +155,20 @@ DemoERP 的其他接口：
 - 平台身份能查全部；
 - 厂商身份不能查。
 
+## Java 后端（迁移中）
+
+后端按 ADR 0006 从 TypeScript 迁移到 Java，`backend/` 是 Maven 多模块工程，模块与原来的 TS 包一一对应：
+
+| 模块 | 内容 | 对应的 TS 包 | 状态 |
+|---|---|---|---|
+| `eab-spec` | 资产 schema、YAML 解析、引用与版本、可见性与裁剪、静态检查、JSON Schema 导出 | `packages/spec` | J1 完成 |
+| `eab-assembler` | 组装规则、CEL 条件的检查与求值、钩子执行 | `packages/assembler` | J1 完成 |
+| `eab-directory` | 演示租户、角色、用户 | `packages/demo-directory` | J1 完成 |
+| `platform` | 注册中心、审计、令牌签发与校验、注册中心与审计接口、资产命令行 | `apps/platform` | J1 完成注册中心部分，身份与策略在 J2 |
+| `demo-erp` | 模拟 ERP | `apps/demo-erp` | J2 |
+
+资产 schema 在 Java 里的写法见 ADR 0007。迁移期间两套后端的对外接口一致，数据目录分开（Java 版用 `data/java/`）。
+
 ## 技术选型
 
 | 方面 | 选择 | 依据 |

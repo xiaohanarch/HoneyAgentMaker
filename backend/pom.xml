@@ -23,6 +23,9 @@
   <name>ERP Agent Builder 后端</name>
 
   <modules>
+    <module>eab-spec</module>
+    <module>eab-assembler</module>
+    <module>eab-directory</module>
     <module>platform</module>
     <module>demo-erp</module>
   </modules>
@@ -35,6 +38,10 @@
     <spotless.version>3.10.4</spotless.version>
     <palantir-java-format.version>2.102.0</palantir-java-format.version>
     <jacoco.version>0.8.15</jacoco.version>
+    <semver4j.version>6.0.0</semver4j.version>
+    <cel.version>0.14.0</cel.version>
+    <nimbus-jose-jwt.version>10.10</nimbus-jose-jwt.version>
+    <tink.version>1.23.0</tink.version>
   </properties>
 
   <dependencyManagement>

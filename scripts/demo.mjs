@@ -32,7 +32,8 @@ const DEMO_ERP_URL = 'http://127.0.0.1:4100'
 function javaCommand(module) {
   const home = process.env.JAVA_HOME
   const java = home === undefined || home === '' ? 'java' : join(home, 'bin', 'java')
-  return `"${java}" -jar backend/${module}/target/${module}.jar`
+  // 显式指定 UTF-8 输出，Windows 中文控制台默认是 GBK，日志里的中文会变成乱码
+  return `"${java}" -Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8 -jar backend/${module}/target/${module}.jar`
 }
 
 function buildJavaBackend() {

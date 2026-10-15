@@ -26,9 +26,10 @@
 | MCP Java SDK | 2.0.1 | 由 Spring AI 的 MCP starter 引入；Spring 相关的传输已移进 Spring AI |
 | A2A Java SDK | 1.4.0.Final（groupId `org.a2aproject.sdk`） | P7 的 A2A 客户端与服务端 |
 | CEL Java | 0.14.0（`dev.cel:cel`） | 策略规则、钩子与确认条件 |
-| Nimbus JOSE JWT | 10.10 | 身份令牌（EdDSA） |
-| SQLite JDBC | 3.53.4.0 | 演示数据库 |
-| Flyway | 13.10.0 | 数据库迁移 |
+| semver4j | 6.0.0 | 版本号与 npm 风格的版本范围 |
+| Nimbus JOSE JWT | 10.10，EdDSA 依赖 Tink 1.23.0 | 身份令牌（EdDSA） |
+| SQLite JDBC | 3.53.2.1（Spring Boot 管理的版本） | 演示数据库 |
+| Flyway | 12.4.0（Spring Boot 管理的版本） | 数据库迁移 |
 | springdoc-openapi | 3.1.1 | OpenAPI 描述，路径仍为 `/openapi.json` |
 | Maven | 3.9.16（Maven Wrapper 3.3.4） | 构建 |
 | Spotless + palantir-java-format | 3.10.4 / 2.102.0 | 代码格式 |
@@ -39,7 +40,9 @@
 - 对外 HTTP 契约不变：路径、`{success, data, error}` 响应信封、端口 4000 和 4100、令牌格式、环境变量名都沿用 TS 版。前端、`scripts/acceptance-p2.mjs` 和 Playwright 测试不需要修改，直接作为迁移的回归测试。
 - 分三步：J0 建 Java 工程骨架；J1 迁移资产层（对应 P1）；J2 迁移身份、策略和 DemoERP（对应 P2），`acceptance-p2.mjs` 原样通过后删除 TS 后端。之后在 Java 上实现 P3 及以后的阶段。
 - J2 完成之前，`pnpm demo` 默认仍启动 TS 后端，`pnpm demo:java`（等价于 `pnpm demo --backend=java`）启动 Java 后端。
-- 数据访问用 Spring 的 `JdbcClient` 加仓储接口，不用 JPA，SQL 写在代码里，便于阅读。表结构沿用 TS 版。
+- 数据访问用 Spring 的 `JdbcClient` 加仓储接口，不用 JPA，SQL 写在代码里，便于阅读。表结构沿用 TS 版。SQLite 同一时刻只有一个写入者，连接池固定为一个连接。
+- 迁移期间 Java 版的数据放在 `data/java/`，与 TS 版的 `data/` 分开，两套后端不会读写同一个数据库。
+- SQLite JDBC 与 Flyway 用 Spring Boot 4.1.1 管理的版本（3.53.2.1、12.4.0），不另行指定，减少版本冲突；只引入库本身，不引入 Spring Boot 的数据源与 Flyway 自动配置。
 
 Agent 运行时在 Spring AI 上的做法：
 

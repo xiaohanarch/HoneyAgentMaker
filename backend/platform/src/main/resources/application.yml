@@ -10,6 +10,17 @@ spring:
   threads:
     virtual:
       enabled: true
+  jackson:
+    default-property-inclusion: non_null
+
+eab:
+  data-dir: ${EAB_DATA_DIR:}
+  assets-dir: ${EAB_ASSETS_DIR:}
+  db-path: ${EAB_DB_PATH:}
+  ephemeral-keys: false
+  seed-assets: true
+  demo-mode: ${EAB_DEMO_MODE:false}
+  internal-secret: ${EAB_INTERNAL_SECRET:}
 
 # 所有对外接口的 OpenAPI 描述（主提示词第 14 节），路径与 TS 版相同
 springdoc:

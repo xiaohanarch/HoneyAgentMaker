@@ -27,7 +27,7 @@
     "assets:validate": "tsx apps/platform/src/cli/validate-assets.ts",
     "assets:assemble": "tsx apps/platform/src/cli/assemble-agent.ts",
     "test:coverage": "vitest run --coverage",
-    "spec:json-schema": "tsx packages/spec/scripts/gen-json-schema.ts",
+    "spec:json-schema": "node scripts/mvnw.mjs -q -B -pl eab-spec -am test -Dtest=JsonSchemaExportTest -Dsurefire.failIfNoSpecifiedTests=false -Deab.updateSchemas=true",
     "data:backup": "tsx apps/platform/src/cli/backup-data.ts",
     "seed:reset": "tsx apps/platform/src/cli/reset-demo.ts",
     "test:java": "node scripts/mvnw.mjs -q -B verify",
