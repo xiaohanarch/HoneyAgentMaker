@@ -1,0 +1,13 @@
+{
+  "name": "@eab/model-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "模型网关、模型档位、脚本化模型与处理管道",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "@eab/semantic",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "语义查询工具 semantic.describe_object 等",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}

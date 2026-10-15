@@ -1,0 +1,13 @@
+{
+  "name": "@eab/assembler",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "运行时组装器，把平台安全规则、标品定义、租户扩展组装成有效定义",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}

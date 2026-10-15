@@ -1,0 +1,15 @@
+{
+  "name": "@eab/platform",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "平台主服务：资产注册与组装、路由、Agent 运行时、各类网关、治理中心 API、模拟身份服务",
+  "scripts": {
+    "start": "tsx src/server.ts",
+    "dev": "tsx watch src/server.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "fastify": "^5.12.7"
+  }
+}

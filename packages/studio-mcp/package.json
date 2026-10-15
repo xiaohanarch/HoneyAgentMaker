@@ -1,0 +1,13 @@
+{
+  "name": "@eab/studio-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "供编码 Agent 使用的 Studio MCP Server",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  }
+}
