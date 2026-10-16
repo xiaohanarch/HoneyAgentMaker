@@ -3,7 +3,7 @@ kind: Assistant
 metadata:
   name: procurement-assistant
   namespace: vendor.pur
-  version: 1.1.0
+  version: 1.1.1
   displayName: 采购助手
   description: 采购岗位的助手，编排供应商绩效分析等采购域 Agent
   owner: pur-team
@@ -24,6 +24,7 @@ spec:
         打开百润精密的供应商详情,
         我们的降价谈判制度是怎么规定的,
         华东区本季度逾期交付率是多少,
+        百润精密最近有没有什么风险,
       ]
   kpis:
     - { name: on_time_delivery_rate, displayName: 准时交付率, unit: '%', target: 95, direction: up }
@@ -35,3 +36,5 @@ spec:
         direction: up,
       }
     - { name: overdue_po_count, displayName: 逾期订单数, unit: 张, target: 10, direction: down }
+  # 统一入口直接调用，同时允许外部 Agent 经 A2A 调用（主提示词 8.4 节）
+  triggers: [{ type: assistant }, { type: agent }]

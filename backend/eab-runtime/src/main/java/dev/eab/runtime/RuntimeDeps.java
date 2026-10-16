@@ -29,7 +29,47 @@ public record RuntimeDeps(
         Ports.Alerts alerts,
         SemanticService.MetaClient meta,
         Clock clock,
-        int maxTurns) {
+        int maxTurns,
+        Ports.RemoteAgents remoteAgents) {
 
     public static final int DEFAULT_MAX_TURNS = 8;
+
+    /** 不接远程 Agent 的运行环境（测试、命令行）：调用远程 Agent 时明确失败 */
+    public RuntimeDeps(
+            ModelGateway gateway,
+            AssetResolver resolver,
+            List<Status> statuses,
+            Ports.Assembly assembly,
+            Ports.Identity identity,
+            Ports.BoApi bo,
+            Ports.Policy policy,
+            Ports.Mcp mcp,
+            Ports.Http http,
+            Ports.Notifier notifier,
+            Ports.Documents documents,
+            Ports.Memory memory,
+            Ports.Alerts alerts,
+            SemanticService.MetaClient meta,
+            Clock clock,
+            int maxTurns) {
+        this(
+                gateway,
+                resolver,
+                statuses,
+                assembly,
+                identity,
+                bo,
+                policy,
+                mcp,
+                http,
+                notifier,
+                documents,
+                memory,
+                alerts,
+                meta,
+                clock,
+                maxTurns,
+                (context, remoteRef, message) ->
+                        Ports.RemoteResult.failure("REMOTE_AGENT_DISABLED", "本运行环境没有接入 A2A 网关"));
+    }
 }

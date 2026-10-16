@@ -4,6 +4,7 @@ import dev.eab.assembler.EffectiveDefinition;
 import dev.eab.directory.DemoDirectory;
 import dev.eab.directory.DemoDirectory.DemoUser;
 import dev.eab.platform.PlatformServices;
+import dev.eab.platform.a2a.RemoteRuns;
 import dev.eab.platform.identity.AgentScope;
 import dev.eab.platform.policy.PolicyController;
 import dev.eab.platform.registry.AssetRepository.AssetFilter;
@@ -117,6 +118,21 @@ public final class AssistService {
         Router.Filter filter = entry -> denials.computeIfAbsent(entry.ref(), ref -> check(user, entry));
         List<Map<String, Object>> levels = new ArrayList<>();
 
+        Entry pending = request.target() == null
+                ? RemoteRuns.pendingRemote(runtime, user, request.sessionId(), catalog)
+                        .orElse(null)
+                : null;
+        if (pending != null) {
+            Router.Level resumed = new Router.Level(
+                    "route",
+                    List.of(new Router.Candidate(pending, 1.0, "会话里有等待补充信息的外部 Agent 任务", null)),
+                    new Router.Decision(
+                            pending, 1.0, "继续上一轮：" + pending.displayName() + " 在等待补充信息", "session"),
+                    List.of());
+            levels.add(describe(1, resumed));
+            return finish(request, sink, levels, resumed, null);
+        }
+
         List<Entry> first = catalog.stream()
                 .filter(e -> e.kind().equals("assistant") || e.direct())
                 .toList();
@@ -130,7 +146,8 @@ public final class AssistService {
         if (chosen.kind().equals("assistant")) {
             assistant = chosen;
             List<Entry> members = new ArrayList<>(catalog.stream()
-                    .filter(e -> e.kind().equals("agent") && chosen.members().contains(e.ref()))
+                    .filter(e -> (e.kind().equals("agent") || e.kind().equals("remote"))
+                            && chosen.members().contains(e.ref()))
                     .toList());
             members.addAll(Catalog.NAVIGATION);
             last = routeLevel(request.message(), request.target(), members, filter);
@@ -231,6 +248,7 @@ public final class AssistService {
             item.put("ref", c.entry().ref());
             item.put("name", c.entry().displayName());
             item.put("kind", c.entry().kind());
+            if (c.entry().kind().equals("remote")) item.put("action", RemoteRuns.ACTION);
             item.put("score", c.score());
             item.put("matched", c.matched());
             if (c.filtered() != null) item.put("filtered", c.filtered());
@@ -274,6 +292,17 @@ public final class AssistService {
         }
         routing.put("outcome", last.outcome());
 
+        if (target != null && target.kind().equals("remote")) {
+            routing.put("action", RemoteRuns.ACTION);
+            var outcome = new RemoteRuns(services, runtime)
+                    .start(request.user(), request.sessionId(), request.message(), target, assistant, routing, sink);
+            return new AssistOutcome(
+                    "run",
+                    outcome.runId(),
+                    outcome.traceId(),
+                    outcome.sessionId(),
+                    Map.of("status", outcome.result().status()));
+        }
         if (target != null && target.kind().equals("agent")) {
             var outcome = runtime.start(
                     new RuntimeService.StartRequest(

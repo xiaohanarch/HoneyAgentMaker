@@ -31,6 +31,11 @@
       <groupId>org.a2aproject.sdk</groupId>
       <artifactId>a2a-java-sdk-transport-jsonrpc</artifactId>
     </dependency>
+    <!-- 0.3 版本客户端（旧路径 /.well-known/agent.json）的兼容层：把 0.3 的请求转成 1.0 交给同一个请求处理器 -->
+    <dependency>
+      <groupId>org.a2aproject.sdk</groupId>
+      <artifactId>a2a-java-sdk-compat-0.3-transport-jsonrpc</artifactId>
+    </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter</artifactId>

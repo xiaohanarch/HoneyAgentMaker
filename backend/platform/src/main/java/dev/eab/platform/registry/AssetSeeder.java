@@ -37,7 +37,7 @@ public final class AssetSeeder {
 
     private record Staged(String file, Asset asset) {}
 
-    /** 启动时入库的子目录：platform、vendor，以及 tenants/<租户>/connections */
+    /** 启动时入库的子目录：platform、vendor，以及 tenants/<租户>/connections 和 tenants/<租户>/remote（登记的外部 Agent） */
     public static List<String> startupDirectories(Path assetsRoot) {
         List<String> dirs = new ArrayList<>(List.of("platform", "vendor"));
         Path tenants = assetsRoot.resolve("tenants");
@@ -46,8 +46,11 @@ public final class AssetSeeder {
             stream.filter(Files::isDirectory)
                     .map(t -> t.getFileName().toString())
                     .sorted()
-                    .filter(t -> Files.isDirectory(tenants.resolve(t).resolve("connections")))
-                    .forEach(t -> dirs.add("tenants/" + t + "/connections"));
+                    .forEach(t -> {
+                        for (String sub : List.of("connections", "remote")) {
+                            if (Files.isDirectory(tenants.resolve(t).resolve(sub))) dirs.add("tenants/" + t + "/" + sub);
+                        }
+                    });
         } catch (java.io.IOException e) {
             throw new java.io.UncheckedIOException("读取租户资产目录失败", e);
         }

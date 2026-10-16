@@ -51,10 +51,17 @@
     <a2a.version>1.4.0.Final</a2a.version>
     <!-- A2A Java SDK 1.4.0 依赖 gson 2.14，覆盖 Spring Boot 管理的版本 -->
     <gson.version>2.14.0</gson.version>
+    <!-- A2A SDK 的 BOM 管理到 4.35.0，CEL 的生成代码要求运行时不低于 4.35.1，取两者中较新的 -->
+    <protobuf.version>4.35.1</protobuf.version>
   </properties>
 
   <dependencyManagement>
     <dependencies>
+      <dependency>
+        <groupId>com.google.protobuf</groupId>
+        <artifactId>protobuf-java</artifactId>
+        <version>${protobuf.version}</version>
+      </dependency>
       <dependency>
         <groupId>org.springframework.ai</groupId>
         <artifactId>spring-ai-bom</artifactId>

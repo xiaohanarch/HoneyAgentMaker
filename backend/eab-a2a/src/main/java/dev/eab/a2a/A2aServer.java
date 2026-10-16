@@ -72,6 +72,7 @@ public final class A2aServer implements AutoCloseable {
     private final AgentCard card;
     private final MainEventBusProcessor processor;
     private final org.a2aproject.sdk.transport.jsonrpc.handler.JSONRPCHandler handler;
+    private final LegacyJsonRpc legacy;
 
     /**
      * @param workers 执行 Agent 和消费事件的线程
@@ -88,7 +89,6 @@ public final class A2aServer implements AutoCloseable {
         var sender = new BasePushNotificationSender(pushStore, http, pushUrls);
         this.processor = new MainEventBusProcessor(bus, tasks, sender, queues);
         processor.setPushNotificationExecutor(workers);
-        processor.start();
         var requestHandler = DefaultRequestHandler.builder()
                 .agentExecutor(executor)
                 .taskStore(tasks)
@@ -101,6 +101,7 @@ public final class A2aServer implements AutoCloseable {
                 .authorizationProvider(ownership)
                 .build();
         this.handler = new org.a2aproject.sdk.transport.jsonrpc.handler.JSONRPCHandler(card, requestHandler, workers);
+        this.legacy = new LegacyJsonRpc(card, requestHandler, workers);
     }
 
     public AgentCard card() {
@@ -113,6 +114,11 @@ public final class A2aServer implements AutoCloseable {
         } catch (JsonProcessingException e) {
             throw new IllegalStateException("Agent Card 无法序列化", e);
         }
+    }
+
+    /** 0.3 格式的 Agent Card，放在旧路径 /.well-known/agent.json */
+    public String legacyCardJson() {
+        return legacy.cardJson();
     }
 
     /** 请求头里的协议版本 */
@@ -128,7 +134,9 @@ public final class A2aServer implements AutoCloseable {
         return new ServerCallContext(new AuthenticatedUser(subject, attributes), state, Set.of(), version);
     }
 
+    /** 处理一个 JSON-RPC 请求；0.3 版本的方法名（message/send 等）交给兼容层 */
     public Response handle(String body, ServerCallContext context) {
+        if (LegacyJsonRpc.isLegacy(body)) return legacy.handle(body, context);
         try {
             A2ARequest<?> request = JSONRPCUtils.parseRequestBody(body, null);
             if (request instanceof SendStreamingMessageRequest req) {
@@ -158,7 +166,7 @@ public final class A2aServer implements AutoCloseable {
     }
 
     private A2AResponse<?> dispatch(A2ARequest<?> request, ServerCallContext context) {
-        if (request instanceof SendMessageRequest req) return handler.onMessageSend(req, context);
+        if (request instanceof SendMessageRequest req) return BlockingSend.send(handler, req, context);
         if (request instanceof GetTaskRequest req) return handler.onGetTask(req, context);
         if (request instanceof CancelTaskRequest req) return handler.onCancelTask(req, context);
         if (request instanceof ListTasksRequest req) return handler.onListTasks(req, context);

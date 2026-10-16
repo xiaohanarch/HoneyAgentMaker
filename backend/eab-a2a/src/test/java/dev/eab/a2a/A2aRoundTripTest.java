@@ -85,6 +85,7 @@ class A2aRoundTripTest {
         var a2a = new A2aServer(
                 card, executor(), Executors.newVirtualThreadPerTaskExecutor(), PushNotificationUrlValidator.ALLOW_ALL);
         server.createContext("/.well-known/agent-card.json", ex -> write(ex, a2a.cardJson()));
+        server.createContext("/.well-known/agent.json", ex -> write(ex, a2a.legacyCardJson()));
         server.createContext("/a2a", ex -> serve(ex, a2a));
         server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         server.start();
@@ -93,7 +94,8 @@ class A2aRoundTripTest {
     static void serve(HttpExchange ex, A2aServer a2a) throws IOException {
         String body = new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
         var response = a2a.handle(
-                body, A2aServer.context("tester", Map.of(), ex.getRequestHeaders().getFirst(A2aServer.VERSION_HEADER)));
+                body,
+                A2aServer.context("tester", Map.of(), ex.getRequestHeaders().getFirst(A2aServer.VERSION_HEADER)));
         if (response instanceof A2aServer.Response.Json json) {
             write(ex, json.body());
             return;
@@ -196,5 +198,71 @@ class A2aRoundTripTest {
         assertThatThrownBy(() -> A2aOutbound.fetchCard("http://127.0.0.1:1", null, Map.of()))
                 .isInstanceOf(A2aOutbound.A2aException.class)
                 .hasMessageContaining("无法连接外部 Agent");
+    }
+
+    static String post(String url, String body) throws Exception {
+        var request = java.net.http.HttpRequest.newBuilder(java.net.URI.create(url))
+                .header("Content-Type", "application/json")
+                .POST(java.net.http.HttpRequest.BodyPublishers.ofString(body))
+                .build();
+        try (var client = java.net.http.HttpClient.newHttpClient()) {
+            return client.send(request, java.net.http.HttpResponse.BodyHandlers.ofString())
+                    .body();
+        }
+    }
+
+    static String get(String url) throws Exception {
+        try (var client = java.net.http.HttpClient.newHttpClient()) {
+            return client.send(
+                            java.net.http.HttpRequest.newBuilder(java.net.URI.create(url))
+                                    .build(),
+                            java.net.http.HttpResponse.BodyHandlers.ofString())
+                    .body();
+        }
+    }
+
+    @Test
+    @DisplayName("旧路径提供 0.3 格式的 Agent Card：带 url、protocolVersion 和首选传输")
+    void legacyCard() throws Exception {
+        String json = get(base + "/.well-known/agent.json");
+        assertThat(json)
+                .contains("\"protocolVersion\":\"0.3.0\"")
+                .contains("\"url\":\"" + base + "/a2a\"")
+                .contains("\"preferredTransport\":\"JSONRPC\"")
+                .contains("测试 Agent");
+    }
+
+    @Test
+    @DisplayName("0.3 客户端用 message/send 调用，经兼容层得到完成的任务；tasks/get 能查到同一个任务")
+    void legacyMessageSend() throws Exception {
+        String body = "{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"message/send\",\"params\":{\"message\":"
+                + "{\"kind\":\"message\",\"messageId\":\"m-1\",\"role\":\"user\","
+                + "\"parts\":[{\"kind\":\"text\",\"text\":\"百润精密有什么风险\"}]}}}";
+        String response = post(base + "/a2a", body);
+        assertThat(response).contains("\"id\":7").contains("completed").contains("风险等级 中");
+        var matcher =
+                java.util.regex.Pattern.compile("\"id\":\"([0-9a-f-]{36})\"").matcher(response);
+        assertThat(matcher.find()).isTrue();
+        String got = post(
+                base + "/a2a",
+                "{\"jsonrpc\":\"2.0\",\"id\":8,\"method\":\"tasks/get\",\"params\":{\"id\":\"" + matcher.group(1)
+                        + "\"}}");
+        assertThat(got).contains("\"id\":8").contains("completed");
+    }
+
+    @Test
+    @DisplayName("0.3 请求的方法不支持时返回 JSON-RPC 错误")
+    void legacyUnknownMethod() throws Exception {
+        String response = post(base + "/a2a", "{\"jsonrpc\":\"2.0\",\"id\":\"x\",\"method\":\"agent/unknown\"}");
+        assertThat(response).contains("-32601").contains("\"id\":\"x\"");
+    }
+
+    @Test
+    @DisplayName("阻塞式 SendMessage（非流式）等到任务完成后返回完整结果")
+    void blockingSendMessage() throws Exception {
+        String body = "{\"jsonrpc\":\"2.0\",\"id\":\"b\",\"method\":\"SendMessage\",\"params\":{\"message\":"
+                + "{\"messageId\":\"m-b\",\"role\":\"ROLE_USER\",\"parts\":[{\"text\":\"百润精密有什么风险\"}]}}}";
+        String response = post(base + "/a2a", body);
+        assertThat(response).contains("TASK_STATE_COMPLETED").contains("风险等级 中");
     }
 }

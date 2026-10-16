@@ -24,6 +24,15 @@ eab:
   demo-erp-url: ${EAB_DEMO_ERP_URL:http://127.0.0.1:4100}
   scripts-dir: ${EAB_SCRIPTS_DIR:}
   otlp-endpoint: ${EAB_OTLP_ENDPOINT:}
+  # 平台对外地址，远程 Agent 的推送回调发到这里；为空时用本机回环地址加监听端口
+  public-url: ${EAB_PUBLIC_URL:}
+  # A2A 同步等待的上限，超过后转为异步任务（主提示词 8.4 节）
+  a2a-timeout-seconds: ${EAB_A2A_TIMEOUT_SECONDS:60}
+  # 连接别名在本环境的绑定（部署配置，不进资产），优先于租户 Connection 资产的 prod 绑定
+  connections:
+    "[SUPPLIER_RISK_AGENT]": ${EAB_SUPPLIER_RISK_URL:http://127.0.0.1:4200}
+    "[FX_RATE_AGENT]": ${EAB_FX_RATE_URL:http://127.0.0.1:4210}
+    "[LOGISTICS_MCP]": ${EAB_LOGISTICS_MCP_URL:http://127.0.0.1:4400/mcp}
 
 # 所有对外接口的 OpenAPI 描述（主提示词第 14 节），路径与 TS 版相同
 springdoc:

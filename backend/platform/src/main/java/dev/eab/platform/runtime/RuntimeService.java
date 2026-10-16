@@ -117,6 +117,18 @@ public final class RuntimeService {
         return im;
     }
 
+    /** A2A 出站网关，由 A2aConfig 装配；没有装配时调用远程 Agent 明确失败 */
+    private volatile Ports.RemoteAgents remoteAgents =
+            (context, remoteRef, message) -> Ports.RemoteResult.failure("REMOTE_AGENT_DISABLED", "平台没有装配 A2A 网关");
+
+    public void remoteAgents(Ports.RemoteAgents gateway) {
+        this.remoteAgents = gateway;
+    }
+
+    public Ports.RemoteAgents remoteAgents() {
+        return remoteAgents;
+    }
+
     public Settings settings() {
         return settings;
     }
@@ -245,7 +257,7 @@ public final class RuntimeService {
         return new RunOutcome(run.id(), run.traceId(), run.sessionId(), result);
     }
 
-    static RunContext.User runUser(DemoUser user) {
+    public static RunContext.User runUser(DemoUser user) {
         String tenantName = DemoDirectory.findTenant(user.tenantId())
                 .map(DemoDirectory.Tenant::name)
                 .orElse(user.tenantId());
@@ -284,7 +296,8 @@ public final class RuntimeService {
                 alerts,
                 this::metaObject,
                 services.clock(),
-                settings.maxTurns());
+                settings.maxTurns(),
+                remoteAgents);
     }
 
     public EffectiveDefinition assemble(String agent, String tenantId) {

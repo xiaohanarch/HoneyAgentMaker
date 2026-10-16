@@ -3,6 +3,7 @@ package dev.eab.runtime.routing;
 import dev.eab.spec.model.Asset;
 import dev.eab.spec.model.Asset.AgentAsset;
 import dev.eab.spec.model.Asset.AssistantAsset;
+import dev.eab.spec.model.Asset.RemoteAgentAsset;
 import dev.eab.spec.model.Asset.SemanticPackAsset;
 import dev.eab.spec.model.Common.Routing;
 import java.util.ArrayList;
@@ -23,7 +24,7 @@ public final class Catalog {
     /**
      * 目录里的一个条目。
      *
-     * @param kind assistant、agent、navigation
+     * @param kind assistant、agent、remote（外部 A2A Agent，执行动作类型 agent-request）、navigation
      * @param ref namespace/name；导航场景为 platform/navigation:&lt;页面&gt;
      * @param examples 示例话术，Agent 还包括挂载语义包里的 verified_tasks
      * @param members 岗位助手编排的 Agent
@@ -150,9 +151,54 @@ public final class Catalog {
                             List.of(),
                             routing != null && routing.direct()));
                 }
+                case RemoteAgentAsset remote -> {
+                    Routing routing = remote.spec().routing();
+                    entries.add(new Entry(
+                            "remote",
+                            ref(remote),
+                            remote.metadata().version(),
+                            name(remote),
+                            routing == null ? null : routing.description(),
+                            routing == null || routing.examples() == null ? List.of() : routing.examples(),
+                            List.of(),
+                            remote.spec().assistant() == null || (routing != null && routing.direct())));
+                }
                 default -> {}
             }
         }
-        return entries;
+        return withRemoteMembers(entries, published);
+    }
+
+    /** 远程 Agent 声明了所属岗位助手时，加进该助手的成员，第二级路由可以选到它 */
+    static List<Entry> withRemoteMembers(List<Entry> entries, List<Asset> published) {
+        Map<String, List<String>> extra = new LinkedHashMap<>();
+        for (Asset asset : published) {
+            if (asset instanceof RemoteAgentAsset remote && remote.spec().assistant() != null) {
+                String assistant = remote.spec().assistant();
+                String bare = assistant.contains("@") ? assistant.substring(0, assistant.indexOf('@')) : assistant;
+                extra.computeIfAbsent(bare, k -> new ArrayList<>()).add(ref(remote));
+            }
+        }
+        if (extra.isEmpty()) return entries;
+        List<Entry> result = new ArrayList<>();
+        for (Entry e : entries) {
+            List<String> more = e.kind().equals("assistant") ? extra.get(e.ref()) : null;
+            if (more == null) {
+                result.add(e);
+                continue;
+            }
+            List<String> members = new ArrayList<>(e.members());
+            more.stream().filter(m -> !members.contains(m)).forEach(members::add);
+            result.add(new Entry(
+                    e.kind(),
+                    e.ref(),
+                    e.version(),
+                    e.displayName(),
+                    e.description(),
+                    e.examples(),
+                    members,
+                    e.direct()));
+        }
+        return result;
     }
 }
