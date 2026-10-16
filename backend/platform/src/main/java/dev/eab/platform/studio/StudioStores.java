@@ -84,7 +84,8 @@ public final class StudioStores {
         }
 
         public List<Draft> listByTenant(String tenantId, int limit) {
-            return jdbc.sql("SELECT id FROM studio_drafts WHERE tenant_id = ? ORDER BY updated_at DESC LIMIT ?")
+            return jdbc
+                    .sql("SELECT id FROM studio_drafts WHERE tenant_id = ? ORDER BY updated_at DESC LIMIT ?")
                     .params(tenantId, limit)
                     .query(String.class)
                     .list()
@@ -94,8 +95,9 @@ public final class StudioStores {
         }
 
         public Draft update(Draft draft, String namespace, String name, int step, String yaml, String evalYaml) {
-            jdbc.sql("UPDATE studio_drafts SET namespace = ?, name = ?, step = ?, yaml = ?, eval_yaml = ?, updated_at = ?"
-                            + " WHERE id = ? AND tenant_id = ?")
+            jdbc.sql(
+                            "UPDATE studio_drafts SET namespace = ?, name = ?, step = ?, yaml = ?, eval_yaml = ?, updated_at = ?"
+                                    + " WHERE id = ? AND tenant_id = ?")
                     .params(namespace, name, step, yaml, evalYaml, IsoTime.now(clock), draft.id(), draft.tenantId())
                     .update();
             return get(draft.tenantId(), draft.id()).orElseThrow();
@@ -185,7 +187,13 @@ public final class StudioStores {
 
         /** 部署一个版本：同环境原来生效的记录失效 */
         public Deployment deploy(
-                String tenantId, String environment, String namespace, String name, String version, String by, String note) {
+                String tenantId,
+                String environment,
+                String namespace,
+                String name,
+                String version,
+                String by,
+                String note) {
             jdbc.sql("UPDATE deployments SET active = 0 WHERE tenant_id = ? AND environment = ? AND namespace = ?"
                             + " AND name = ?")
                     .params(tenantId, environment, namespace, name)
@@ -198,16 +206,30 @@ public final class StudioStores {
         }
 
         /** 回滚到上一个不同的版本；没有可回滚的版本时返回空 */
-        public Optional<Deployment> rollback(String tenantId, String environment, String namespace, String name, String by) {
+        public Optional<Deployment> rollback(
+                String tenantId, String environment, String namespace, String name, String by) {
             Optional<Deployment> current = active(tenantId, environment, namespace, name);
             if (current.isEmpty()) return Optional.empty();
-            Optional<String> previous = jdbc.sql("SELECT version FROM deployments WHERE tenant_id = ? AND environment = ?"
-                            + " AND namespace = ? AND name = ? AND version <> ? AND id < ? ORDER BY id DESC LIMIT 1")
-                    .params(tenantId, environment, namespace, name, current.get().version(), current.get().id())
+            Optional<String> previous = jdbc.sql(
+                            "SELECT version FROM deployments WHERE tenant_id = ? AND environment = ?"
+                                    + " AND namespace = ? AND name = ? AND version <> ? AND id < ? ORDER BY id DESC LIMIT 1")
+                    .params(
+                            tenantId,
+                            environment,
+                            namespace,
+                            name,
+                            current.get().version(),
+                            current.get().id())
                     .query(String.class)
                     .optional();
-            return previous.map(version ->
-                    deploy(tenantId, environment, namespace, name, version, by, "回滚自 " + current.get().version()));
+            return previous.map(version -> deploy(
+                    tenantId,
+                    environment,
+                    namespace,
+                    name,
+                    version,
+                    by,
+                    "回滚自 " + current.get().version()));
         }
     }
 
@@ -294,7 +316,8 @@ public final class StudioStores {
         }
 
         public List<EvalRun> listByTarget(String tenantId, String target, int limit) {
-            return jdbc.sql("SELECT * FROM eval_runs WHERE tenant_id = ? AND target = ? ORDER BY started_at DESC LIMIT ?")
+            return jdbc.sql(
+                            "SELECT * FROM eval_runs WHERE tenant_id = ? AND target = ? ORDER BY started_at DESC LIMIT ?")
                     .params(tenantId, target, limit)
                     .query((rs, i) -> row(rs))
                     .list();

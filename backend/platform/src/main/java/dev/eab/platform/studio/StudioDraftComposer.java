@@ -8,6 +8,8 @@ import java.util.Map;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
+import tools.jackson.dataformat.yaml.YAMLMapper;
+import tools.jackson.dataformat.yaml.YAMLWriteFeature;
 
 /**
  * 把向导每一步采纳的取值合并进草稿。草稿以 YAML 为准（YAML 编辑模式改的是同一份），这里在 YAML 解析出的树上按步骤改动：
@@ -59,8 +61,14 @@ final class StudioDraftComposer {
         return object;
     }
 
+    /** 向导里给人看、可以直接编辑的 YAML：字符串尽量不加引号，不写文档起始标记 */
+    static final YAMLMapper YAML = YAMLMapper.builder()
+            .enable(YAMLWriteFeature.MINIMIZE_QUOTES)
+            .disable(YAMLWriteFeature.WRITE_DOC_START_MARKER)
+            .build();
+
     static String write(ObjectNode tree) {
-        return Json.YAML.writeValueAsString(tree);
+        return YAML.writeValueAsString(tree);
     }
 
     private static ObjectNode obj(ObjectNode parent, String field) {
@@ -109,7 +117,8 @@ final class StudioDraftComposer {
                     routing.put("description", d);
                 }
             }
-            case "process" -> metadata.set("businessProcess", strings(StudioDefaults.strings(value.get("businessProcess"))));
+            case "process" ->
+                metadata.set("businessProcess", strings(StudioDefaults.strings(value.get("businessProcess"))));
             case "collaborators" -> {
                 List<Map<String, Object>> entries = new ArrayList<>();
                 for (String ref : StudioDefaults.strings(value.get("agents"))) {
@@ -121,7 +130,8 @@ final class StudioDraftComposer {
             case "knowledge" -> {
                 spec.set("semanticPacks", strings(StudioDefaults.strings(value.get("semanticPacks"))));
                 List<Map<String, Object>> entries = new ArrayList<>();
-                for (String ref : StudioDefaults.strings(value.get("knowledgeSources"))) entries.add(Map.of("documents", ref));
+                for (String ref : StudioDefaults.strings(value.get("knowledgeSources")))
+                    entries.add(Map.of("documents", ref));
                 replaceTools(spec, List.of("documents"), entries);
             }
             case "tools" -> {
@@ -136,11 +146,14 @@ final class StudioDraftComposer {
                         }
                     }
                 }
-                bySource.forEach((source, names) -> entries.add(Map.of("api", Map.of("source", source, "tools", names))));
+                bySource.forEach(
+                        (source, names) -> entries.add(Map.of("api", Map.of("source", source, "tools", names))));
                 replaceTools(spec, List.of("skill", "api"), entries);
             }
             case "triggers" -> {
-                spec.set("triggers", Json.MAPPER.valueToTree(value.getOrDefault("triggers", List.of(Map.of("type", "assistant")))));
+                spec.set(
+                        "triggers",
+                        Json.MAPPER.valueToTree(value.getOrDefault("triggers", List.of(Map.of("type", "assistant")))));
                 if (value.get("direct") instanceof Boolean direct) routing.put("direct", direct);
             }
             case "channels" -> spec.set("channels", strings(StudioDefaults.strings(value.get("channels"))));
@@ -168,11 +181,16 @@ final class StudioDraftComposer {
         asset.put(
                 "metadata",
                 Map.of(
-                        "name", name + "-smoke",
-                        "namespace", evalNamespaceFor(tenantId),
-                        "version", agent.path("metadata").path("version").asString("1.0.0"),
-                        "displayName", agent.path("metadata").path("displayName").asString(name) + " · 冒烟集",
-                        "owner", owner));
+                        "name",
+                        name + "-smoke",
+                        "namespace",
+                        evalNamespaceFor(tenantId),
+                        "version",
+                        agent.path("metadata").path("version").asString("1.0.0"),
+                        "displayName",
+                        agent.path("metadata").path("displayName").asString(name) + " · 冒烟集",
+                        "owner",
+                        owner));
         Map<String, Object> spec = new LinkedHashMap<>();
         spec.put("target", namespaceFor(tenantId) + "/" + name);
         spec.put("visibility", "internal");
@@ -180,6 +198,6 @@ final class StudioDraftComposer {
         spec.put("minPassRate", 1);
         spec.put("cases", cases);
         asset.put("spec", spec);
-        return Json.YAML.writeValueAsString(asset);
+        return YAML.writeValueAsString(asset);
     }
 }

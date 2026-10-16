@@ -103,7 +103,8 @@ public final class StudioService {
     // ── 草稿 ──
 
     public Draft draft(DemoUser user, String id) {
-        return drafts.get(user.tenantId(), id).orElseThrow(() -> new StudioException(404, "NOT_FOUND", "草稿 " + id + " 不存在"));
+        return drafts.get(user.tenantId(), id)
+                .orElseThrow(() -> new StudioException(404, "NOT_FOUND", "草稿 " + id + " 不存在"));
     }
 
     public DraftView create(DemoUser user, String intent) {
@@ -229,7 +230,9 @@ public final class StudioService {
     // ── 评测集 ──
 
     public DraftView generateEvals(DemoUser user, Draft draft, String testUser) {
-        if (DemoDirectory.findUser(testUser).filter(u -> u.tenantId().equals(user.tenantId())).isEmpty()) {
+        if (DemoDirectory.findUser(testUser)
+                .filter(u -> u.tenantId().equals(user.tenantId()))
+                .isEmpty()) {
             throw new StudioException(400, "BAD_REQUEST", "测试用户 " + testUser + " 不在本租户");
         }
         ObjectNode tree = StudioDraftComposer.read(draft.yaml());
@@ -237,12 +240,17 @@ public final class StudioService {
                 StudioDefaults.evalCases(draft.intent(), selections(tree), catalog(user.tenantId()), testUser);
         if (cases.isEmpty()) {
             // 没有可用的已验证任务时，用路由示例话术生成一个只做裁判的用例，开发者再补充
-            String question = tree.path("spec").path("routing").path("examples").path(0).asString(draft.intent());
+            String question =
+                    tree.path("spec").path("routing").path("examples").path(0).asString(draft.intent());
             cases = List.of(Map.of(
-                    "id", "example-1",
-                    "user", testUser,
-                    "question", question,
-                    "assertions", List.of(Map.of(
+                    "id",
+                    "example-1",
+                    "user",
+                    testUser,
+                    "question",
+                    question,
+                    "assertions",
+                    List.of(Map.of(
                             "type", "judge",
                             "rubric", "回答针对问题给出结论，并说明依据的数据",
                             "description", "给出有依据的结论"))));
@@ -256,7 +264,8 @@ public final class StudioService {
 
     public DraftView putEvals(DemoUser user, Draft draft, String yaml) {
         Asset suite = parse(yaml, "评测集");
-        if (!(suite instanceof EvalSuiteAsset)) throw new StudioException(422, "DRAFT_INVALID", "评测集草稿的 kind 应为 EvalSuite");
+        if (!(suite instanceof EvalSuiteAsset))
+            throw new StudioException(422, "DRAFT_INVALID", "评测集草稿的 kind 应为 EvalSuite");
         return view(drafts.update(draft, draft.namespace(), draft.name(), draft.step(), draft.yaml(), yaml));
     }
 
@@ -288,7 +297,8 @@ public final class StudioService {
                 sink);
     }
 
-    public RuntimeService.RunOutcome confirmTest(DemoUser developer, String runId, boolean approved, RunEvents.Sink sink) {
+    public RuntimeService.RunOutcome confirmTest(
+            DemoUser developer, String runId, boolean approved, RunEvents.Sink sink) {
         String startedBy = runtime.runs().startedBy(runId).orElse(null);
         var run = runtime.runs().get(runId).orElse(null);
         if (run == null || !developer.id().equals(startedBy) || !run.tenantId().equals(developer.tenantId())) {
@@ -351,11 +361,18 @@ public final class StudioService {
             var caseRun = new EvalRunner.CaseRun(r.text(), r.output(), events, r.status(), r.error());
             results.add(EvalRunner.check(c, caseRun, outcome.runId(), outcome.traceId(), judge));
         }
-        int passed = (int) results.stream().filter(EvalRunner.CaseResult::passed).count();
+        int passed =
+                (int) results.stream().filter(EvalRunner.CaseResult::passed).count();
         double rate = results.isEmpty() ? 0 : (double) passed / results.size();
         String status = rate >= suite.spec().minPassRate() ? "passed" : "failed";
         evalRuns.finish(run, results.size(), passed, status, EvalRunner.toJson(results));
         return new EvalRunView(
-                run.id(), status, results.size(), passed, suite.spec().minPassRate(), Math.round(rate * 1000) / 1000.0, results);
+                run.id(),
+                status,
+                results.size(),
+                passed,
+                suite.spec().minPassRate(),
+                Math.round(rate * 1000) / 1000.0,
+                results);
     }
 }

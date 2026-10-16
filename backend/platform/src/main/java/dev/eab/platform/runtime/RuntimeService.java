@@ -10,9 +10,8 @@ import dev.eab.platform.identity.DelegatedClient;
 import dev.eab.platform.policy.PolicyController;
 import dev.eab.platform.registry.AssetRepository.AssetFilter;
 import dev.eab.platform.registry.EffectiveAssembly;
-import dev.eab.platform.registry.ScopedResolver;
-import dev.eab.spec.model.Asset;
 import dev.eab.platform.registry.OverlayResolver;
+import dev.eab.platform.registry.ScopedResolver;
 import dev.eab.platform.runtime.RuntimeStores.AlertStore;
 import dev.eab.platform.runtime.RuntimeStores.ImChannel;
 import dev.eab.platform.runtime.RuntimeStores.JdbcTraceStore;
@@ -37,6 +36,7 @@ import dev.eab.spec.Json;
 import dev.eab.spec.Layers;
 import dev.eab.spec.Viewer;
 import dev.eab.spec.model.AgentSpec;
+import dev.eab.spec.model.Asset;
 import dev.eab.spec.model.Asset.ToolSourceAsset;
 import dev.eab.tracing.Otlp;
 import dev.eab.tracing.SpanRecord;
@@ -189,7 +189,8 @@ public final class RuntimeService {
                 null,
                 now,
                 now));
-        if (request.test() != null) runs.markTest(runId, request.test().startedBy(), request.test().overlayYaml());
+        if (request.test() != null)
+            runs.markTest(runId, request.test().startedBy(), request.test().overlayYaml());
         return execute(runs.get(runId).orElseThrow(), request.userToken(), journal, sink, request.routing());
     }
 

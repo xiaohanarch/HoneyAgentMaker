@@ -19,7 +19,8 @@ public final class OverlayResolver implements AssetResolver {
 
     public OverlayResolver(ScopedResolver base, List<? extends Asset> drafts) {
         this.base = base;
-        for (Asset asset : drafts) overlay.put(key(asset.metadata().namespace(), asset.metadata().name()), asset);
+        for (Asset asset : drafts)
+            overlay.put(key(asset.metadata().namespace(), asset.metadata().name()), asset);
     }
 
     private static String key(String namespace, String name) {

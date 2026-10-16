@@ -183,7 +183,10 @@ public class RunController {
     private boolean startedBy(Principal principal, RunRecord run) {
         return principal.viewer() instanceof Viewer.Tenant t
                 && t.tenantId().equals(run.tenantId())
-                && runtime.runs().startedBy(run.id()).filter(principal.user().id()::equals).isPresent();
+                && runtime.runs()
+                        .startedBy(run.id())
+                        .filter(principal.user().id()::equals)
+                        .isPresent();
     }
 
     static boolean canSeeRun(Principal principal, RunRecord run) {

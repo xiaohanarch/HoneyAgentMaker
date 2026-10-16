@@ -12,7 +12,8 @@ import java.util.stream.Collectors;
 /**
  * 把资产目录下指定子目录的 YAML 发布进注册中心（同版本同内容时跳过）。
  * 分两轮：先全部写成草稿，再逐个发布。发布门禁要解析资产之间的引用，一个文件引用的资产可能排在它后面，
- * 两轮可以避免顺序依赖。平台启动时灌入 platform 和 vendor；tenants/t001 是演示完成态快照，按需加载。
+ * 两轮可以避免顺序依赖。平台启动时灌入 platform、vendor 和各租户的连接（连接是环境配置，连接中心和向导都要用）；
+ * tenants 下的其他资产是演示完成态快照，按需加载。
  */
 public final class AssetSeeder {
 
@@ -35,6 +36,23 @@ public final class AssetSeeder {
     }
 
     private record Staged(String file, Asset asset) {}
+
+    /** 启动时入库的子目录：platform、vendor，以及 tenants/<租户>/connections */
+    public static List<String> startupDirectories(Path assetsRoot) {
+        List<String> dirs = new ArrayList<>(List.of("platform", "vendor"));
+        Path tenants = assetsRoot.resolve("tenants");
+        if (!Files.isDirectory(tenants)) return dirs;
+        try (var stream = Files.list(tenants)) {
+            stream.filter(Files::isDirectory)
+                    .map(t -> t.getFileName().toString())
+                    .sorted()
+                    .filter(t -> Files.isDirectory(tenants.resolve(t).resolve("connections")))
+                    .forEach(t -> dirs.add("tenants/" + t + "/connections"));
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException("读取租户资产目录失败", e);
+        }
+        return dirs;
+    }
 
     public static Report seed(RegistryService registry, Path assetsRoot, List<String> subdirectories) {
         List<String> published = new ArrayList<>();

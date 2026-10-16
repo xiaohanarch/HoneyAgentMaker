@@ -104,5 +104,5 @@ interface EvalRunView {
 
 ## 连接中心
 
-- `GET /studio/connections` → `{alias, type, ref, version, bindings: {private?, dev?, test?, prod?: {url, auth: {type, credentialRef?}}}, usedBy: string[]}[]`
-- `PUT /studio/connections/{alias}/bindings/{environment}` body `{url, authType, credentialRef?}` → 更新后的连接（写入 Connection 资产的新版本并发布；只有租户管理员可以改）
+- `GET /studio/connections` → `{alias, type, ref, version, bindings: {private?, dev?, test?, prod?: {url, auth: {type, credentialRef?}}}, usedBy: string[], editable: boolean}[]`。`editable` 表示当前用户能否修改（租户管理员为 true）。`usedBy` 列出直接引用这个别名的工具来源和远程 Agent，以及挂载了这些工具来源的 Agent。
+- `PUT /studio/connections/{alias}/bindings/{environment}` body `{url, authType, credentialRef?}` → 更新后的连接。`authType` 取 schema 允许的值：none、client-credentials、token-exchange、platform-service-token；`credentialRef` 只能是 `env:` 或 `vault:` 开头的引用，不能是凭据本身。每次修改写入 Connection 资产的新补丁版本并发布，写 `connection.binding` 审计；只有租户管理员可以改。

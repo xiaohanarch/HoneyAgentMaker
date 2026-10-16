@@ -70,9 +70,12 @@ public final class StudioReleases {
         }
         String ref = agent.metadata().namespace() + "/" + agent.metadata().name();
         var assembled = EffectiveAssembly.assemble(
-                services.registry(), Viewer.tenant(tenantId), EffectiveAssembly.Request.withOverlay(ref, tenantId, overlay));
+                services.registry(),
+                Viewer.tenant(tenantId),
+                EffectiveAssembly.Request.withOverlay(ref, tenantId, overlay));
         for (var i : assembled.issues()) {
-            issues.add(new LintIssue("assembly", i.isError() ? "error" : "warning", i.code() + " " + i.message(), i.path()));
+            issues.add(new LintIssue(
+                    "assembly", i.isError() ? "error" : "warning", i.code() + " " + i.message(), i.path()));
         }
         if (agent instanceof AgentAsset a) issues.addAll(routingOverlap(tenantId, a));
         boolean ok = issues.stream().noneMatch(i -> i.severity().equals("error"));
@@ -84,9 +87,13 @@ public final class StudioReleases {
         if (agent.spec().routing() == null) return List.of();
         String self = agent.metadata().namespace() + "/" + agent.metadata().name();
         List<String> mine = new ArrayList<>();
-        if (agent.spec().routing().description() != null) mine.add(agent.spec().routing().description());
-        if (agent.spec().routing().examples() != null) mine.addAll(agent.spec().routing().examples());
-        var published = services.registry().latestPublished(AssetFilter.all(), Viewer.tenant(tenantId)).assets();
+        if (agent.spec().routing().description() != null)
+            mine.add(agent.spec().routing().description());
+        if (agent.spec().routing().examples() != null)
+            mine.addAll(agent.spec().routing().examples());
+        var published = services.registry()
+                .latestPublished(AssetFilter.all(), Viewer.tenant(tenantId))
+                .assets();
         List<LintIssue> issues = new ArrayList<>();
         Set<String> reported = new HashSet<>();
         for (Catalog.Entry entry : Catalog.build(published)) {
@@ -149,16 +156,20 @@ public final class StudioReleases {
         if (!versions.isEmpty()) {
             var latest = versions.getFirst();
             Optional<Asset> existing = resolver.get(namespace, name, latest.version());
-            if (existing.isPresent() && StudioService.contentHash(existing.get()).equals(hash)
+            if (existing.isPresent()
+                    && StudioService.contentHash(existing.get()).equals(hash)
                     && latest.status() == AssetResolver.Status.published) {
-                Deployment dev = deployments.active(user.tenantId(), "dev", namespace, name)
+                Deployment dev = deployments
+                        .active(user.tenantId(), "dev", namespace, name)
                         .filter(d -> d.version().equals(latest.version()))
                         .orElseGet(() -> deployments.deploy(
                                 user.tenantId(), "dev", namespace, name, latest.version(), user.id(), "发布"));
                 return new PublishResult(ref, latest.version(), dev, true);
             }
         }
-        String version = nextVersion(agent.metadata().version(), versions.stream().map(AssetResolver.VersionInfo::version).toList());
+        String version = nextVersion(
+                agent.metadata().version(),
+                versions.stream().map(AssetResolver.VersionInfo::version).toList());
 
         ObjectNode agentTree = StudioDraftComposer.read(draft.yaml());
         ((ObjectNode) agentTree.path("metadata")).put("version", version);
@@ -172,7 +183,10 @@ public final class StudioReleases {
         String suiteName = suite.metadata().name();
         // 先都写成草稿再发布：Agent 引用评测集，评测集又以 Agent 为测试对象
         put(viewer, agentYaml, note);
-        boolean suiteExists = services.registry().resolverFor(viewer).get(suiteNs, suiteName, version).isPresent();
+        boolean suiteExists = services.registry()
+                .resolverFor(viewer)
+                .get(suiteNs, suiteName, version)
+                .isPresent();
         if (!suiteExists) put(viewer, suiteYaml, note);
         publishStatus(viewer, namespace, name, version);
         if (!suiteExists) publishStatus(viewer, suiteNs, suiteName, version);
@@ -198,14 +212,22 @@ public final class StudioReleases {
     private void put(Viewer viewer, String yaml, String note) {
         var result = services.registry().put(viewer, yaml, note);
         if (!result.ok()) {
-            throw new StudioException(422, "PUBLISH_FAILED", "写入注册中心失败：" + result.error().message(), result.error().issues());
+            throw new StudioException(
+                    422,
+                    "PUBLISH_FAILED",
+                    "写入注册中心失败：" + result.error().message(),
+                    result.error().issues());
         }
     }
 
     private void publishStatus(Viewer viewer, String namespace, String name, String version) {
         var result = services.registry().setStatus(viewer, namespace, name, version, AssetResolver.Status.published);
         if (!result.ok()) {
-            throw new StudioException(422, "PUBLISH_FAILED", "发布失败：" + result.error().message(), result.error().issues());
+            throw new StudioException(
+                    422,
+                    "PUBLISH_FAILED",
+                    "发布失败：" + result.error().message(),
+                    result.error().issues());
         }
     }
 
@@ -223,35 +245,50 @@ public final class StudioReleases {
             default -> throw new StudioException(400, "BAD_REQUEST", "只能晋级到 test 或 prod");
         };
         List<Gate> gates = new ArrayList<>();
-        boolean inPrevious = deployments.active(user.tenantId(), previous, parts[0], parts[1])
+        boolean inPrevious = deployments
+                .active(user.tenantId(), previous, parts[0], parts[1])
                 .filter(d -> d.version().equals(version))
                 .isPresent();
-        gates.add(new Gate("已在 " + previous, inPrevious, inPrevious ? version + " 已部署在 " + previous : version + " 还没有部署到 " + previous));
+        gates.add(new Gate(
+                "已在 " + previous,
+                inPrevious,
+                inPrevious ? version + " 已部署在 " + previous : version + " 还没有部署到 " + previous));
         if (environment.equals("prod")) gates.addAll(prodGates(user.tenantId(), parts[0], parts[1], version));
         if (gates.stream().anyMatch(g -> !g.passed())) {
             services.audit()
-                    .append(NewAuditEvent.of(user.id(), "studio.promote", ref + "@" + version, "deny", "晋级 " + environment + " 的门禁未通过")
+                    .append(NewAuditEvent.of(
+                                    user.id(),
+                                    "studio.promote",
+                                    ref + "@" + version,
+                                    "deny",
+                                    "晋级 " + environment + " 的门禁未通过")
                             .tenantId(user.tenantId()));
             throw new StudioException(409, "GATE_BLOCKED", "晋级 " + environment + " 的门禁未通过", gates);
         }
-        Deployment deployment = deployments.deploy(user.tenantId(), environment, parts[0], parts[1], version, user.id(), "晋级");
+        Deployment deployment =
+                deployments.deploy(user.tenantId(), environment, parts[0], parts[1], version, user.id(), "晋级");
         services.audit()
-                .append(NewAuditEvent.of(user.id(), "studio.promote", ref + "@" + version, "allow", "晋级到 " + environment)
+                .append(NewAuditEvent.of(
+                                user.id(), "studio.promote", ref + "@" + version, "allow", "晋级到 " + environment)
                         .tenantId(user.tenantId()));
         return new PromoteResult(deployment, gates);
     }
 
     List<Gate> prodGates(String tenantId, String namespace, String name, String version) {
         List<Gate> gates = new ArrayList<>();
-        Optional<Asset> asset = services.registry().resolverFor(Viewer.tenant(tenantId)).get(namespace, name, version);
+        Optional<Asset> asset =
+                services.registry().resolverFor(Viewer.tenant(tenantId)).get(namespace, name, version);
         if (asset.isEmpty()) {
             gates.add(new Gate("版本存在", false, namespace + "/" + name + "@" + version + " 不存在"));
             return gates;
         }
         LintReport report = lint(tenantId, asset.get(), List.of());
-        long errors = report.issues().stream().filter(i -> i.severity().equals("error")).count();
+        long errors = report.issues().stream()
+                .filter(i -> i.severity().equals("error"))
+                .count();
         gates.add(new Gate("静态检查", report.ok(), report.ok() ? "没有错误" : errors + " 个错误"));
-        var passed = studio.evalRuns().latestPassed(tenantId, namespace + "/" + name, StudioService.contentHash(asset.get()));
+        var passed = studio.evalRuns()
+                .latestPassed(tenantId, namespace + "/" + name, StudioService.contentHash(asset.get()));
         gates.add(new Gate(
                 "评测门禁",
                 passed.isPresent(),
@@ -261,12 +298,19 @@ public final class StudioReleases {
     }
 
     public Deployment rollback(DemoUser user, String ref, String environment) {
-        if (!StudioStores.ENVIRONMENTS.contains(environment)) throw new StudioException(400, "BAD_REQUEST", "未知的环境 " + environment);
+        if (!StudioStores.ENVIRONMENTS.contains(environment))
+            throw new StudioException(400, "BAD_REQUEST", "未知的环境 " + environment);
         String[] parts = split(ref);
-        Deployment deployment = deployments.rollback(user.tenantId(), environment, parts[0], parts[1], user.id())
+        Deployment deployment = deployments
+                .rollback(user.tenantId(), environment, parts[0], parts[1], user.id())
                 .orElseThrow(() -> new StudioException(409, "NOTHING_TO_ROLLBACK", environment + " 里没有可以回滚的上一个版本"));
         services.audit()
-                .append(NewAuditEvent.of(user.id(), "studio.rollback", ref, "allow", environment + " 回滚到 " + deployment.version())
+                .append(NewAuditEvent.of(
+                                user.id(),
+                                "studio.rollback",
+                                ref,
+                                "allow",
+                                environment + " 回滚到 " + deployment.version())
                         .tenantId(user.tenantId()));
         return deployment;
     }
@@ -277,12 +321,14 @@ public final class StudioReleases {
         for (String env : StudioStores.ENVIRONMENTS) {
             deployments.active(user.tenantId(), env, parts[0], parts[1]).ifPresent(d -> environments.put(env, d));
         }
-        return Map.of("environments", environments, "history", deployments.history(user.tenantId(), parts[0], parts[1]));
+        return Map.of(
+                "environments", environments, "history", deployments.history(user.tenantId(), parts[0], parts[1]));
     }
 
     static String[] split(String ref) {
         int slash = ref == null ? -1 : ref.indexOf('/');
-        if (slash <= 0 || slash == ref.length() - 1) throw new StudioException(400, "BAD_REQUEST", "ref 写作 namespace/name");
+        if (slash <= 0 || slash == ref.length() - 1)
+            throw new StudioException(400, "BAD_REQUEST", "ref 写作 namespace/name");
         return new String[] {ref.substring(0, slash), ref.substring(slash + 1)};
     }
 }

@@ -8,6 +8,7 @@ import dev.eab.platform.identity.AgentScope;
 import dev.eab.platform.policy.PolicyController;
 import dev.eab.platform.registry.AssetRepository.AssetFilter;
 import dev.eab.platform.runtime.RuntimeService;
+import dev.eab.platform.studio.StudioStores;
 import dev.eab.policy.PolicyEngine;
 import dev.eab.policy.PolicyEngine.Decision;
 import dev.eab.policy.PolicyInputs;
@@ -17,10 +18,9 @@ import dev.eab.runtime.ToolGateway.ToolOutcome;
 import dev.eab.runtime.routing.Catalog;
 import dev.eab.runtime.routing.Catalog.Entry;
 import dev.eab.runtime.routing.Router;
-import dev.eab.spec.Viewer;
 import dev.eab.spec.Layers.Layer;
+import dev.eab.spec.Viewer;
 import dev.eab.spec.model.Asset;
-import dev.eab.platform.studio.StudioStores;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -53,7 +53,10 @@ public final class AssistService {
      * @param deployments 环境部署；给出时，租户层的岗位助手和 Agent 只有部署到 prod 才进入能力目录，并按 prod 的版本运行（ADR 0010）
      */
     public AssistService(
-            PlatformServices services, RuntimeService runtime, Router router, StudioStores.DeploymentStore deployments) {
+            PlatformServices services,
+            RuntimeService runtime,
+            Router router,
+            StudioStores.DeploymentStore deployments) {
         this.services = services;
         this.runtime = runtime;
         this.router = router;
@@ -90,7 +93,8 @@ public final class AssistService {
                 continue;
             }
             var m = asset.metadata();
-            deployments.active(tenantId, "prod", m.namespace(), m.name())
+            deployments
+                    .active(tenantId, "prod", m.namespace(), m.name())
                     .flatMap(d -> d.version().equals(m.version())
                             ? java.util.Optional.of(asset)
                             : resolver.get(m.namespace(), m.name(), d.version()))
@@ -101,7 +105,9 @@ public final class AssistService {
 
     /** 租户层 Agent 按能力目录里的版本运行（prod 部署的版本），标品 Agent 取最新发布版 */
     static String runRef(Entry entry) {
-        return entry.ref().startsWith("tenant.") && entry.version() != null ? entry.ref() + "@" + entry.version() : entry.ref();
+        return entry.ref().startsWith("tenant.") && entry.version() != null
+                ? entry.ref() + "@" + entry.version()
+                : entry.ref();
     }
 
     public AssistOutcome assist(AssistRequest request, RunEvents.Sink sink) {

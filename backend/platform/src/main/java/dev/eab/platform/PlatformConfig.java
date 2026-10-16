@@ -2,11 +2,6 @@ package dev.eab.platform;
 
 import dev.eab.common.IsoTime;
 import dev.eab.platform.assist.AssistService;
-import dev.eab.platform.studio.EvalRunner;
-import dev.eab.platform.studio.StudioRecommender;
-import dev.eab.platform.studio.StudioReleases;
-import dev.eab.platform.studio.StudioService;
-import dev.eab.platform.studio.StudioStores;
 import dev.eab.platform.assist.EventTriggers;
 import dev.eab.platform.assist.NotificationStore;
 import dev.eab.platform.audit.AuditStore;
@@ -19,6 +14,11 @@ import dev.eab.platform.registry.Ed25519Signer;
 import dev.eab.platform.registry.RegistryService;
 import dev.eab.platform.runtime.PlatformMcpServer;
 import dev.eab.platform.runtime.RuntimeService;
+import dev.eab.platform.studio.EvalRunner;
+import dev.eab.platform.studio.StudioRecommender;
+import dev.eab.platform.studio.StudioReleases;
+import dev.eab.platform.studio.StudioService;
+import dev.eab.platform.studio.StudioStores;
 import dev.eab.runtime.RuntimeDeps;
 import dev.eab.runtime.model.GatewayConfig;
 import dev.eab.runtime.model.ModelGateway;
@@ -132,7 +132,8 @@ public class PlatformConfig {
     /** 部署表在统一入口和 Studio 之间共用，只建一份 */
     @Bean
     public synchronized StudioStores.DeploymentStore deploymentStore(PlatformServices services) {
-        if (deployments == null) deployments = new StudioStores.DeploymentStore(services.db().jdbc(), services.clock());
+        if (deployments == null)
+            deployments = new StudioStores.DeploymentStore(services.db().jdbc(), services.clock());
         return deployments;
     }
 
@@ -192,8 +193,8 @@ public class PlatformConfig {
                 mcp.refreshTools();
                 return;
             }
-            var report = AssetSeeder.seed(registry, props.resolvedAssetsDir(), List.of("platform", "vendor"));
-            LOG.info("平台与标品资产已签名入库：{} 个", report.published().size());
+            var report = AssetSeeder.seed(registry, props.resolvedAssetsDir(), AssetSeeder.startupDirectories(props.resolvedAssetsDir()));
+            LOG.info("平台、标品资产与租户连接已入库：{} 个", report.published().size());
             report.failed().forEach(f -> LOG.error("资产入库失败 {}：{}", f.file(), f.message()));
             mcp.refreshTools();
             LOG.info(

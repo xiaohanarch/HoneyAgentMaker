@@ -195,7 +195,8 @@ public final class RuntimeStores {
                     .optional()
                     .orElse(null);
             if (json == null) return List.of();
-            List<String> yamls = Json.MAPPER.readValue(json, new tools.jackson.core.type.TypeReference<List<String>>() {});
+            List<String> yamls =
+                    Json.MAPPER.readValue(json, new tools.jackson.core.type.TypeReference<List<String>>() {});
             return yamls.stream()
                     .map(yaml -> {
                         var parsed = dev.eab.spec.AssetParser.parseYaml(yaml);

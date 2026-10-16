@@ -37,9 +37,12 @@ final class StudioAnswers {
                 if (codes.isEmpty()) return null;
                 value.put("businessProcess", codes);
             }
-            case "collaborators" -> value.put("agents", known(answer.get("agents"), refs(candidates.get("agents"), "ref")));
+            case "collaborators" ->
+                value.put("agents", known(answer.get("agents"), refs(candidates.get("agents"), "ref")));
             case "knowledge" -> {
-                value.put("semanticPacks", known(answer.get("semanticPacks"), refs(candidates.get("semanticPacks"), "ref")));
+                value.put(
+                        "semanticPacks",
+                        known(answer.get("semanticPacks"), refs(candidates.get("semanticPacks"), "ref")));
                 value.put(
                         "knowledgeSources",
                         known(answer.get("knowledgeSources"), refs(candidates.get("knowledgeSources"), "ref")));
@@ -62,7 +65,8 @@ final class StudioAnswers {
                 value.put("constraints", known(answer.get("constraints"), refs(candidates.get("rules"), "id")));
             }
             case "model" -> {
-                if (!(answer.get("profile") instanceof String profile) || !List.of("fast", "reasoning").contains(profile)) {
+                if (!(answer.get("profile") instanceof String profile)
+                        || !List.of("fast", "reasoning").contains(profile)) {
                     return null;
                 }
                 value.put("profile", profile);

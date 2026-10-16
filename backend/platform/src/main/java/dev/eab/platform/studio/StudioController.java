@@ -64,7 +64,8 @@ public class StudioController {
 
     private DemoUser developer(HttpServletRequest request) {
         Principal principal = services.principals().require(request);
-        if (!(principal.viewer() instanceof Viewer.Tenant) || principal.user().roles().stream().noneMatch(ROLES::contains)) {
+        if (!(principal.viewer() instanceof Viewer.Tenant)
+                || principal.user().roles().stream().noneMatch(ROLES::contains)) {
             throw new ApiException(403, "FORBIDDEN", "Studio 只对租户开发者和租户管理员开放");
         }
         return principal.user();
@@ -105,17 +106,24 @@ public class StudioController {
             String name = agent.metadata().name();
             Map<String, Object> envs = new LinkedHashMap<>();
             for (String env : StudioStores.ENVIRONMENTS) {
-                releases.deployments().active(user.tenantId(), env, ns, name).ifPresent(d -> envs.put(env, d.version()));
+                releases.deployments()
+                        .active(user.tenantId(), env, ns, name)
+                        .ifPresent(d -> envs.put(env, d.version()));
             }
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("ref", ns + "/" + name);
-            item.put("name", agent.metadata().displayName() == null ? name : agent.metadata().displayName());
+            item.put(
+                    "name",
+                    agent.metadata().displayName() == null
+                            ? name
+                            : agent.metadata().displayName());
             item.put("version", agent.metadata().version());
             item.put("environments", envs);
             agents.add(item);
         }
         List<Map<String, Object>> requests = new ArrayList<>();
-        for (var summary : services.registry().list(viewer, new AssetFilter("DevRequest", null, null, user.tenantId(), null))) {
+        for (var summary :
+                services.registry().list(viewer, new AssetFilter("DevRequest", null, null, user.tenantId(), null))) {
             var view = services.registry().view(viewer, summary.namespace(), summary.name(), summary.version());
             if (!view.ok()) continue;
             var spec = view.value().asset().path("spec");
@@ -176,7 +184,8 @@ public class StudioController {
         DemoUser user = developer(request);
         limiter.check("studio:" + user.id());
         if (body == null || body.step() == null || !StudioRecommender.STEPS.containsKey(body.step())) {
-            throw new ApiException(400, "BAD_REQUEST", "请求参数不合法：step 只能是 " + String.join("、", StudioRecommender.STEPS.keySet()));
+            throw new ApiException(
+                    400, "BAD_REQUEST", "请求参数不合法：step 只能是 " + String.join("、", StudioRecommender.STEPS.keySet()));
         }
         Draft draft = draft(user, id);
         return ApiResponse.success(call(() -> studio.recommend(user, draft, body.step())));
@@ -184,7 +193,8 @@ public class StudioController {
 
     @PostMapping("/studio/drafts/{id}/apply")
     @Operation(summary = "采纳一步的取值，返回更新后的草稿")
-    public ApiResponse<DraftView> apply(HttpServletRequest request, @PathVariable String id, @RequestBody StepBody body) {
+    public ApiResponse<DraftView> apply(
+            HttpServletRequest request, @PathVariable String id, @RequestBody StepBody body) {
         DemoUser user = developer(request);
         if (body == null || body.step() == null || body.value() == null) {
             throw new ApiException(400, "BAD_REQUEST", "请求参数不合法：需要 step 和 value");
@@ -197,7 +207,8 @@ public class StudioController {
 
     @PutMapping("/studio/drafts/{id}/yaml")
     @Operation(summary = "YAML 编辑模式：替换草稿内容")
-    public ApiResponse<DraftView> putYaml(HttpServletRequest request, @PathVariable String id, @RequestBody YamlBody body) {
+    public ApiResponse<DraftView> putYaml(
+            HttpServletRequest request, @PathVariable String id, @RequestBody YamlBody body) {
         DemoUser user = developer(request);
         Draft draft = draft(user, id);
         String yaml = text(body == null ? null : body.yaml(), "yaml", MAX_YAML);
@@ -220,7 +231,8 @@ public class StudioController {
 
     @PutMapping("/studio/drafts/{id}/evals")
     @Operation(summary = "替换评测集草稿")
-    public ApiResponse<DraftView> putEvals(HttpServletRequest request, @PathVariable String id, @RequestBody YamlBody body) {
+    public ApiResponse<DraftView> putEvals(
+            HttpServletRequest request, @PathVariable String id, @RequestBody YamlBody body) {
         DemoUser user = developer(request);
         Draft draft = draft(user, id);
         String yaml = text(body == null ? null : body.yaml(), "yaml", MAX_YAML);
@@ -259,7 +271,8 @@ public class StudioController {
         // 草稿和测试用户在发 SSE 之前校验，错误按普通 JSON 返回
         call(() -> StudioService.parse(draft.yaml(), "草稿"));
         call(() -> studio.testUser(user, body.asUser()));
-        return respond(request, sink -> call(() -> studio.test(user, draft, message, body.asUser(), body.sessionId(), sink)));
+        return respond(
+                request, sink -> call(() -> studio.test(user, draft, message, body.asUser(), body.sessionId(), sink)));
     }
 
     public record ConfirmationBody(Boolean approved) {}
@@ -286,14 +299,25 @@ public class StudioController {
             String error,
             List<RunEvent> events) {}
 
-    private static Object respond(HttpServletRequest request, Function<RunEvents.Sink, RuntimeService.RunOutcome> work) {
+    private static Object respond(
+            HttpServletRequest request, Function<RunEvents.Sink, RuntimeService.RunOutcome> work) {
         String accept = request.getHeader("Accept");
-        if (accept != null && accept.contains(MediaType.APPLICATION_JSON_VALUE) && !accept.contains("text/event-stream")) {
+        if (accept != null
+                && accept.contains(MediaType.APPLICATION_JSON_VALUE)
+                && !accept.contains("text/event-stream")) {
             List<RunEvent> events = new CopyOnWriteArrayList<>();
             var outcome = work.apply(events::add);
             var r = outcome.result();
             return ApiResponse.success(new RunView(
-                    outcome.runId(), outcome.traceId(), outcome.sessionId(), r.status(), r.text(), r.output(), r.pending(), r.error(), events));
+                    outcome.runId(),
+                    outcome.traceId(),
+                    outcome.sessionId(),
+                    r.status(),
+                    r.text(),
+                    r.output(),
+                    r.pending(),
+                    r.error(),
+                    events));
         }
         return SseRuns.start(SSE_TIMEOUT_MILLIS, "TEST_RUN_FAILED", work::apply);
     }
@@ -317,7 +341,8 @@ public class StudioController {
         DemoUser user = developer(request);
         Draft draft = draft(user, id);
         String note = body == null ? null : body.changeNote();
-        if (note != null && note.length() > MAX_TEXT) throw new ApiException(400, "BAD_REQUEST", "变更说明最长 " + MAX_TEXT + " 字");
+        if (note != null && note.length() > MAX_TEXT)
+            throw new ApiException(400, "BAD_REQUEST", "变更说明最长 " + MAX_TEXT + " 字");
         return ApiResponse.success(call(() -> releases.publish(user, draft, note)));
     }
 
@@ -332,12 +357,14 @@ public class StudioController {
 
     @PostMapping("/studio/deployments/promote")
     @Operation(summary = "晋级到 test 或 prod，门禁不过时 409 GATE_BLOCKED")
-    public ApiResponse<StudioReleases.PromoteResult> promote(HttpServletRequest request, @RequestBody PromoteBody body) {
+    public ApiResponse<StudioReleases.PromoteResult> promote(
+            HttpServletRequest request, @RequestBody PromoteBody body) {
         DemoUser user = developer(request);
         if (body == null || body.version() == null || !body.version().matches("^\\d+\\.\\d+\\.\\d+$")) {
             throw new ApiException(400, "BAD_REQUEST", "请求参数不合法：需要 ref、version（x.y.z）和 environment");
         }
-        return ApiResponse.success(call(() -> releases.promote(user, body.ref(), body.version(), String.valueOf(body.environment()))));
+        return ApiResponse.success(
+                call(() -> releases.promote(user, body.ref(), body.version(), String.valueOf(body.environment()))));
     }
 
     public record RollbackBody(String ref, String environment) {}

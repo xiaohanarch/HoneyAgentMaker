@@ -75,7 +75,9 @@ public final class EvalRunner {
                 "judge",
                 description,
                 missing.isEmpty(),
-                missing.isEmpty() ? "确定性裁判：回复包含 " + String.join("、", points) : "确定性裁判：回复缺少 " + String.join("、", missing));
+                missing.isEmpty()
+                        ? "确定性裁判：回复包含 " + String.join("、", points)
+                        : "确定性裁判：回复缺少 " + String.join("、", missing));
     };
 
     /** 模型裁判；模型调用失败时判为不通过并写明原因，不静默通过 */
@@ -86,7 +88,9 @@ public final class EvalRunner {
             try {
                 String reply = ChatClient.create(model)
                         .prompt(new Prompt(List.of(new SystemMessage(system), new UserMessage(user))))
-                        .options(ToolCallingChatOptions.builder().model(modelName).temperature(0.0))
+                        .options(ToolCallingChatOptions.builder()
+                                .model(modelName)
+                                .temperature(0.0))
                         .call()
                         .content();
                 Map<String, Object> parsed = StudioRecommender.parse(reply);
@@ -121,16 +125,26 @@ public final class EvalRunner {
         return switch (a.type()) {
             case "calledTool" -> {
                 boolean called = run.calledTools().contains(a.tool());
-                yield new AssertionResult(a.type(), description, called, called ? "调用了 " + a.tool() : "没有调用 " + a.tool());
+                yield new AssertionResult(
+                        a.type(), description, called, called ? "调用了 " + a.tool() : "没有调用 " + a.tool());
             }
             case "notCalledTool" -> {
                 boolean called = run.calledTools().contains(a.tool());
-                yield new AssertionResult(a.type(), description, !called, called ? "调用了 " + a.tool() : "没有调用 " + a.tool());
+                yield new AssertionResult(
+                        a.type(), description, !called, called ? "调用了 " + a.tool() : "没有调用 " + a.tool());
             }
-            case "contains" -> new AssertionResult(
-                    a.type(), description, text.contains(a.text()), (text.contains(a.text()) ? "包含" : "不包含") + "「" + a.text() + "」");
-            case "notContains" -> new AssertionResult(
-                    a.type(), description, !text.contains(a.text()), (text.contains(a.text()) ? "包含" : "不包含") + "「" + a.text() + "」");
+            case "contains" ->
+                new AssertionResult(
+                        a.type(),
+                        description,
+                        text.contains(a.text()),
+                        (text.contains(a.text()) ? "包含" : "不包含") + "「" + a.text() + "」");
+            case "notContains" ->
+                new AssertionResult(
+                        a.type(),
+                        description,
+                        !text.contains(a.text()),
+                        (text.contains(a.text()) ? "包含" : "不包含") + "「" + a.text() + "」");
             case "numberRange" -> numberRange(a, run.output(), description);
             case "invariant" -> invariant(a, run, description);
             case "judge" -> judge.judge(a.rubric(), description, text);

@@ -50,7 +50,8 @@ public record StudioCatalog(
 
     public record Rule(String id, String severity, String description, String remedy, boolean checkable) {}
 
-    public record VerifiedTask(String id, String question, String expectedConclusion, String failIf, List<String> tools) {}
+    public record VerifiedTask(
+            String id, String question, String expectedConclusion, String failIf, List<String> tools) {}
 
     public record Pack(
             String ref,
@@ -62,7 +63,9 @@ public record StudioCatalog(
 
         String text() {
             return name + " " + (description == null ? "" : description) + " " + String.join(" ", objects) + " "
-                    + String.join(" ", verifiedTasks.stream().map(VerifiedTask::question).toList());
+                    + String.join(
+                            " ",
+                            verifiedTasks.stream().map(VerifiedTask::question).toList());
         }
     }
 
@@ -94,11 +97,14 @@ public record StudioCatalog(
     }
 
     static String nameOf(Asset asset) {
-        return asset.metadata().displayName() == null ? asset.metadata().name() : asset.metadata().displayName();
+        return asset.metadata().displayName() == null
+                ? asset.metadata().name()
+                : asset.metadata().displayName();
     }
 
     public static StudioCatalog build(RegistryService registry, String tenantId) {
-        var published = registry.latestPublished(AssetFilter.all(), Viewer.tenant(tenantId)).assets();
+        var published = registry.latestPublished(AssetFilter.all(), Viewer.tenant(tenantId))
+                .assets();
         List<Item> agents = new ArrayList<>();
         List<Pack> packs = new ArrayList<>();
         List<Item> knowledge = new ArrayList<>();
@@ -121,7 +127,14 @@ public record StudioCatalog(
                                     : a.spec().routing().examples()));
                 case RemoteAgentAsset r ->
                     agents.add(new Item(
-                            refOf(r), nameOf(r), r.metadata().description(), "external", null, false, "远程 Agent 在 P7 接入 A2A 后可调用", List.of()));
+                            refOf(r),
+                            nameOf(r),
+                            r.metadata().description(),
+                            "external",
+                            null,
+                            false,
+                            "远程 Agent 在 P7 接入 A2A 后可调用",
+                            List.of()));
                 case SemanticPackAsset p ->
                     packs.add(new Pack(
                             refOf(p),
@@ -129,12 +142,18 @@ public record StudioCatalog(
                             p.metadata().description(),
                             p.spec().objects() == null
                                     ? List.of()
-                                    : p.spec().objects().stream().map(o -> o.ref()).toList(),
+                                    : p.spec().objects().stream()
+                                            .map(o -> o.ref())
+                                            .toList(),
                             p.spec().rules() == null
                                     ? List.of()
                                     : p.spec().rules().stream()
                                             .map(r -> new Rule(
-                                                    r.id(), r.severity(), r.description(), r.remedy(), r.check() != null))
+                                                    r.id(),
+                                                    r.severity(),
+                                                    r.description(),
+                                                    r.remedy(),
+                                                    r.check() != null))
                                             .toList(),
                             p.spec().verifiedTasks() == null
                                     ? List.of()
@@ -147,7 +166,8 @@ public record StudioCatalog(
                                                     t.tools() == null ? List.of() : t.tools()))
                                             .toList()));
                 case KnowledgeSourceAsset k ->
-                    knowledge.add(new Item(refOf(k), nameOf(k), k.metadata().description(), layer, "L0", true, null, List.of()));
+                    knowledge.add(new Item(
+                            refOf(k), nameOf(k), k.metadata().description(), layer, "L0", true, null, List.of()));
                 case SkillAsset s ->
                     skills.add(new Item(
                             refOf(s),
@@ -163,7 +183,8 @@ public record StudioCatalog(
                 case ToolSourceAsset t -> {
                     if (t.spec().tools() == null) break;
                     for (var tool : t.spec().tools()) {
-                        tools.add(new Tool(refOf(t), tool.name(), tool.description(), tool.writeLevel(), tool.category()));
+                        tools.add(new Tool(
+                                refOf(t), tool.name(), tool.description(), tool.writeLevel(), tool.category()));
                     }
                 }
                 case ConnectionAsset c -> {
@@ -171,7 +192,9 @@ public record StudioCatalog(
                     if ("a2a".equals(c.spec().type())) {
                         agents.add(new Item(
                                 "connection:" + c.spec().alias(),
-                                c.spec().alias().equals("SUPPLIER_RISK_AGENT") ? "供应商风险舆情 Agent" : c.spec().alias(),
+                                c.spec().alias().equals("SUPPLIER_RISK_AGENT")
+                                        ? "供应商风险舆情 Agent"
+                                        : c.spec().alias(),
                                 "外部 Agent，经连接别名 " + c.spec().alias() + " 以 A2A 协议接入",
                                 "external",
                                 null,

@@ -108,21 +108,31 @@ public final class StudioRecommender {
     }
 
     /** 本步的候选，同时交给模型和前端 */
-    static Map<String, Object> candidates(String step, String intent, Map<String, Object> draft, StudioCatalog catalog) {
+    static Map<String, Object> candidates(
+            String step, String intent, Map<String, Object> draft, StudioCatalog catalog) {
         Map<String, Object> c = new LinkedHashMap<>();
         switch (step) {
             case "purpose" -> c.put("agents", catalog.agents());
             case "process" -> c.put("processes", catalog.processes());
             case "collaborators" -> c.put("agents", catalog.agents());
             case "knowledge" -> {
-                c.put("semanticPacks", catalog.semanticPacks().stream()
-                        .map(p -> Map.of("ref", p.ref(), "name", p.name(), "description", String.valueOf(p.description())))
-                        .toList());
+                c.put(
+                        "semanticPacks",
+                        catalog.semanticPacks().stream()
+                                .map(p -> Map.of(
+                                        "ref",
+                                        p.ref(),
+                                        "name",
+                                        p.name(),
+                                        "description",
+                                        String.valueOf(p.description())))
+                                .toList());
                 c.put("knowledgeSources", catalog.knowledge());
             }
             case "tools" -> {
                 c.put("skills", catalog.skills());
-                c.put("tools", StudioDefaults.toolCandidates(intent, catalog, 12));
+                // 工具全部作为候选：按意图排序截断会把需要的工具挡在候选之外
+                c.put("tools", catalog.tools());
             }
             case "triggers" ->
                 c.put(
@@ -179,10 +189,14 @@ public final class StudioRecommender {
                             .model(modelName)
                             .temperature(0.2)
                             .toolContext(Map.of(
-                                    ScriptedChatModel.CONTEXT_AGENT, STUDIO_AGENT,
-                                    ScriptedChatModel.CONTEXT_AGENT_NAME, "Studio 建模助手",
-                                    ScriptedChatModel.CONTEXT_USER, userId,
-                                    ScriptedChatModel.CONTEXT_EXAMPLES, new ArrayList<String>())))
+                                    ScriptedChatModel.CONTEXT_AGENT,
+                                    STUDIO_AGENT,
+                                    ScriptedChatModel.CONTEXT_AGENT_NAME,
+                                    "Studio 建模助手",
+                                    ScriptedChatModel.CONTEXT_USER,
+                                    userId,
+                                    ScriptedChatModel.CONTEXT_EXAMPLES,
+                                    new ArrayList<String>())))
                     .call()
                     .chatResponse();
             if (response == null || response.getResult() == null) return null;

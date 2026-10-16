@@ -28,6 +28,9 @@ final class StudioDefaults {
     /** 召回分数低于它的候选不推荐 */
     static final double MIN_SCORE = 0.5;
 
+    /** 评测集初稿只收录相关度不低于最高分这个比例的已验证任务 */
+    static final double RELEVANCE_RATIO = 0.8;
+
     record Scored<T>(T item, double score) {}
 
     static <T> List<Scored<T>> rank(List<T> items, Function<T, String> text, String query, int limit) {
@@ -87,7 +90,9 @@ final class StudioDefaults {
 
     static Map<String, Object> process(String intent, StudioCatalog catalog) {
         var ranked = rank(catalog.processes(), p -> p.name() + " " + p.description(), intent, 1);
-        String code = ranked.isEmpty() ? catalog.processes().getFirst().code() : ranked.getFirst().item().code();
+        String code = ranked.isEmpty()
+                ? catalog.processes().getFirst().code()
+                : ranked.getFirst().item().code();
         return Map.of("businessProcess", List.of(code));
     }
 
@@ -111,7 +116,9 @@ final class StudioDefaults {
     /** 工具只推荐只读的；需要写操作时由开发者自己勾选，并在确认点里声明 */
     static Map<String, Object> tools(String intent, StudioCatalog catalog) {
         List<String> skills = rank(
-                        catalog.skills().stream().filter(s -> "L0".equals(s.writeLevel())).toList(),
+                        catalog.skills().stream()
+                                .filter(s -> "L0".equals(s.writeLevel()))
+                                .toList(),
                         Item::text,
                         intent,
                         2)
@@ -119,12 +126,15 @@ final class StudioDefaults {
                 .map(s -> s.item().ref())
                 .toList();
         List<Map<String, Object>> tools = rank(
-                        catalog.tools().stream().filter(t -> "L0".equals(t.writeLevel())).toList(),
+                        catalog.tools().stream()
+                                .filter(t -> "L0".equals(t.writeLevel()))
+                                .toList(),
                         t -> t.name() + " " + (t.description() == null ? "" : t.description()),
                         intent,
                         3)
                 .stream()
-                .map(s -> Map.<String, Object>of("source", s.item().source(), "name", s.item().name()))
+                .map(s -> Map.<String, Object>of(
+                        "source", s.item().source(), "name", s.item().name()))
                 .toList();
         return Map.of("skills", skills, "tools", tools);
     }
@@ -159,11 +169,7 @@ final class StudioDefaults {
 
     static Map<String, Object> model(String intent) {
         boolean reasoning = List.of("分析", "策略", "判断", "谈判", "诊断", "根因").stream().anyMatch(intent::contains);
-        return Map.of(
-                "profile",
-                reasoning ? "reasoning" : "fast",
-                "temperature",
-                reasoning ? 0.2 : 0.0);
+        return Map.of("profile", reasoning ? "reasoning" : "fast", "temperature", reasoning ? 0.2 : 0.0);
     }
 
     /**
@@ -182,7 +188,11 @@ final class StudioDefaults {
             if (tool instanceof Map<?, ?> m) agentTools.add(String.valueOf(m.get("name")));
         }
         List<Map<String, Object>> cases = new ArrayList<>();
-        for (var scored : rank(tasks, t -> t.question() + " " + t.expectedConclusion(), intent, 3)) {
+        var ranked = rank(tasks, StudioCatalog.VerifiedTask::question, intent, 3);
+        // 只取和意图足够相关的任务：分数不低于最高分的 80%，避免把语义包里其他场景的任务带进来
+        double top = ranked.isEmpty() ? 0 : ranked.getFirst().score();
+        for (var scored : ranked) {
+            if (scored.score() < top * RELEVANCE_RATIO) continue;
             var task = scored.item();
             List<Map<String, Object>> assertions = new ArrayList<>();
             for (String tool : task.tools()) {
@@ -190,8 +200,8 @@ final class StudioDefaults {
                     assertions.add(Map.of("type", "calledTool", "tool", tool, "description", "调用了 " + tool));
                 }
             }
-            String rubric = "期望结论：" + task.expectedConclusion()
-                    + (task.failIf() == null ? "" : "；以下情况判为失败：" + task.failIf());
+            String rubric =
+                    "期望结论：" + task.expectedConclusion() + (task.failIf() == null ? "" : "；以下情况判为失败：" + task.failIf());
             assertions.add(Map.of("type", "judge", "rubric", rubric, "description", "结论符合已验证任务的期望"));
             Map<String, Object> c = new LinkedHashMap<>();
             c.put("id", task.id().toLowerCase());
@@ -209,7 +219,11 @@ final class StudioDefaults {
     }
 
     static List<Tool> toolCandidates(String intent, StudioCatalog catalog, int limit) {
-        return rank(catalog.tools(), t -> t.name() + " " + (t.description() == null ? "" : t.description()), intent, limit)
+        return rank(
+                        catalog.tools(),
+                        t -> t.name() + " " + (t.description() == null ? "" : t.description()),
+                        intent,
+                        limit)
                 .stream()
                 .map(Scored::item)
                 .toList();
