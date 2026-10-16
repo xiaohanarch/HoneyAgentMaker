@@ -56,8 +56,12 @@ function LintPanel({ issues }: { issues: readonly LintIssue[] }): ReactNode {
     { severity: 'warning' as const, label: '警告', className: 'text-pending' },
   ]
   if (issues.length === 0) return <p className="text-xs text-allow">静态检查通过，没有问题。</p>
+  const hasErrors = issues.some((i) => i.severity === 'error')
   return (
     <div className="space-y-2" data-testid="lint-issues">
+      {!hasErrors && (
+        <p className="text-xs text-allow">静态检查没有错误，可以发布；警告请确认后再发布。</p>
+      )}
       {groups.map(({ severity, label, className }) => {
         const items = issues.filter((i) => i.severity === severity)
         if (items.length === 0) return null
@@ -68,7 +72,7 @@ function LintPanel({ issues }: { issues: readonly LintIssue[] }): ReactNode {
               {items.map((i, n) => (
                 <li key={n}>
                   <span className="font-mono text-ink-faint">{i.rule}</span> {i.message}
-                  {i.path !== null && <span className="font-mono text-ink-faint"> · {i.path}</span>}
+                  {i.path != null && <span className="font-mono text-ink-faint"> · {i.path}</span>}
                 </li>
               ))}
             </ul>
