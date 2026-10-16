@@ -24,7 +24,7 @@ pnpm data:backup      数据快照：data/backups/eab-data-<时间>.tar.gz，保
 pnpm agent:run vendor.pur/supplier-performance-analyst --user zhangmin "百润精密最近表现怎么样" [--yes]
                       进程内启动平台与 DemoERP 跑一次 Agent，打印流式事件和追踪树，断网可用
 pnpm tools:import-bo  从运行中的 DemoERP 的 OpenAPI 生成 BO 工具入参 schema 并与资产比对；加 --write 写回并升版本
-node scripts/acceptance-p2.mjs、acceptance-p3.mjs、acceptance-p4.mjs   对运行中的 pnpm demo 做阶段验收（只用 HTTP）
+node scripts/acceptance-p2.mjs … acceptance-p5.mjs   对运行中的 pnpm demo 做阶段验收（只用 HTTP）
 ```
 
 资产、数据类命令经 `scripts/java-cli.mjs` 运行 Java 命令行工具（`platform`、`demo-erp` 模块的 `cli` 包）。
@@ -54,6 +54,8 @@ node scripts/acceptance-p2.mjs、acceptance-p3.mjs、acceptance-p4.mjs   对运�
 - 资产来源的颜色、图标、写级别和裁决标签统一从 `@eab/ui` 取，不在页面里另写颜色；Tailwind 类名不要动态拼接。
 - TypeScript 固定在 6.0.x，typescript-eslint 目前不支持 7.x。
 - 平台接口的身份只来自 Bearer 用户令牌。
+- Studio（ADR 0010）：草稿在 `studio_drafts` 里以 YAML 为准，测试与评测经 `OverlayResolver` 叠加运行；发布写入注册中心后按 dev → test → prod 晋级，租户 Agent 部署到 prod 才进入统一入口。接口契约在 `docs/studio-api.md`，改接口时同步改它和 `apps/studio-web/src/studio/api.ts`。
+- 语义规则的 `check`（工具名 + CEL）由约束守卫在工具返回后判断，硬约束优先写成可检查的规则，而不是只写在指令里。
 - 平台调用 BO API 只能走 `DelegatedClient.callBoApi`（先令牌交换再调用），不要直接请求 DemoERP，也不要引入集成账号的降级路径。
 - 演示用户、角色、数据范围只在 `backend/eab-directory` 的 `DemoDirectory` 定义。新增 BO 操作时，同步修改 `BO_OPERATIONS`、DemoERP 的 `BoTypes.OPERATIONS` 与路由、`assets/vendor/erp/demo-erp-bo.yaml`（并升版本号），有测试检查它们一致。
 - 标品资产改动必须升版本号：同版本不同内容在启动入库时会报错。

@@ -44,3 +44,9 @@ scripts:
 - 回复里的单号、数量、金额都从工具结果取，不要写死。输出守卫会核对回复里的单号和金额，找不到的标注“未经核实”。
 - 新增演示话术时，同时加到对应 Agent 的 `routing.examples`，`DemoScriptsTest` 会检查每个标品 Agent 的第一条示例话术都能匹配到剧本。
 - 剧本没有覆盖的话术，脚本化模型回退到规则回复，列出该 Agent 的示例话术，并标注“脚本化模型”。
+
+## Studio 的推荐剧本
+
+`studio.yaml` 里 agent 为 `platform/studio` 的剧本是 Studio 向导的 AI 推荐。话术由平台拼成“步骤：<步骤名>
+意图：<意图>
+已选：<JSON>”，按步骤名和意图里的关键词匹配；推荐写在 `output` 里，字段与 `docs/studio-api.md` 里各步的 value 一致。平台只接受候选里存在的引用，剧本没有覆盖的意图退回检索推荐。同一文件里还有故事 A 新建的价格谈判助手（`tenant.t001.agents/price-negotiation-assistant`）的剧本。

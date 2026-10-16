@@ -46,7 +46,7 @@ export function ToolCards({ tools }: { tools: readonly ToolStep[] }): ReactNode 
     <ul className="flex flex-col gap-1.5" aria-label="工具调用">
       {tools.map((t) => (
         <li
-          key={t.callId}
+          key={`${t.agent}:${t.callId}`}
           data-testid="tool-card"
           className="flex items-start gap-2 rounded-md border border-line bg-canvas px-2.5 py-1.5 text-xs"
         >
@@ -264,7 +264,7 @@ export function ResultCard({ text, dataScope, tools, unverified }: ResultCardPro
           <span>
             依据：
             {sources.map((s) => (
-              <span key={s.callId} className="ml-1 font-mono">
+              <span key={`${s.agent}:${s.callId}`} className="ml-1 font-mono">
                 {s.tool}
               </span>
             ))}

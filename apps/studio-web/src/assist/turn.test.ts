@@ -44,6 +44,7 @@ describe('viewOf', () => {
     expect(view.thoughts).toEqual(['先取口径'])
     expect(view.tools).toEqual([
       {
+        agent: 'vendor.pur/purchase-order-clerk',
         callId: 'c1',
         tool: 'delivery_list',
         arguments: { limit: 200 },
@@ -71,6 +72,23 @@ describe('viewOf', () => {
     expect(awaitingConfirmation(resumed)).toBe(false)
     expect(resumed.confirmed).toBe(true)
     expect(resumed.runId).toBe('run-1')
+  })
+
+  test('父 Agent 与子 Agent 的调用编号相同时，各自保留一张工具卡片', () => {
+    const parent = ev('tool_call', {
+      callId: 'tool:call_1_1',
+      tool: 'purchase_order_list',
+      arguments: {},
+    })
+    const child = {
+      type: 'tool_call',
+      agent: 'vendor.pur/supplier-performance-analyst',
+      data: { callId: 'tool:call_1_1', tool: 'supplier-lookup', arguments: {} },
+    }
+    expect(viewOf(turn([parent, child])).tools.map((t) => t.tool)).toEqual([
+      'purchase_order_list',
+      'supplier-lookup',
+    ])
   })
 
   test('恢复运行时同一个 callId 再次出现，替换原来的工具卡片而不是重复', () => {

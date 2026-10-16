@@ -25,7 +25,14 @@ public record SemanticPackSpec(
 
     public record Metric(String name, String displayName, String definition, String unit) {}
 
-    public record SemanticRule(String id, String ref, String severity, String description, String remedy) {}
+    /**
+     * 规则的可执行检查：某个工具返回后，用 CEL 表达式判断规则是否触发（变量 output 是工具的返回数据）。
+     * 声明了这条约束的 Agent 运行时由守卫检查，触发时写一个守卫 span，并把处置建议交给模型（ADR 0010）。
+     */
+    public record RuleCheck(String tool, String when) {}
+
+    public record SemanticRule(
+            String id, String ref, String severity, String description, String remedy, RuleCheck check) {}
 
     public record VerifiedTask(
             String id,

@@ -1,0 +1,146 @@
+# Studio 的演示剧本（故事 A）：向导各步的 AI 推荐（agent 为 platform/studio），以及新建出来的价格谈判助手。
+# 推荐剧本的话术是平台拼出来的“步骤：<步骤名>\n意图：<意图>\n已选：<JSON>”，按步骤名和意图里的关键词匹配；
+# 输出写在 output 里，平台只接受候选里存在的引用，不合格时退回检索推荐。剧本没有覆盖的意图同样退回检索推荐。
+scripts:
+  - id: studio-purpose-negotiation
+    description: 故事 A 第 1 步：把意图改写成完整的目的
+    agent: platform/studio
+    match: { all: ['步骤：描述目的', 降价谈判] }
+    steps:
+      - reply: 已补全目的
+        output:
+          intent: 帮采购经理在发起降价谈判前，综合供应商的交付表现、最近一次询价和风险信息，制定谈判策略
+          reason: 意图里有对象（采购经理）和任务（制定降价谈判策略），补上策略依赖的数据，便于后续推荐数据和协作 Agent
+
+  - id: studio-naming-negotiation
+    description: 故事 A 第 2 步：名称、显示名和描述
+    agent: platform/studio
+    match: { all: ['步骤：命名', 降价谈判] }
+    steps:
+      - reply: 已生成名称
+        output:
+          name: price-negotiation-assistant
+          displayName: 价格谈判助手
+          description: 结合供应商交付表现、询价记录和风险信息，为采购经理制定降价谈判策略
+          reason: 名称直接说明用途，便于在统一入口的能力目录里被找到
+
+  - id: studio-process-negotiation
+    description: 故事 A 第 3 步：业务流程归属
+    agent: platform/studio
+    match: { all: ['步骤：业务流程归属', 降价谈判] }
+    steps:
+      - reply: 已选择流程
+        output:
+          businessProcess: [source-to-pay]
+          reason: 降价谈判属于寻源到付款（S2P）流程里的谈判环节
+
+  - id: studio-collaborators-negotiation
+    description: 故事 A 第 4 步：协作 Agent，复用标品的供应商绩效分析，外部风险舆情 Agent 在 P7 接入
+    agent: platform/studio
+    match: { all: ['步骤：协作 Agent', 降价谈判] }
+    steps:
+      - reply: 已推荐协作 Agent
+        output:
+          agents: [vendor.pur/supplier-performance-analyst, 'connection:SUPPLIER_RISK_AGENT']
+          reason: 谈判前要看供应商的交付表现（复用标品的供应商绩效分析 Agent），外部的供应商风险舆情 Agent 补充舆情风险（P7 接入后可调用）
+
+  - id: studio-knowledge-negotiation
+    description: 故事 A 第 5 步：语义包与知识源
+    agent: platform/studio
+    match: { all: ['步骤：数据与知识', 降价谈判] }
+    steps:
+      - reply: 已推荐数据与知识
+        output:
+          semanticPacks: [vendor.pur/procurement]
+          knowledgeSources: [vendor.pur/procurement-policies]
+          reason: 采购语义包提供供应商、订单、询价的口径和 PUR-R-007 等规则；采购管理制度提供降价谈判的制度依据
+
+  - id: studio-tools-negotiation
+    description: 故事 A 第 6 步：技能与工具，只推荐只读的
+    agent: platform/studio
+    match: { all: ['步骤：技能与工具', 降价谈判] }
+    steps:
+      - reply: 已推荐技能与工具
+        output:
+          skills: [vendor.pur.skills/rfq-lookup, vendor.pur.skills/supplier-lookup]
+          tools:
+            - { source: vendor.erp.tools/demo-erp-bo, name: purchase_order_list }
+          reason: 询价单查询技能取最近一次询价，采购订单查询用于核对逾期订单（PUR-R-007 据此检查），都只读
+
+  - id: studio-triggers-negotiation
+    description: 故事 A 第 7 步：触发方式
+    agent: platform/studio
+    match: { all: ['步骤：触发器', 降价谈判] }
+    steps:
+      - reply: 已推荐触发方式
+        output:
+          triggers: [{ type: assistant }]
+          direct: true
+          reason: 采购经理在统一入口发起，入口可以直接路由到这个 Agent
+
+  - id: studio-channels-negotiation
+    description: 故事 A 第 8 步：渠道
+    agent: platform/studio
+    match: { all: ['步骤：渠道', 降价谈判] }
+    steps:
+      - reply: 已推荐渠道
+        output:
+          channels: [assistant-web, im]
+          reason: 采购经理在统一入口和 IM 里都可能发起谈判准备
+
+  - id: studio-instructions-negotiation
+    description: 故事 A 第 9 步：指令草稿与约束
+    agent: platform/studio
+    match: { all: ['步骤：指令与约束', 降价谈判] }
+    steps:
+      - reply: 已起草指令
+        output:
+          instructions: |
+            你是价格谈判助手，帮采购经理制定和供应商的降价谈判策略。
+            1. 先用询价单查询技能取这个供应商最近一次询价，再用采购订单查询核对未交付的逾期订单，请供应商绩效分析 Agent 给出交付表现。
+            2. 平台约束触发时，先说明约束和处置建议，不要直接给降价策略。
+            3. 策略包括目标价、让步空间和谈判要点，引用金额时带币种，说明依据的数据和时间范围。
+          constraints: [PUR-R-007]
+          reason: PUR-R-007 规定交付逾期超过 90 天的供应商不建议发起降价谈判，平台会在工具返回后检查并触发
+
+  - id: studio-model-negotiation
+    description: 故事 A 第 10 步：模型档位
+    agent: platform/studio
+    match: { all: ['步骤：模型档位', 降价谈判] }
+    steps:
+      - reply: 已推荐档位
+        output:
+          profile: reasoning
+          temperature: 0.2
+          reason: 制定策略需要综合多方数据做判断，选 reasoning 档
+
+  - id: negotiation-strategy
+    description: 故事 A 测试：查询价、核对逾期订单、请供应商绩效分析 Agent 评估，PUR-R-007 触发后先提示交付问题
+    agent: tenant.t001.agents/price-negotiation-assistant
+    match:
+      any: [谈判, 议价]
+      pattern: '(?<supplier>百润精密|恒通物流|华远电子|东瑞机械)'
+    vars: { supplier: 百润精密 }
+    steps:
+      - thought: 先查 {{vars.supplier}} 最近一次询价，并核对未交付的逾期订单
+        calls:
+          - { tool: rfq-lookup, args: { supplierName: '{{vars.supplier}}' } }
+          - {
+              tool: purchase_order_list,
+              args: { supplierName: '{{vars.supplier}}', status: open, overdueDaysGt: 0 },
+            }
+      - thought: 请供应商绩效分析 Agent 评估 {{vars.supplier}} 的交付表现
+        calls:
+          - { tool: supplier-performance-analyst, args: { message: '{{vars.supplier}}最近表现怎么样' } }
+      - reply: |
+          {{#tools.purchase_order_list.platformConstraints}}先说结论：按规则 {{rule}}，{{remedy}}。{{/tools.purchase_order_list.platformConstraints}}{{vars.supplier}}目前有 {{tools.purchase_order_list.total}} 张未交付的逾期订单，最长的 {{tools.purchase_order_list.items.0.id}} 已逾期 {{tools.purchase_order_list.items.0.overdueDays}} 天。
+
+          建议的谈判安排：
+          1. 先处理交付问题：约供应商确认 {{tools.purchase_order_list.items.0.id}} 等逾期订单的交付改进计划，交付恢复正常后再发起降价谈判。
+          2. 价格依据：最近一次询价 {{tools.rfq_lookup.rfqs.0.id}}（{{tools.rfq_lookup.rfqs.0.issuedAt}}），最低报价 {{tools.rfq_lookup.rfqs.0.lowestPrice}} {{tools.rfq_lookup.rfqs.0.currency}}，与目标价差异 {{tools.rfq_lookup.rfqs.0.priceVariance}}%，届时以它作为目标价的基础。
+          3. 交付表现：供应商绩效分析 Agent 的结论是需要重点关注交付风险，谈判时把交付改进写进条款。
+
+          外部风险舆情在 P7 接入供应商风险舆情 Agent 后补充。依据的时间范围：截至 {{today}}；数据范围：{{tools.purchase_order_list.scopeLabel}}。
+        output:
+          supplier: '{{vars.supplier}}'
+          recommendation: resolve-delivery-first

@@ -101,8 +101,21 @@ public final class Router {
 
     /** BM25 召回：每个条目取路由说明和示例话术里分数最高的一条 */
     public static final class Bm25Retriever implements Retriever {
+
+        /** 问句里不代表能力的功能性词语，召回前去掉；否则“帮我”这类字二元组会让无关的问题命中示例话术 */
+        static final List<String> FUNCTION_WORDS = List.of(
+                "帮我", "帮忙", "我们", "我的", "你们", "一下", "请问", "请帮", "怎么", "什么", "如何", "是否", "可以", "能不能", "一份", "一个", "一张",
+                "最近");
+
+        static String strip(String query) {
+            String result = query == null ? "" : query;
+            for (String word : FUNCTION_WORDS) result = result.replace(word, " ");
+            return result;
+        }
+
         @Override
-        public List<Candidate> recall(String query, List<Entry> entries, int k) {
+        public List<Candidate> recall(String rawQuery, List<Entry> entries, int k) {
+            String query = strip(rawQuery);
             List<Bm25.Passage> passages = new ArrayList<>();
             for (Entry entry : entries) {
                 for (String text : entry.texts())

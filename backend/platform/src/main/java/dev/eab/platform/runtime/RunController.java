@@ -162,7 +162,7 @@ public class RunController {
         Principal principal = principals.require(request);
         RunRecord run = runtime.runs()
                 .get(id)
-                .filter(r -> canSeeRun(principal, r))
+                .filter(r -> canSeeRun(principal, r) || startedBy(principal, r))
                 .orElseThrow(() -> new ApiException(404, "NOT_FOUND", "运行 " + id + " 不存在"));
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("runId", run.id());
@@ -179,6 +179,16 @@ public class RunController {
     }
 
     /** 本人的运行；租户管理员能看本租户全部；平台运维能看全部；厂商看不到任何租户的运行 */
+    /** Studio 测试运行的发起人也能查看（测试运行以所选测试用户的身份执行） */
+    private boolean startedBy(Principal principal, RunRecord run) {
+        return principal.viewer() instanceof Viewer.Tenant t
+                && t.tenantId().equals(run.tenantId())
+                && runtime.runs()
+                        .startedBy(run.id())
+                        .filter(principal.user().id()::equals)
+                        .isPresent();
+    }
+
     static boolean canSeeRun(Principal principal, RunRecord run) {
         return switch (principal.viewer()) {
             case Viewer.Platform p -> true;
@@ -196,7 +206,7 @@ public class RunController {
         Principal principal = principals.require(request);
         RunRecord run = runtime.runs()
                 .byTrace(traceId)
-                .filter(r -> canSeeRun(principal, r))
+                .filter(r -> canSeeRun(principal, r) || startedBy(principal, r))
                 .orElseThrow(() -> new ApiException(404, "NOT_FOUND", "追踪 " + traceId + " 不存在"));
         List<SpanRecord> spans = runtime.traces().list(traceId);
         if (!TraceView.canView(principal.viewer(), spans)) {

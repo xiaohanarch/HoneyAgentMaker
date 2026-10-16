@@ -205,6 +205,14 @@ final class Segments {
             issues.add(AssemblyIssue.error("REFERENCE_UNRESOLVED", "约束引用的规则 " + text + " 在挂载的语义包里找不到", source, field));
             return java.util.Optional.empty();
         }
+        if (rule.check() != null) {
+            var check = Conditions.check(
+                    Conditions.ruleCheckEnvironment(), rule.check().when());
+            if (!check.valid()) {
+                issues.add(AssemblyIssue.error(
+                        "RULE_CHECK_INVALID", "规则 " + text + " 的检查条件不合法：" + check.reason(), source, field));
+            }
+        }
         // 规则来自语义包，对租户可见；文本取规则的处置建议
         return java.util.Optional.of(new Segment(
                 kind.value() + ":" + source + ":" + text,

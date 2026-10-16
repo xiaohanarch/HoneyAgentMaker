@@ -298,8 +298,12 @@ public final class AgentRuntime {
                     tools.inputSchema(tool)));
         }
         var semantic = tools.semanticService(definition);
+        ConstraintGuard constraints = ConstraintGuard.of(definition, semantic.rules());
+        // 运行可能锁定了版本（例如 prod 部署的 ns/name@1.0.0），交给模型网关的身份不带版本，剧本按 Agent 匹配
+        String agentId =
+                ctx.agent().contains("@") ? ctx.agent().substring(0, ctx.agent().indexOf('@')) : ctx.agent();
         CallContext callContext = new CallContext(
-                ctx.agent(),
+                agentId,
                 definition.displayName(),
                 ctx.user().id(),
                 definition.routing() == null || definition.routing().examples() == null
@@ -361,9 +365,13 @@ public final class AgentRuntime {
             turns.add(new AssistantTurn(result.text(), result.toolCalls()));
             Exec turnExec = new Exec(
                     ctx, exec.journal(), exec.sink(), exec.span(), exec.key() + "/turn:" + turn, exec.confirmed());
+            String nextModelKey = exec.key() + "/turn:" + (turn + 1) + "/model";
             for (ToolCall call : result.toolCalls()) {
                 ToolOutcome outcome = tools.callTool(turnExec, call.id(), call.name(), call.arguments());
-                turns.add(new ToolTurn(call.id(), call.name(), outcome.content()));
+                var triggered = constraints.after(turnExec, call.name(), outcome, nextModelKey);
+                String content =
+                        triggered == null ? outcome.content() : ConstraintGuard.annotate(outcome.content(), triggered);
+                turns.add(new ToolTurn(call.id(), call.name(), content));
                 evidence.append('\n').append(outcome.content());
             }
         }

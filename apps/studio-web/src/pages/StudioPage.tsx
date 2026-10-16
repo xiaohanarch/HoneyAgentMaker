@@ -1,8 +1,10 @@
 import type { ReactNode } from 'react'
-import { ArrowRight, Blocks, Cable, Globe, Sparkles, Workflow } from 'lucide-react'
+import { Blocks, Cable, Globe, Sparkles, Workflow } from 'lucide-react'
 import { SOURCE_STYLES, SourceBadge, cn, type AssetSource } from '@eab/ui'
 import { useIdentity } from '../identity/identity-context'
 import { PhaseTag } from '../shell/PhaseTag'
+import { HomeLists } from '../studio/home/HomeLists'
+import { IntentForm } from '../studio/home/IntentForm'
 
 interface Entry {
   icon: typeof Sparkles
@@ -44,11 +46,15 @@ const ENTRIES: readonly Entry[] = [
   },
 ]
 
-const DEVELOPER_ROLES = new Set(['租户开发者', '标品开发者'])
+const DEVELOPER_ROLES = new Set(['租户开发者', '标品开发者', '租户管理员'])
+
+/** Studio 接口只对租户开发者和租户管理员开放（docs/studio-api.md） */
+const TENANT_STUDIO_ROLES = new Set(['租户开发者', '租户管理员'])
 
 export function StudioPage(): ReactNode {
-  const { user } = useIdentity()
+  const { user, token } = useIdentity()
   const isDeveloper = DEVELOPER_ROLES.has(user.role)
+  const canBuild = TENANT_STUDIO_ROLES.has(user.role)
 
   return (
     <div className="space-y-6">
@@ -74,9 +80,6 @@ export function StudioPage(): ReactNode {
             <div className="flex items-center gap-2">
               <Sparkles aria-hidden className="size-5 text-tenant" />
               <SourceBadge source="tenant" />
-              <span className="ml-auto">
-                <PhaseTag phase="P5" />
-              </span>
             </div>
             <h2 className="mt-4 text-lg font-semibold">从一句话意图新建 Agent</h2>
             <p className="mt-1.5 text-sm leading-relaxed text-ink-muted">
@@ -84,10 +87,7 @@ export function StudioPage(): ReactNode {
               Agent、语义包与知识、技能与工具、触发器、渠道、指令与约束、模型档位、评测集，最后测试并发布。
             </p>
           </div>
-          <div className="mt-6 flex items-center gap-2 rounded-lg border border-line bg-canvas px-3 py-2.5 text-sm text-ink-faint">
-            例如：帮采购经理制定和供应商的降价谈判策略
-            <ArrowRight aria-hidden className="ml-auto size-4" />
-          </div>
+          <IntentForm disabled={!canBuild || token === undefined} />
         </article>
 
         {ENTRIES.map(({ icon: Icon, title, description, source, phase }) => (
@@ -112,6 +112,8 @@ export function StudioPage(): ReactNode {
           </article>
         ))}
       </div>
+
+      {canBuild && <HomeLists />}
     </div>
   )
 }
