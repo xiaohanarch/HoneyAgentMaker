@@ -69,7 +69,7 @@ export function HomeLists(): ReactNode {
                     <span className="block truncate font-medium">{d.intent}</span>
                     <span className="block text-[11px] text-ink-faint">
                       {`第 ${d.step} 步 · ${formatTime(d.updatedAt)}`}
-                      {d.publishedVersion !== null && ` · 已发布 ${d.publishedVersion}`}
+                      {d.publishedVersion != null && ` · 已发布 ${d.publishedVersion}`}
                     </span>
                   </span>
                 </Link>

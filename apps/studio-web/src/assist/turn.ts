@@ -38,6 +38,8 @@ export interface Routing {
 }
 
 export interface ToolStep {
+  /** 发起调用的 Agent；子 Agent 的调用编号可能与父 Agent 相同，按 Agent 和编号一起区分 */
+  agent: string
   callId: string
   tool: string
   arguments: Record<string, unknown>
@@ -85,7 +87,7 @@ function str(value: unknown): string {
 /** 把事件序列折叠成界面需要的结构；恢复运行时同一轮会收到第二组事件，按到达顺序覆盖 */
 export function viewOf(turn: Turn): TurnView {
   const view: TurnView = { thoughts: [], tools: [], text: '' }
-  for (const { type, data } of turn.events) {
+  for (const { type, agent, data } of turn.events) {
     switch (type) {
       case 'run_started':
         view.runId ??= str(data.runId)
@@ -101,18 +103,20 @@ export function viewOf(turn: Turn): TurnView {
       case 'tool_call': {
         // 确认后恢复运行时，同一次调用会以相同的 callId 再报一次，替换原来的卡片
         const step: ToolStep = {
+          agent: agent ?? '',
           callId: str(data.callId),
           tool: str(data.tool),
           arguments: (data.arguments ?? {}) as Record<string, unknown>,
         }
-        view.tools = view.tools.some((t) => t.callId === step.callId)
-          ? view.tools.map((t) => (t.callId === step.callId ? step : t))
+        const same = (t: ToolStep): boolean => t.callId === step.callId && t.agent === step.agent
+        view.tools = view.tools.some(same)
+          ? view.tools.map((t) => (same(t) ? step : t))
           : [...view.tools, step]
         break
       }
       case 'tool_result':
         view.tools = view.tools.map((t) =>
-          t.callId === str(data.callId) && t.ok === undefined
+          t.callId === str(data.callId) && t.agent === (agent ?? '') && t.ok === undefined
             ? { ...t, ok: data.ok === true, summary: str(data.summary) }
             : t,
         )

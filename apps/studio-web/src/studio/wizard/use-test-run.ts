@@ -94,8 +94,9 @@ export function useTestRuns(draftId: string): TestRuns {
   return { turns, busy, ask, confirm, reset }
 }
 
-/** 一轮里触发的平台约束（constraint 事件） */
+/** 一轮里触发的平台约束（constraint 事件）；子 Agent 声明了同一条约束时也会触发，按规则去重 */
 export function constraintsOf(turn: Turn): { rule: string; remedy: string; severity: string }[] {
+  const seen = new Set<string>()
   return turn.events
     .filter((e) => e.type === 'constraint')
     .map((e) => ({
@@ -103,4 +104,9 @@ export function constraintsOf(turn: Turn): { rule: string; remedy: string; sever
       remedy: String(e.data.remedy ?? ''),
       severity: String(e.data.severity ?? ''),
     }))
+    .filter((c) => {
+      if (seen.has(c.rule)) return false
+      seen.add(c.rule)
+      return true
+    })
 }
