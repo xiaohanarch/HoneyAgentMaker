@@ -13,7 +13,7 @@ interface Entry {
   description: string
   source: AssetSource
   phase: string
-  /** 已经可用的入口 */
+  /** 已接通的入口链接到对应页面 */
   to?: string
 }
 
@@ -25,6 +25,7 @@ const ENTRIES: readonly Entry[] = [
     description: '在标品声明的扩展点上追加指令、工具、知识、钩子和确认点',
     source: 'vendor',
     phase: 'P6',
+    to: '/studio/vendor-agents',
   },
   {
     icon: Globe,
@@ -40,6 +41,7 @@ const ENTRIES: readonly Entry[] = [
     description: '确定性的步骤流程，不依赖大模型推理',
     source: 'tenant',
     phase: 'P6',
+    to: '/studio/tools#skills',
   },
   {
     icon: Cable,
@@ -47,6 +49,7 @@ const ENTRIES: readonly Entry[] = [
     description: '从 BO API 的 OpenAPI 描述生成工具，或登记 MCP Server',
     source: 'platform',
     phase: 'P6',
+    to: '/studio/tools',
   },
 ]
 
@@ -98,28 +101,29 @@ export function StudioPage(): ReactNode {
           <article
             key={title}
             className={cn(
-              'rounded-xl border border-line border-l-4 bg-surface p-5',
+              'relative rounded-xl border border-line border-l-4 bg-surface p-5',
+              to !== undefined && canBuild && 'transition-colors hover:border-line-strong',
               SOURCE_STYLES[source].accentClass,
             )}
           >
             <div className="flex items-center gap-2">
               <Icon aria-hidden className="size-4 text-ink-muted" />
-              <h2 className="text-sm font-semibold">{title}</h2>
+              <h2 className="text-sm font-semibold">
+                {to !== undefined && canBuild ? (
+                  <Link to={to} className="after:absolute after:inset-0 hover:underline">
+                    {title}
+                  </Link>
+                ) : (
+                  title
+                )}
+              </h2>
               <span className="ml-auto">
                 <PhaseTag phase={phase} />
               </span>
             </div>
             <p className="mt-2 text-xs leading-relaxed text-ink-muted">{description}</p>
-            <div className="mt-3 flex items-center justify-between">
+            <div className="mt-3">
               <SourceBadge source={source} />
-              {to !== undefined && canBuild && (
-                <Link
-                  to={to}
-                  className="text-xs font-medium text-ink underline-offset-2 hover:underline"
-                >
-                  开始接入
-                </Link>
-              )}
             </div>
           </article>
         ))}

@@ -235,6 +235,17 @@ public final class StudioReleases {
 
     public record Gate(String name, boolean passed, String detail) {}
 
+    /** 其他模块追加的 prod 门禁，例如 P6 的“MCP Server 已审批” */
+    public interface ProdGate {
+        List<Gate> check(String tenantId, Asset asset);
+    }
+
+    private final List<ProdGate> extraGates = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+    public void addProdGate(ProdGate gate) {
+        extraGates.add(gate);
+    }
+
     public record PromoteResult(Deployment deployment, List<Gate> gates) {}
 
     public PromoteResult promote(DemoUser user, String ref, String version, String environment) {
@@ -294,6 +305,7 @@ public final class StudioReleases {
                 passed.isPresent(),
                 passed.map(r -> "评测 " + r.id() + " 通过（" + r.passed() + "/" + r.total() + "）")
                         .orElse("没有与该版本内容一致的评测通过记录，请先运行评测集")));
+        for (ProdGate extra : extraGates) gates.addAll(extra.check(tenantId, asset.get()));
         return gates;
     }
 

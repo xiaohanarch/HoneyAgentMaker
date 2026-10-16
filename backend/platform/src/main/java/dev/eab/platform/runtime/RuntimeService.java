@@ -588,6 +588,80 @@ public final class RuntimeService {
     public static final String NAVIGATOR_AGENT = "platform/navigator";
 
     /**
+     * 单独测试一个工具或技能的结果（P6 技能编辑器）。
+     *
+     * @param pending 需要确认时的确认点标题，单独测试不挂起、不写入
+     */
+    public record ToolTest(String runId, String traceId, ToolGateway.ToolOutcome outcome, String pending) {}
+
+    /**
+     * 在私有环境里以某个 Agent 的身份单独调用一个工具（ADR 0011）：agent 与它引用的草稿都在 overlay 里，令牌交换、鉴权点 3、
+     * 守卫与审计和正式运行相同；遇到确认点时停在那里，返回确认点，不写入数据。运行记下发起测试的开发者。
+     */
+    public ToolTest testTool(
+            DemoUser user,
+            String userToken,
+            String agent,
+            List<Asset> overlay,
+            List<String> overlayYaml,
+            String tool,
+            Map<String, Object> args,
+            String startedBy) {
+        String tenantId = user.tenantId();
+        RuntimeDeps deps = depsFor(tenantId, overlay);
+        EffectiveDefinition definition = assemble(agent, tenantId, overlay);
+        String runId = "run-" + UUID.randomUUID();
+        String traceId = Tracer.newTraceId();
+        String now = IsoTime.now(services.clock());
+        Journal journal = new Journal();
+        Tracer tracer = new Tracer(traceId, traces, tenantId, services.clock());
+        var root = tracer.start("单独测试 · " + tool, SpanRecord.SpanKind.run, null, "run", Map.of());
+        root.set("eab.agent", agent).set("eab.user.id", user.id()).set("eab.tenant.id", tenantId);
+        RunContext ctx = new RunContext(
+                runId,
+                "test-" + runId,
+                runUser(user),
+                "on-behalf",
+                null,
+                new RunContext.Subject(userToken, null),
+                agent,
+                definition,
+                deps.identity().issueAgentToken(definition, tenantId),
+                0);
+        ToolGateway.ToolOutcome outcome;
+        String pending = null;
+        try {
+            Exec exec = new Exec(ctx, journal, event -> {}, root, "run", false);
+            outcome = new AgentRuntime(deps).tools().callTool(exec, "call", tool, args);
+            root.end();
+        } catch (RunEvents.Suspended e) {
+            pending = e.pending() == null ? "需要确认" : e.pending().title();
+            tracer.suspendOpenSpans();
+            outcome = ToolGateway.ToolOutcome.failure("CONFIRMATION_REQUIRED", "需要确认：" + pending + "（单独测试不执行写入）");
+        } catch (Exception e) {
+            root.fail(e.getMessage());
+            outcome = ToolGateway.ToolOutcome.failure("TOOL_FAILED", e.getMessage());
+        }
+        runs.insert(new RunRecord(
+                runId,
+                traceId,
+                ctx.sessionId(),
+                tenantId,
+                user.id(),
+                agent,
+                "on-behalf",
+                null,
+                "单独测试 " + tool,
+                "completed",
+                Journal.toJson(journal.state()),
+                Json.MAPPER.writeValueAsString(outcome),
+                now,
+                now));
+        runs.markTest(runId, startedBy, overlayYaml);
+        return new ToolTest(runId, traceId, outcome, pending);
+    }
+
+    /**
      * 以平台的某个只读身份（MCP 端点、导航）调用一个工具：令牌交换、鉴权点 3、审计与 Agent 的工具调用相同，并记一次运行。
      */
     public ToolGateway.ToolOutcome callPlatformTool(

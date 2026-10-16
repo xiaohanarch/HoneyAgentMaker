@@ -41,7 +41,14 @@ async function login(userId) {
 async function run(user, agent, message) {
   const token = await login(user)
   const result = await post('/runs', { agent, message }, token)
-  return { token, data: result.body?.data ?? {}, error: result.body?.error }
+  let data = result.body?.data ?? {}
+  // 故事 B（P6）发布租户扩展后，交易异常解析会在发 IM 通知、创建跟进任务前请用户确认；
+  // 这里代用户依次确认（最多 3 次），P3 只核对标品部分的结论
+  for (let i = 0; i < 3 && data.status === 'suspended' && agent.startsWith('vendor.fin/'); i++) {
+    const confirmed = await post(`/runs/${data.runId}/confirmation`, { approved: true }, token)
+    data = confirmed.body?.data ?? data
+  }
+  return { token, data, error: result.body?.error }
 }
 
 const kindsOf = (trace) => new Set(trace.spans.map((s) => s.kind))

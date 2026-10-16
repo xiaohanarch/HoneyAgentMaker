@@ -124,7 +124,12 @@ public final class ScriptedChatModel implements ChatModel {
                         .map(m -> m.getText() == null ? "" : m.getText())
                         .toList());
 
-        Matched matched = Scripts.match(scripts, agent, userId, utterance == null ? "" : utterance);
+        java.util.Set<String> available = new java.util.HashSet<>();
+        if (prompt.getOptions() instanceof ToolCallingChatOptions options && options.getToolCallbacks() != null) {
+            options.getToolCallbacks()
+                    .forEach(c -> available.add(c.getToolDefinition().name()));
+        }
+        Matched matched = Scripts.match(scripts, agent, userId, utterance == null ? "" : utterance, available);
         if (matched == null) {
             return response(Scripts.fallbackReply(agentName, examples), List.of(), null, "fallback", inputText);
         }

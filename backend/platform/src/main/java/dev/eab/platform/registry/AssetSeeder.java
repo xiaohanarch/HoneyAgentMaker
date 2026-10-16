@@ -12,7 +12,7 @@ import java.util.stream.Collectors;
 /**
  * 把资产目录下指定子目录的 YAML 发布进注册中心（同版本同内容时跳过）。
  * 分两轮：先全部写成草稿，再逐个发布。发布门禁要解析资产之间的引用，一个文件引用的资产可能排在它后面，
- * 两轮可以避免顺序依赖。平台启动时灌入 platform、vendor 和各租户的连接（连接是环境配置，连接中心和向导都要用）；
+ * 两轮可以避免顺序依赖。平台启动时灌入 platform、vendor 和各租户的基础设施资产（连接、工具来源、工作流）；
  * tenants 下的其他资产是演示完成态快照，按需加载。
  */
 public final class AssetSeeder {
@@ -37,7 +37,10 @@ public final class AssetSeeder {
 
     private record Staged(String file, Asset asset) {}
 
-    /** 启动时入库的子目录：platform、vendor，以及 tenants/<租户>/connections 和 tenants/<租户>/remote（登记的外部 Agent） */
+    /** 租户的基础设施资产：连接、工具来源、工作流（P6），以及登记的外部 Agent（P7），启动时入库 */
+    static final List<String> TENANT_INFRA = List.of("connections", "tools", "wf", "remote");
+
+    /** 启动时入库的子目录：platform、vendor，以及 tenants/<租户> 下的 connections、tools、wf、remote */
     public static List<String> startupDirectories(Path assetsRoot) {
         List<String> dirs = new ArrayList<>(List.of("platform", "vendor"));
         Path tenants = assetsRoot.resolve("tenants");
@@ -47,7 +50,7 @@ public final class AssetSeeder {
                     .map(t -> t.getFileName().toString())
                     .sorted()
                     .forEach(t -> {
-                        for (String sub : List.of("connections", "remote")) {
+                        for (String sub : TENANT_INFRA) {
                             if (Files.isDirectory(tenants.resolve(t).resolve(sub)))
                                 dirs.add("tenants/" + t + "/" + sub);
                         }

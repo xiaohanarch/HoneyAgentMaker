@@ -1,0 +1,50 @@
+# 故事 B 的演示剧本：星海制造对交易异常解析 Agent 的租户扩展生效之后（扩展增加了 notify_im 工具）。
+# match.tools 表示只有这些工具可用时才匹配，所以扩展发布前仍走 fin.yaml 的标品剧本。
+# 扩展追加的要求是“单笔超过 50 万元的异常须给出责任部门”；责任部门按异常类型对应，金额来自工具结果。
+scripts:
+  - id: story-b-anomaly-extended
+    description: 王芳问本月高风险交易异常：取清单 → 合计金额 → 经确认后发 IM 通知 → 结论里给出大额异常的责任部门
+    agent: vendor.fin/transaction-anomaly-analyst
+    match:
+      all: [异常]
+      any: [高风险, 严重, 本月]
+      tools: [notify_im]
+    steps:
+      - thought: 取出本月严重程度为高和严重的交易异常
+        calls:
+          - {
+              tool: transaction_anomaly_list,
+              args: { severity: 'high,critical', period: '{{month}}', limit: 20 },
+            }
+      - thought: 计算涉及金额合计
+        calls:
+          - tool: calculator
+            args:
+              expression: '{{#tools.transaction_anomaly_list.items}}{{amount}}{{^-last}} + {{/-last}}{{/tools.transaction_anomaly_list.items}}'
+      - thought: 按本公司要求，把高风险异常通知财务经理群（发送前需要你确认）
+        calls:
+          - tool: notify_im
+            args:
+              to: 财务经理群
+              message: '本月有 {{tools.transaction_anomaly_list.total}} 条高风险交易异常，涉及金额合计 {{tools.calculator.value}} {{tools.transaction_anomaly_list.items.0.currency}}，请关注。'
+      - reply: |
+          本月（{{month}}）共有 {{tools.transaction_anomaly_list.total}} 条高风险或严重的交易异常，涉及金额合计 {{tools.calculator.value}} {{tools.transaction_anomaly_list.items.0.currency}}。
+
+          {{#tools.transaction_anomaly_list.items}}
+          - {{id}}（{{companyName}}）：{{anomalyType}}，严重程度 {{severity}}，金额 {{amount}} {{currency}}。{{description}}
+          {{/tools.transaction_anomaly_list.items}}
+
+          按本公司规定，单笔金额超过 50 万元的异常须给出责任部门：
+          {{#output.departments}}
+          - {{id}}，金额 {{amount}}，责任部门：{{department}}
+          {{/output.departments}}
+
+          结论分两类：重复付款、拆分发票需要逐笔核对明细后确认，目前列为“疑似”，还缺付款凭证与审批记录。本 Agent 不执行付款、冲销等操作。
+          已通知财务经理群。数据范围：{{tools.transaction_anomaly_list.scopeLabel}}。
+        output:
+          severity: "=tools.transaction_anomaly_list.items.exists(a, a.severity == 'critical') ? 'critical' : 'high'"
+          anomalyCount: '=tools.transaction_anomaly_list.total'
+          totalAmount: '=tools.calculator.value'
+          currency: '{{tools.transaction_anomaly_list.items.0.currency}}'
+          findings: "=tools.transaction_anomaly_list.items.map(a, {'id': a.id, 'type': a.anomalyType, 'amount': a.amount, 'severity': a.severity, 'status': '疑似'})"
+          departments: "=tools.transaction_anomaly_list.items.filter(a, a.amount > 500000).map(a, {'id': a.id, 'amount': a.amount, 'department': {'duplicate_payment': '应付会计组', 'split_invoice': '采购部', 'reversal': '总账组', 'off_hours': '财务共享中心'}[a.anomalyType]})"

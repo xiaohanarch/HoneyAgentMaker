@@ -41,7 +41,14 @@ public final class Scripts {
      * @param pattern 正则，命名分组写入 vars，例如 (?&lt;supplier&gt;百润精密)
      * @param user 只对某个用户生效
      */
-    public record Match(List<String> all, List<String> any, String pattern, String user) {}
+    /**
+     * @param tools 只在这些工具都可用时匹配（例如租户扩展增加了 notify_im 之后的剧本），这类剧本优先于不带条件的剧本
+     */
+    public record Match(List<String> all, List<String> any, String pattern, String user, List<String> tools) {
+        public Match(List<String> all, List<String> any, String pattern, String user) {
+            this(all, any, pattern, user, List.of());
+        }
+    }
 
     /** @param agent namespace/name */
     public record Script(
@@ -107,7 +114,8 @@ public final class Scripts {
                 s.match().all() == null ? List.of() : s.match().all(),
                 s.match().any() == null ? List.of() : s.match().any(),
                 s.match().pattern(),
-                s.match().user());
+                s.match().user(),
+                s.match().tools() == null ? List.of() : s.match().tools());
         return new Script(s.id(), s.description(), s.agent(), match, s.vars() == null ? Map.of() : s.vars(), s.steps());
     }
 
@@ -134,9 +142,21 @@ public final class Scripts {
     public record Matched(Script script, Map<String, String> vars) {}
 
     public static Matched match(List<Script> scripts, String agent, String userId, String utterance) {
-        for (Script script : scripts) {
+        return match(scripts, agent, userId, utterance, null);
+    }
+
+    /** availableTools 为 null 时不检查工具条件（带工具条件的剧本照常参与匹配） */
+    public static Matched match(
+            List<Script> scripts, String agent, String userId, String utterance, java.util.Set<String> availableTools) {
+        List<Script> ordered = new ArrayList<>(
+                scripts.stream().filter(s -> !s.match().tools().isEmpty()).toList());
+        ordered.addAll(scripts.stream().filter(s -> s.match().tools().isEmpty()).toList());
+        for (Script script : ordered) {
             if (!script.agent().equals(agent)) continue;
             Match m = script.match();
+            if (!m.tools().isEmpty()) {
+                if (availableTools == null || !availableTools.containsAll(m.tools())) continue;
+            }
             if (m.user() != null && !m.user().equals(userId)) continue;
             if (!m.all().stream().allMatch(utterance::contains)) continue;
             if (!m.any().isEmpty() && m.any().stream().noneMatch(utterance::contains)) continue;
