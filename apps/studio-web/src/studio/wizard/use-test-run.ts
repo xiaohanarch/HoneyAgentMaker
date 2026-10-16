@@ -11,6 +11,14 @@ export interface TestRuns {
   reset: () => void
 }
 
+/** 开始一轮测试的接口；默认是草稿测试，扩展编辑器传入扩展测试接口 */
+export type StartRun = (
+  draftId: string,
+  body: { message: string; asUser: string; sessionId?: string },
+  onEvent: (event: RunEvent) => void,
+  signal?: AbortSignal,
+) => Promise<void>
+
 function newId(prefix: string): string {
   return `${prefix}-${crypto.randomUUID()}`
 }
@@ -19,8 +27,9 @@ function newId(prefix: string): string {
  * 测试对话：以选定的测试用户运行草稿（私有环境），事件按 SSE 推送；确认或拒绝后恢复运行的事件追加到同一轮。
  * 切换测试用户时新开会话，避免不同用户的问答混在同一段会话记忆里。
  */
-export function useTestRuns(draftId: string): TestRuns {
+export function useTestRuns(draftId: string, start?: StartRun): TestRuns {
   const { api } = useStudioApi()
+  const run = start ?? api.test
   const [turns, setTurns] = useState<readonly Turn[]>([])
   const [busy, setBusy] = useState(false)
   const session = useRef<{ id: string; user: string } | null>(null)
@@ -70,10 +79,10 @@ export function useTestRuns(draftId: string): TestRuns {
       const id = newId('turn')
       setTurns((all) => [...all, { id, question: message, events: [], status: 'streaming' }])
       await stream(id, (onEvent, signal) =>
-        api.test(draftId, { message, asUser, sessionId }, onEvent, signal),
+        run(draftId, { message, asUser, sessionId }, onEvent, signal),
       )
     },
-    [api, draftId, stream],
+    [run, draftId, stream],
   )
 
   const confirm = useCallback(
