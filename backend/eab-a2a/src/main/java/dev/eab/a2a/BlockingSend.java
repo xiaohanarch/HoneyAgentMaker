@@ -18,6 +18,7 @@ import org.a2aproject.sdk.spec.Message;
 import org.a2aproject.sdk.spec.Task;
 import org.a2aproject.sdk.spec.TaskArtifactUpdateEvent;
 import org.a2aproject.sdk.spec.TaskQueryParams;
+import org.a2aproject.sdk.spec.TaskState;
 import org.a2aproject.sdk.spec.TaskStatusUpdateEvent;
 import org.a2aproject.sdk.transport.jsonrpc.handler.JSONRPCHandler;
 
@@ -46,9 +47,20 @@ final class BlockingSend {
         AtomicReference<SendStreamingMessageResponse> failure = new AtomicReference<>();
         CompletableFuture<Void> done = new CompletableFuture<>();
         publisher.subscribe(new Flow.Subscriber<>() {
+            private Flow.Subscription subscription;
+
             @Override
-            public void onSubscribe(Flow.Subscription subscription) {
-                subscription.request(Long.MAX_VALUE);
+            public void onSubscribe(Flow.Subscription s) {
+                subscription = s;
+                s.request(Long.MAX_VALUE);
+            }
+
+            /** 任务进入终态或等待输入时流不一定结束，这里主动停止等待 */
+            private void stopAt(TaskState state) {
+                if (state != null && (state.isFinal() || state.isInterrupted())) {
+                    subscription.cancel();
+                    done.complete(null);
+                }
             }
 
             @Override
@@ -58,10 +70,20 @@ final class BlockingSend {
                     return;
                 }
                 switch (item.getResult()) {
-                    case Task task -> taskId.compareAndSet(null, task.id());
-                    case TaskStatusUpdateEvent update -> taskId.compareAndSet(null, update.taskId());
+                    case Task task -> {
+                        taskId.compareAndSet(null, task.id());
+                        stopAt(task.status().state());
+                    }
+                    case TaskStatusUpdateEvent update -> {
+                        taskId.compareAndSet(null, update.taskId());
+                        stopAt(update.status().state());
+                    }
                     case TaskArtifactUpdateEvent update -> taskId.compareAndSet(null, update.taskId());
-                    case Message m -> message.compareAndSet(null, m);
+                    case Message m -> {
+                        message.compareAndSet(null, m);
+                        subscription.cancel();
+                        done.complete(null);
+                    }
                     default -> {}
                 }
             }

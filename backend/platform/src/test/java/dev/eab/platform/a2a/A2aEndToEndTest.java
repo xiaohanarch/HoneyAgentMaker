@@ -251,4 +251,65 @@ class A2aEndToEndTest {
                         && "zhangmin".equals(e.actor())
                         && e.reason().contains("partner-procurement"));
     }
+
+    dev.eab.runtime.RunContext context(dev.eab.runtime.RunContext.User user) {
+        return new dev.eab.runtime.RunContext(
+                "run-test", "ses-test", user, "on-behalf", null, null, "vendor.pur/procurement-assistant", null, null, 0);
+    }
+
+    dev.eab.runtime.RunContext.User zhangmin() {
+        return dev.eab.platform.runtime.RuntimeService.runUser(
+                dev.eab.directory.DemoDirectory.findUser("zhangmin").orElseThrow());
+    }
+
+    @Test
+    @DisplayName("身份透传失败即拒绝：运行没有最终用户身份时不调用外部 Agent，不退回技术账号，并写审计")
+    void outboundDeniesWithoutIdentity() {
+        remote.authorizations.clear();
+        RemoteAgentGateway gateway = platform.getBean(RemoteAgentGateway.class);
+        var result = gateway.call(context(null), "tenant.t001.remote/supplier-risk", "百润精密最近有没有什么风险");
+        assertThat(result.ok()).isFalse();
+        assertThat(result.errorCode()).isEqualTo("IDENTITY_MISSING");
+        assertThat(result.error()).contains("不会退回到技术账号");
+        assertThat(remote.authorizations).isEmpty();
+        assertThat(services.audit().list(AuditFilter.all().withAction("a2a.outbound")))
+                .anyMatch(e -> e.decision().equals("deny") && e.reason().contains("身份透传失败"));
+    }
+
+    @Test
+    @DisplayName("连接没有绑定地址时拒绝调用；外部 Agent 停机时给出降级说明")
+    void outboundUnboundAndUnavailable() {
+        var settings = new RemoteAgentGateway.Settings(Map.of(), () -> platformUrl, java.time.Duration.ofSeconds(2));
+        var tasks = platform.getBean(A2aTaskStore.class);
+        var unbound = new RemoteAgentGateway(services, tasks, settings)
+                .call(context(zhangmin()), "tenant.t001.remote/fx-rate", "美元兑人民币");
+        // 部署配置为空时取租户 Connection 资产的 prod 绑定，指向本机 4210（测试里没有启动），因此是不可用而不是未绑定
+        assertThat(unbound.errorCode()).isIn("REMOTE_AGENT_UNAVAILABLE", "CONNECTION_UNBOUND");
+
+        var down = new RemoteAgentGateway(
+                        services,
+                        tasks,
+                        new RemoteAgentGateway.Settings(
+                                Map.of("SUPPLIER_RISK_AGENT", "http://127.0.0.1:1"),
+                                () -> platformUrl,
+                                java.time.Duration.ofSeconds(2)))
+                .call(context(zhangmin()), "tenant.t001.remote/supplier-risk", "百润精密最近有没有什么风险");
+        assertThat(down.errorCode()).isEqualTo("REMOTE_AGENT_UNAVAILABLE");
+        assertThat(down.error()).contains("暂时不可用", "本次回答不包含它提供的信息");
+
+        assertThat(new RemoteAgentGateway(services, tasks, settings).connectionUrl("t001", "NO_SUCH_ALIAS"))
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("入站运行没有调用方身份时拒绝执行")
+    void inboundRunnerRequiresPrincipal() {
+        var runner = new InboundRunner(
+                new InboundAgents.Exposed("assistant", "vendor.pur/procurement-assistant", "1.1.1", "采购助手", null, java.util.List.of()),
+                platform.getBean(dev.eab.platform.assist.AssistService.class),
+                platform.getBean(dev.eab.platform.runtime.RuntimeService.class));
+        var reply = runner.run(null, "你好", "a2a-x", null, note -> {});
+        assertThat(reply.state()).isEqualTo("failed");
+        assertThat(reply.text()).contains("身份透传失败");
+    }
 }
