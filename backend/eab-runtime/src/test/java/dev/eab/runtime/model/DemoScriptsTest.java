@@ -24,9 +24,9 @@ class DemoScriptsTest {
                     .map(Asset.AgentAsset.class::cast)
                     .toList();
 
-    /** Studio 推荐用的平台身份，以及故事 A 在向导里新建、发布前没有资产文件的 Agent */
+    /** Studio 推荐、经验回流生成候选规则用的平台身份，以及故事 A 在向导里新建、发布前没有资产文件的 Agent */
     static final Set<String> STUDIO_AGENTS =
-            Set.of("platform/studio", "tenant.t001.agents/price-negotiation-assistant");
+            Set.of("platform/studio", "platform/feedback", "tenant.t001.agents/price-negotiation-assistant");
 
     @Test
     @DisplayName("剧本全部能加载，引用的 Agent 是仓库里的标品 Agent，或 Studio 的建模助手与故事 A 新建的 Agent")

@@ -19,20 +19,23 @@ scripts:
             args:
               expression: '{{#tools.transaction_anomaly_list.items}}{{amount}}{{^-last}} + {{/-last}}{{/tools.transaction_anomaly_list.items}}'
       - reply: |
-          本月（{{month}}）共有 {{tools.transaction_anomaly_list.total}} 条高风险或严重的交易异常，涉及金额合计 {{tools.calculator.value}} {{tools.transaction_anomaly_list.items.0.currency}}。
+          {{#tools.transaction_anomaly_list.platformConstraints}}按规则 {{rule}}：{{remedy}}。
+          {{/tools.transaction_anomaly_list.platformConstraints}}本月（{{month}}）共有 {{output.anomalyCount}} 条高风险或严重的交易异常{{^tools.transaction_anomaly_list.platformConstraints}}，涉及金额合计 {{tools.calculator.value}} {{tools.transaction_anomaly_list.items.0.currency}}{{/tools.transaction_anomaly_list.platformConstraints}}。
 
-          {{#tools.transaction_anomaly_list.items}}
+          {{#output.kept}}
           - {{id}}（{{companyName}}）：{{anomalyType}}，严重程度 {{severity}}，金额 {{amount}} {{currency}}。{{description}}
-          {{/tools.transaction_anomaly_list.items}}
+          {{/output.kept}}
 
           结论分两类：重复付款、拆分发票需要逐笔核对明细后确认，目前列为“疑似”，还缺付款凭证与审批记录；建议由应付会计核对后提交财务经理。本 Agent 不执行付款、冲销等操作。
           数据范围：{{tools.transaction_anomaly_list.scopeLabel}}。
         output:
           severity: "=tools.transaction_anomaly_list.items.exists(a, a.severity == 'critical') ? 'critical' : 'high'"
-          anomalyCount: '=tools.transaction_anomaly_list.total'
+          # 租户规则（经验回流）触发时，按规则排除跨期冲销类记录，结论随之改变
+          kept: "=has(tools.transaction_anomaly_list.platformConstraints) ? tools.transaction_anomaly_list.items.filter(a, a.anomalyType != 'reversal') : tools.transaction_anomaly_list.items"
+          anomalyCount: "=has(tools.transaction_anomaly_list.platformConstraints) ? size(tools.transaction_anomaly_list.items.filter(a, a.anomalyType != 'reversal')) : tools.transaction_anomaly_list.total"
           totalAmount: '=tools.calculator.value'
           currency: '{{tools.transaction_anomaly_list.items.0.currency}}'
-          findings: "=tools.transaction_anomaly_list.items.map(a, {'id': a.id, 'type': a.anomalyType, 'amount': a.amount, 'status': '疑似'})"
+          findings: "=tools.transaction_anomaly_list.items.map(a, {'id': a.id, 'type': a.anomalyType, 'severity': a.severity, 'amount': a.amount, 'status': '疑似'})"
 
   - id: fin-period-close
     description: 王芳问本期资产核算结账检查：取检查项 → 按状态分组 → 列出未通过项与责任人

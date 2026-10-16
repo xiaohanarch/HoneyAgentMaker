@@ -75,6 +75,23 @@ public final class SemanticService {
         return packs.stream().flatMap(p -> orEmpty(p.spec().rules()).stream()).toList();
     }
 
+    /**
+     * 带来源的规则。
+     *
+     * @param pack 规则所在的语义包，namespace/name@version
+     * @param tenantLayer 规则来自租户层的语义包扩展（经验回流写入的规则在这里）
+     */
+    public record SourcedRule(SemanticRule rule, String pack, boolean tenantLayer) {}
+
+    public List<SourcedRule> sourcedRules() {
+        List<SourcedRule> result = new ArrayList<>();
+        for (var p : packs) {
+            boolean tenant = p.metadata().namespace().startsWith("tenant.");
+            for (SemanticRule r : orEmpty(p.spec().rules())) result.add(new SourcedRule(r, packRef(p), tenant));
+        }
+        return result;
+    }
+
     public List<String> packRefs() {
         return packs.stream().map(SemanticService::packRef).toList();
     }

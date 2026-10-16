@@ -103,6 +103,18 @@ public final class EffectiveAssembly {
                     .toList();
         }
 
+        // 租户层的语义包扩展（经验回流写入的规则在这里），挂载了被扩展语义包的 Agent 自动叠加（ADR 0013）
+        List<Asset.SemanticPackAsset> packExtensions = List.of();
+        if (request.tenantId() != null) {
+            var packs = registry.latestPublished(
+                    new AssetFilter("SemanticPack", null, "tenant", request.tenantId(), null), scope);
+            if (!packs.rejected().isEmpty()) return integrity(packs.rejected());
+            packExtensions = packs.assets().stream()
+                    .filter(Asset.SemanticPackAsset.class::isInstance)
+                    .map(Asset.SemanticPackAsset.class::cast)
+                    .filter(p -> p.spec().extendsRef() != null)
+                    .toList();
+        }
         // 私有环境里叠加的扩展草稿替换同名的已发布扩展（P6 扩展编辑器的预览、测试与评测）
         if (request.overlay() != null) {
             List<AgentExtensionAsset> drafts = extensionsOf(request.overlay());
@@ -116,7 +128,13 @@ public final class EffectiveAssembly {
             }
         }
         Assembler.Result result = Assembler.assemble(new Assembler.Input(
-                request.agent(), request.tenantId(), extensions, platformRules, resolver, request.statuses()));
+                request.agent(),
+                request.tenantId(),
+                extensions,
+                platformRules,
+                resolver,
+                request.statuses(),
+                packExtensions));
         List<String> failures = scoped.integrityFailures();
         if (!failures.isEmpty()) return integrity(failures);
         if (!(result instanceof Assembler.Result.Ok success)) return new Outcome.Failed(result.issues());

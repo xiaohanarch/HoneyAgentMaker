@@ -31,6 +31,7 @@
     <module>eab-tracing</module>
     <module>eab-runtime</module>
     <module>eab-a2a</module>
+    <module>eab-eval</module>
     <module>platform</module>
     <module>demo-erp</module>
     <module>eab-cli</module>

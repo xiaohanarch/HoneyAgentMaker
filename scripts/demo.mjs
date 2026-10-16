@@ -110,6 +110,8 @@ const SERVICES = [
       EAB_INTERNAL_SECRET: INTERNAL_SECRET,
       EAB_DEMO_MODE: '1',
       EAB_DEMO_ERP_URL: DEMO_ERP_URL,
+      // 端到端测试与验收脚本和所有演示页面共用 127.0.0.1 一个来源地址，登录限流给足余量（生产默认 30）
+      EAB_LOGIN_RATE_PER_MINUTE: '240',
     },
     healthUrl: 'http://127.0.0.1:4000/health',
   },

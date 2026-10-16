@@ -116,6 +116,8 @@ OpenAPI 描述由 springdoc 生成（`GET /openapi.json`），响应统一为 `{
 | `GET /identity/v1/delegations/:id/status` | 委托核实，供 DemoERP 调用，需要内部调用密钥 |
 | `POST /identity/v1/demo/agent-token` | 演示模式下由平台运维代运行时签发 Agent 令牌，用于手工验证 |
 
+登录和令牌端点按来源 IP 限流，默认每分钟 30 次（`eab.login-rate-per-minute`）。演示环境里端到端测试、验收脚本和多个页面共用 127.0.0.1 一个来源地址，`pnpm demo` 用 `EAB_LOGIN_RATE_PER_MINUTE` 把额度调高到 240，生产环境保持默认值。
+
 平台调用 BO API 的唯一通道是 `DelegatedClient.callBoApi`：先换取委托令牌，再带着它调用，并且只允许落在配置的 ERP 地址上的 `/bo/v1/` 路径。失败时抛出 `DelegationException`，不存在使用集成账号的路径。
 
 ### 策略引擎
@@ -387,6 +389,32 @@ Studio 的“接入外部 Agent”页面（`/studio/external/new`）读取 Agent
 ### 代码 Agent
 
 `backend/eab-a2a` 的 `dev.eab.a2a.sdk` 是代码 Agent SDK：实现 `CodeAgent` 接口写业务逻辑，`CodeAgentServer` 以 A2A 对外服务并校验平台服务令牌，`AgentDeclaration` 生成 RemoteAgent 资产登记到平台。代码 Agent 在平台看来就是一个远程 Agent。
+
+## 治理与演进（P8）
+
+治理中心是租户管理员的入口，接口在 `/hub/*`，设计取舍见 ADR 0013。
+
+### 治理中心
+
+资产清单列出本租户可见的助手、Agent、扩展、远程 Agent 和工具来源，标出来源（标品、租户、扩展、外部、平台）、签名和各环境的部署版本；血缘图画出助手与成员 Agent、扩展与标品 Agent、Agent 与协作的远程 Agent 之间的边。选中一个资产可以比较两个版本：差异在按查看者裁剪后的视图上计算，租户视角下标品指令只显示“已变更”。
+
+上架准入列出尚未进入 prod 的租户 Agent 和扩展，检查评测门禁（同一内容的评测通过记录）、工具写级别、MCP Server 审批和完整性，全部通过后管理员批准，平台按 Studio 的晋级流程部署到 prod。审计可以从一个业务对象反查：按审计记录的目标和结果摘要匹配，再按时间找到对应的运行和追踪。委托管理复用身份服务的委托接口，撤销后事件触发的运行在鉴权时被拒绝。风险告警来自监督层。
+
+### 评测引擎
+
+`backend/eab-eval` 是独立的评测引擎，Studio、治理中心、升级回归和 `pnpm eval:smoke` 共用。评测集可以写普通用例，也可以写 Given/When/Then 场景，场景可重复运行，评测集按最低通过率判定。用例以用例指定的用户身份运行，遇到确认点自动确认；调用过的工具从事件和追踪（含技能内部的调用）里收集。
+
+### 升级回归与方案包
+
+模拟升级时，平台用扩展所在租户的评测集先跑基线，再发布标品新版本，重新组装扩展、再跑一次，基线通过而升级后失败的用例记为回归，连同组装问题写入 `upgrade_regressions` 并通知。方案包从扩展出发收集本租户资产，编译出清单、哈希和签名，按 dev、test、prod 部署，每次部署重新验签，test、prod 要求上一环境当前是同一个包，可以回滚。
+
+### 经验回流
+
+用户在结果卡片上反馈结论有误，平台生成候选规则（带检查工具和 CEL 条件），管理员审核后写入租户语义包扩展 `tenant.<租户>.semantic/<基础包>-ext`。组装时被扩展的语义包会带上扩展包，约束守卫对其中带检查条件的规则生效，守卫 span 记下规则来源。
+
+### 指标
+
+`run_metrics` 保存每次运行的耗时、令牌、费用、确认次数和工具调用，从运行记录和追踪补算；`business_metrics` 保存流程指标和业务结果。治理中心按 Agent 汇总技术指标，按天画运行量、流程指标和业务结果的趋势，并按岗位助手的 KPI 定义展示当前值、上期值和目标。`pnpm data:simulate` 生成 30 天的演示历史。
 
 ## 技术选型
 

@@ -21,17 +21,18 @@ pnpm assets:assemble vendor.fin/transaction-anomaly-analyst --tenant t001 --as t
 pnpm spec:json-schema 修改 eab-spec 的 schema 后重新生成 schemas/ 下的 JSON Schema（有测试检查同步）
 pnpm seed:reset       重置演示数据：DemoERP 重新生成，平台清空审计、事件、委托（资产与密钥保留）
 pnpm data:backup      数据快照：data/backups/eab-data-<时间>.tar.gz，保留最近 10 份
+pnpm data:simulate    生成 30 天演示历史（运行、流程与业务指标），供治理中心展示趋势
+pnpm eval:smoke [--tier full] [--tenant t001] [--verbose]
+                      进程内启动平台与 DemoERP，逐个运行该租户可见的评测集，冒烟集 3 分钟内跑完
 pnpm agent:run vendor.pur/supplier-performance-analyst --user zhangmin "百润精密最近表现怎么样" [--yes]
                       进程内启动平台与 DemoERP 跑一次 Agent，打印流式事件和追踪树，断网可用
 pnpm tools:import-bo  从运行中的 DemoERP 的 OpenAPI 生成 BO 工具入参 schema 并与资产比对；加 --write 写回并升版本
-node scripts/acceptance-p2.mjs … acceptance-p7.mjs   对运行中的 pnpm demo 做阶段验收（只用 HTTP）
+node scripts/acceptance-p2.mjs … acceptance-p8.mjs   对运行中的 pnpm demo 做阶段验收（只用 HTTP）
 pnpm --filter @eab/client-demo run start   模拟外部平台经 A2A 调用平台的采购助手（先演示缺少身份被拒绝）
 cd external-agents/supplier-risk-py && uv sync && uv run pytest -q   Python 外部 Agent 的测试
 ```
 
 资产、数据类命令经 `scripts/java-cli.mjs` 运行 Java 命令行工具（`platform`、`demo-erp` 模块的 `cli` 包）。
-
-以下命令在对应阶段加入：`pnpm eval:smoke`（P8）。
 
 模型提供方由环境变量决定：`EAB_MODEL_PROVIDER` 取 scripted（默认）、anthropic、openai；Key 只从环境变量读取（`ANTHROPIC_API_KEY`、`OPENAI_API_KEY` 加 `EAB_OPENAI_BASE_URL`），档位映射 `EAB_MODEL_FAST/REASONING/JUDGE`，单次输出上限 `EAB_MODEL_MAX_TOKENS`（默认 16384，推理模型的推理也计入），超时 `EAB_MODEL_TIMEOUT_SECONDS`（默认 300）与重试 `EAB_MODEL_MAX_RETRIES`（默认 1）。本机的真实模型配置放在仓库外的 `~/.config/eab/model.env`，主机上是 `/home/eab/.config/eab/model.env`，都不进仓库和数据快照。
 

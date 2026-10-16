@@ -105,6 +105,38 @@ class IdentityApiTest {
         }
 
         @Test
+        @DisplayName("选人登录按 IP 限流，默认每分钟 30 次；阈值可用 eab.login-rate-per-minute 调整")
+        void loginRateLimit() throws Exception {
+            for (int i = 0; i < 30; i++) {
+                assertThat(call(json(post("/identity/v1/login"), Map.of("userId", "zhangmin")))
+                                .status())
+                        .isEqualTo(200);
+            }
+            assertThat(call(json(post("/identity/v1/login"), Map.of("userId", "zhangmin")))
+                            .json()
+                            .get("error")
+                            .get("code")
+                            .asString())
+                    .isEqualTo("RATE_LIMITED");
+
+            // 演示环境把阈值调高后，同一来源地址可以获得更多登录次数
+            var env = new org.springframework.mock.env.MockEnvironment();
+            env.setProperty("eab.login-rate-per-minute", "32");
+            MockMvc relaxed = TestPlatform.mvc(services, true, env);
+            for (int i = 0; i < 32; i++) {
+                assertThat(call(relaxed, json(post("/identity/v1/login"), Map.of("userId", "zhangmin")))
+                                .status())
+                        .isEqualTo(200);
+            }
+            assertThat(call(relaxed, json(post("/identity/v1/login"), Map.of("userId", "zhangmin")))
+                            .json()
+                            .get("error")
+                            .get("code")
+                            .asString())
+                    .isEqualTo("RATE_LIMITED");
+        }
+
+        @Test
         @DisplayName("JWKS 公开 EdDSA 公钥")
         void jwks() throws Exception {
             JsonNode key =
