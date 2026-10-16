@@ -171,6 +171,40 @@ public final class RuntimeStores {
                     .optional();
         }
 
+        /** 标记为 Studio 的测试运行：记下发起的开发者和叠加的草稿 */
+        public void markTest(String id, String startedBy, List<String> overlayYaml) {
+            jdbc.sql("UPDATE runs SET started_by = ?, overlay = ? WHERE id = ?")
+                    .params(startedBy, Json.MAPPER.writeValueAsString(overlayYaml), id)
+                    .update();
+        }
+
+        /** 测试运行的发起人，非测试运行为空 */
+        public Optional<String> startedBy(String id) {
+            return jdbc.sql("SELECT started_by FROM runs WHERE id = ?")
+                    .param(id)
+                    .query((rs, i) -> Optional.ofNullable(rs.getString("started_by")))
+                    .optional()
+                    .flatMap(o -> o);
+        }
+
+        /** 测试运行叠加的草稿，重新解析成资产；非测试运行为空列表 */
+        public List<dev.eab.spec.model.Asset> overlay(String id) {
+            String json = jdbc.sql("SELECT overlay FROM runs WHERE id = ?")
+                    .param(id)
+                    .query((rs, i) -> rs.getString("overlay"))
+                    .optional()
+                    .orElse(null);
+            if (json == null) return List.of();
+            List<String> yamls = Json.MAPPER.readValue(json, new tools.jackson.core.type.TypeReference<List<String>>() {});
+            return yamls.stream()
+                    .map(yaml -> {
+                        var parsed = dev.eab.spec.AssetParser.parseYaml(yaml);
+                        if (!parsed.ok()) throw new IllegalStateException("测试运行叠加的草稿无法解析");
+                        return parsed.asset();
+                    })
+                    .toList();
+        }
+
         /** 按追踪编号找运行，读取追踪时据此判断权限 */
         public Optional<RunRecord> byTrace(String traceId) {
             return jdbc.sql("SELECT id FROM runs WHERE trace_id = ? LIMIT 1")

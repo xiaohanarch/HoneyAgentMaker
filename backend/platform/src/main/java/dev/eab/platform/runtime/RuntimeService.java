@@ -11,6 +11,8 @@ import dev.eab.platform.policy.PolicyController;
 import dev.eab.platform.registry.AssetRepository.AssetFilter;
 import dev.eab.platform.registry.EffectiveAssembly;
 import dev.eab.platform.registry.ScopedResolver;
+import dev.eab.spec.model.Asset;
+import dev.eab.platform.registry.OverlayResolver;
 import dev.eab.platform.runtime.RuntimeStores.AlertStore;
 import dev.eab.platform.runtime.RuntimeStores.ImChannel;
 import dev.eab.platform.runtime.RuntimeStores.JdbcTraceStore;
@@ -132,13 +134,33 @@ public final class RuntimeService {
             String message,
             String sessionId,
             String delegationId,
-            Map<String, Object> routing) {
+            Map<String, Object> routing,
+            TestRun test) {
 
         public StartRequest(
                 DemoUser user, String userToken, String agent, String message, String sessionId, String delegationId) {
-            this(user, userToken, agent, message, sessionId, delegationId, null);
+            this(user, userToken, agent, message, sessionId, delegationId, null, null);
+        }
+
+        public StartRequest(
+                DemoUser user,
+                String userToken,
+                String agent,
+                String message,
+                String sessionId,
+                String delegationId,
+                Map<String, Object> routing) {
+            this(user, userToken, agent, message, sessionId, delegationId, routing, null);
         }
     }
+
+    /**
+     * Studio 的测试运行（私有环境）。
+     *
+     * @param startedBy 发起测试的开发者；测试运行以所选测试用户的身份执行，发起人也能查看它的追踪
+     * @param overlayYaml 叠加的工作区草稿，恢复挂起的运行时据此重建
+     */
+    public record TestRun(String startedBy, List<String> overlayYaml) {}
 
     /** 运行的标识与结果 */
     public record RunOutcome(String runId, String traceId, String sessionId, AgentRuntime.RunResult result) {}
@@ -167,6 +189,7 @@ public final class RuntimeService {
                 null,
                 now,
                 now));
+        if (request.test() != null) runs.markTest(runId, request.test().startedBy(), request.test().overlayYaml());
         return execute(runs.get(runId).orElseThrow(), request.userToken(), journal, sink, request.routing());
     }
 
@@ -198,7 +221,7 @@ public final class RuntimeService {
     private RunOutcome execute(
             RunRecord run, String userToken, Journal journal, RunEvents.Sink sink, Map<String, Object> routing) {
         DemoUser user = DemoDirectory.findUser(run.userId()).orElseThrow();
-        RuntimeDeps deps = depsFor(run.tenantId());
+        RuntimeDeps deps = depsFor(run.tenantId(), runs.overlay(run.id()));
         AgentRuntime runtime = new AgentRuntime(deps);
         Tracer tracer = new Tracer(run.traceId(), traces, run.tenantId(), services.clock());
         var request = new AgentRuntime.RunRequest(
@@ -237,12 +260,18 @@ public final class RuntimeService {
 
     /** 每次运行按租户取解析器：只读得到该租户可见的资产，读出的标品资产都验过签名 */
     RuntimeDeps depsFor(String tenantId) {
-        ScopedResolver resolver = services.registry().resolverFor(Viewer.tenant(tenantId));
+        return depsFor(tenantId, List.of());
+    }
+
+    /** overlay 是私有环境里叠加的工作区草稿（测试运行、评测），生产运行时为空 */
+    RuntimeDeps depsFor(String tenantId, List<Asset> overlay) {
+        ScopedResolver scoped = services.registry().resolverFor(Viewer.tenant(tenantId));
+        AssetResolver resolver = overlay.isEmpty() ? scoped : new OverlayResolver(scoped, overlay);
         return new RuntimeDeps(
                 settings.gateway(),
                 resolver,
                 AssetResolver.PUBLISHED,
-                this::assemble,
+                (agent, tenant) -> assemble(agent, tenant, overlay),
                 (definition, tenant) -> agentToken(definition, tenant, resolver),
                 this::callBo,
                 policy(),
@@ -258,8 +287,14 @@ public final class RuntimeService {
     }
 
     public EffectiveDefinition assemble(String agent, String tenantId) {
+        return assemble(agent, tenantId, List.of());
+    }
+
+    public EffectiveDefinition assemble(String agent, String tenantId, List<Asset> overlay) {
         var outcome = EffectiveAssembly.assemble(
-                services.registry(), Viewer.tenant(tenantId), EffectiveAssembly.Request.of(agent, tenantId));
+                services.registry(),
+                Viewer.tenant(tenantId),
+                EffectiveAssembly.Request.withOverlay(agent, tenantId, overlay));
         if (outcome instanceof EffectiveAssembly.Outcome.Ok ok) return ok.definition();
         String issues = String.join(
                 "；",

@@ -25,12 +25,26 @@ public final class EffectiveAssembly {
      * @param agent namespace/name，可带版本范围
      * @param tenantId 按哪个租户组装：叠加该租户已发布的扩展，并以该租户的可见范围解析资产
      * @param candidateExtensions 替换候选扩展，发布门禁试组装时传入“其他已发布扩展 + 待发布的扩展”
+     * @param overlay 私有环境里叠加的工作区草稿（OverlayResolver），没有时为空
      */
     public record Request(
-            String agent, String tenantId, List<Status> statuses, List<AgentExtensionAsset> candidateExtensions) {
+            String agent,
+            String tenantId,
+            List<Status> statuses,
+            List<AgentExtensionAsset> candidateExtensions,
+            List<Asset> overlay) {
+
+        public Request(
+                String agent, String tenantId, List<Status> statuses, List<AgentExtensionAsset> candidateExtensions) {
+            this(agent, tenantId, statuses, candidateExtensions, null);
+        }
 
         public static Request of(String agent, String tenantId) {
-            return new Request(agent, tenantId, null, null);
+            return new Request(agent, tenantId, null, null, null);
+        }
+
+        public static Request withOverlay(String agent, String tenantId, List<Asset> overlay) {
+            return new Request(agent, tenantId, null, null, overlay);
         }
     }
 
@@ -60,7 +74,10 @@ public final class EffectiveAssembly {
      */
     public static Outcome assemble(RegistryService registry, Viewer viewer, Request request) {
         Viewer scope = request.tenantId() == null ? viewer : Viewer.tenant(request.tenantId());
-        ScopedResolver resolver = registry.resolverFor(scope);
+        ScopedResolver scoped = registry.resolverFor(scope);
+        var resolver = request.overlay() == null || request.overlay().isEmpty()
+                ? (dev.eab.spec.AssetResolver) scoped
+                : new OverlayResolver(scoped, request.overlay());
 
         var rules = registry.latestPublished(new AssetFilter("PlatformRuleSet", null, "platform", null, null), scope);
         if (!rules.rejected().isEmpty()) return integrity(rules.rejected());
@@ -88,7 +105,7 @@ public final class EffectiveAssembly {
 
         Assembler.Result result = Assembler.assemble(new Assembler.Input(
                 request.agent(), request.tenantId(), extensions, platformRules, resolver, request.statuses()));
-        List<String> failures = resolver.integrityFailures();
+        List<String> failures = scoped.integrityFailures();
         if (!failures.isEmpty()) return integrity(failures);
         if (!(result instanceof Assembler.Result.Ok success)) return new Outcome.Failed(result.issues());
         return new Outcome.Ok(
