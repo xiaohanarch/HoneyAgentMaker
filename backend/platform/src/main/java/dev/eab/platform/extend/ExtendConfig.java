@@ -4,6 +4,7 @@ import dev.eab.platform.PlatformServices;
 import dev.eab.platform.runtime.RuntimeService;
 import dev.eab.platform.studio.EvalRunner;
 import dev.eab.platform.studio.StudioService;
+import dev.eab.platform.tools.McpGate;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -18,11 +19,11 @@ public class ExtendConfig {
 
     /** 裁判与 Studio 一致：脚本化模型下确定性，配置真实模型时用 judge 档位 */
     @Bean
-    public ExtensionReleases extensionReleases(ExtendService extend, RuntimeService runtime) {
+    public ExtensionReleases extensionReleases(ExtendService extend, RuntimeService runtime, McpGate mcpGate) {
         var gateway = runtime.settings().gateway();
         EvalRunner.Judge judge = gateway.providerName().equals("scripted")
                 ? EvalRunner.DETERMINISTIC
                 : EvalRunner.model(gateway.chatModel(), gateway.config().modelFor("judge"));
-        return new ExtensionReleases(extend, judge);
+        return new ExtensionReleases(extend, judge, mcpGate);
     }
 }

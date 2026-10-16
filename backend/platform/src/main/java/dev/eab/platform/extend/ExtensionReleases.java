@@ -10,6 +10,7 @@ import dev.eab.platform.studio.StudioService.DraftView;
 import dev.eab.platform.studio.StudioService.StudioException;
 import dev.eab.platform.studio.StudioStores.Draft;
 import dev.eab.platform.studio.StudioStores.EvalRun;
+import dev.eab.platform.tools.McpGate;
 import dev.eab.runtime.RunEvents.RunEvent;
 import dev.eab.spec.AssetRef;
 import dev.eab.spec.AssetResolver;
@@ -43,10 +44,13 @@ public final class ExtensionReleases {
 
     private final ExtendService extend;
     private final EvalRunner.Judge judge;
+    private final McpGate mcpGate;
 
-    public ExtensionReleases(ExtendService extend, EvalRunner.Judge judge) {
+    /** @param mcpGate 为 null 时不检查 MCP 审批（单元测试） */
+    public ExtensionReleases(ExtendService extend, EvalRunner.Judge judge, McpGate mcpGate) {
         this.extend = extend;
         this.judge = judge;
+        this.mcpGate = mcpGate;
     }
 
     private StudioService studio() {
@@ -256,6 +260,12 @@ public final class ExtensionReleases {
         EvalSuiteAsset suite = (EvalSuiteAsset) ExtendService.parse(draft.evalYaml(), "评测集");
         LintReport report = lint(user.tenantId(), ext, List.of(ext, suite));
         if (!report.ok()) throw new StudioException(409, "LINT_FAILED", "静态检查有错误，不能发布", report.issues());
+        // 扩展发布即对本租户生效，相当于上了生产，用到的 MCP Server 必须已审批
+        List<String> unapproved = mcpGate == null ? List.of() : mcpGate.unapproved(user.tenantId(), ext);
+        if (!unapproved.isEmpty()) {
+            throw new StudioException(
+                    409, "MCP_NOT_APPROVED", "扩展用到的 MCP Server 还没有审批通过：" + String.join("、", unapproved), unapproved);
+        }
 
         String extRef = ext.metadata().namespace() + "/" + ext.metadata().name();
         String hash = StudioService.contentHash(ext);

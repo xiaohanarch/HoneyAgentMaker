@@ -57,7 +57,7 @@ public class ExtendController {
         this.limiter = new RateLimiter(60, 60_000, services.clock());
     }
 
-    static DemoUser developer(PlatformServices services, HttpServletRequest request) {
+    public static DemoUser developer(PlatformServices services, HttpServletRequest request) {
         Principal principal = services.principals().require(request);
         if (!(principal.viewer() instanceof Viewer.Tenant)
                 || principal.user().roles().stream().noneMatch(ROLES::contains)) {
@@ -66,7 +66,7 @@ public class ExtendController {
         return principal.user();
     }
 
-    static <T> T call(Supplier<T> work) {
+    public static <T> T call(Supplier<T> work) {
         try {
             return work.get();
         } catch (StudioException e) {
