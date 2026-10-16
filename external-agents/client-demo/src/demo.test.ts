@@ -22,7 +22,7 @@ describe('client-demo 结果解析', () => {
       metadata: undefined,
     }
     expect(textOf(task)).toBe('逾期率 12%')
-    expect(stateOf(task)).toBe(String(TaskState.TASK_STATE_COMPLETED))
+    expect(stateOf(task)).toBe('TASK_STATE_COMPLETED')
   })
 
   it('消息直接取文字', () => {

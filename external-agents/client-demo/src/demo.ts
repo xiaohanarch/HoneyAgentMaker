@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { Role, type Message, type SendMessageResult } from '@a2a-js/sdk'
+import { Role, taskStateToJSON, type Message, type SendMessageResult } from '@a2a-js/sdk'
 import { ClientFactory } from '@a2a-js/sdk/client'
 
 /** 平台对外暴露的采购助手（触发器里声明了“被其他 Agent 调用”） */
@@ -54,7 +54,8 @@ export function textOf(result: SendMessageResult): string {
 }
 
 export function stateOf(result: SendMessageResult): string {
-  return 'parts' in result ? 'message' : String(result.status?.state ?? 'unknown')
+  if ('parts' in result) return 'message'
+  return result.status === undefined ? 'unknown' : taskStateToJSON(result.status.state)
 }
 
 /** 用 A2A 官方 JS SDK 取平台的 Agent Card 并发一条消息 */

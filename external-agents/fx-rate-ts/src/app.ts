@@ -1,5 +1,5 @@
 import express, { type Express, type NextFunction, type Request, type Response } from 'express'
-import type { AgentCard } from '@a2a-js/sdk'
+import { AgentCard } from '@a2a-js/sdk'
 import { DefaultRequestHandler, InMemoryTaskStore } from '@a2a-js/sdk/server'
 import { UserBuilder, agentCardHandler, jsonRpcHandler } from '@a2a-js/sdk/server/express'
 import { AuthError, type Verifier } from './auth.js'
@@ -49,8 +49,10 @@ export function createApp(publicUrl: string, verify: Verifier): Express {
   const card = agentCard(publicUrl)
   const handler = new DefaultRequestHandler(card, new InMemoryTaskStore(), new FxRateExecutor())
   const app = express()
+  // 卡片按协议的 JSON 形式输出（oneof 字段写成 httpAuthSecurityScheme），其他语言的 SDK 才能解析
+  const cardJson = AgentCard.toJSON(card) as AgentCard
   for (const path of CARD_PATHS) {
-    app.use(path, agentCardHandler({ agentCardProvider: handler }))
+    app.use(path, agentCardHandler({ agentCardProvider: async () => cardJson }))
   }
   app.post('/', async (req: Request, res: Response, next: NextFunction) => {
     try {

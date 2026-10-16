@@ -9,7 +9,7 @@ import { quote } from './rates.js'
 let server: Server
 let base: string
 let token: string
-let privateKey: CryptoKey
+let privateKey: Awaited<ReturnType<typeof generateKeyPair>>['privateKey']
 
 async function sign(claims: Record<string, unknown>, audience = 'eab-a2a'): Promise<string> {
   return new SignJWT(claims)
