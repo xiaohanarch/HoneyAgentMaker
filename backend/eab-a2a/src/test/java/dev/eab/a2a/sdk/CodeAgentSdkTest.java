@@ -36,8 +36,8 @@ import org.junit.jupiter.api.TestInstance;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class CodeAgentSdkTest {
 
-    static final CodeAgentServer.Description DESCRIPTION = new CodeAgentServer.Description(
-            "目标价测算 Agent", "按最近一次询价的最低报价测算降价谈判的目标价", "target-price", List.of("目标价怎么定"));
+    static final CodeAgentServer.Description DESCRIPTION =
+            new CodeAgentServer.Description("目标价测算 Agent", "按最近一次询价的最低报价测算降价谈判的目标价", "target-price", List.of("目标价怎么定"));
 
     /** 示例 Agent：从话术里取报价，按 5% 的降幅给出目标价；没有报价时追问 */
     static final CodeAgent TARGET_PRICE = request -> {
@@ -73,7 +73,8 @@ class CodeAgentSdkTest {
                 .claim("act", Map.of("sub", "agent:tenant.t001.agents/price-negotiation-assistant"))
                 .expirationTime(Date.from(expires))
                 .build();
-        var jwt = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.EdDSA).keyID("k1").build(), claims);
+        var jwt = new SignedJWT(
+                new JWSHeader.Builder(JWSAlgorithm.EdDSA).keyID("k1").build(), claims);
         jwt.sign(new Ed25519Signer(key));
         return jwt.serialize();
     }
@@ -95,9 +96,12 @@ class CodeAgentSdkTest {
     @DisplayName("没有令牌、受众不对、种类不对、过期的令牌一律 401")
     void rejectsInvalidTokens() throws Exception {
         assertThat(post(null)).isEqualTo(401);
-        assertThat(post(token("eab-platform", "service", Instant.now().plusSeconds(300)))).isEqualTo(401);
-        assertThat(post(token("eab-a2a", "user", Instant.now().plusSeconds(300)))).isEqualTo(401);
-        assertThat(post(token("eab-a2a", "service", Instant.now().minusSeconds(10)))).isEqualTo(401);
+        assertThat(post(token("eab-platform", "service", Instant.now().plusSeconds(300))))
+                .isEqualTo(401);
+        assertThat(post(token("eab-a2a", "user", Instant.now().plusSeconds(300))))
+                .isEqualTo(401);
+        assertThat(post(token("eab-a2a", "service", Instant.now().minusSeconds(10))))
+                .isEqualTo(401);
         var tokens = PlatformTokens.fromKeys(new JWKSet(), Clock.systemUTC());
         String forged = token("eab-a2a", "service", Instant.now().plusSeconds(300));
         assertThatThrownBy(() -> tokens.verify("Bearer " + forged)).isInstanceOf(SecurityException.class);
@@ -118,7 +122,8 @@ class CodeAgentSdkTest {
                 .POST(HttpRequest.BodyPublishers.ofString("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"SendMessage\"}"));
         if (bearer != null) builder.header("Authorization", "Bearer " + bearer);
         try (var client = HttpClient.newHttpClient()) {
-            return client.send(builder.build(), HttpResponse.BodyHandlers.ofString()).statusCode();
+            return client.send(builder.build(), HttpResponse.BodyHandlers.ofString())
+                    .statusCode();
         }
     }
 }

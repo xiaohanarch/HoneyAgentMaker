@@ -265,4 +265,40 @@ class A2aRoundTripTest {
         String response = post(base + "/a2a", body);
         assertThat(response).contains("TASK_STATE_COMPLETED").contains("风险等级 中");
     }
+
+    @Test
+    @DisplayName("对方不支持流式时用阻塞式 SendMessage：完成、追问后续接、超时转异步都可用")
+    void nonStreaming() {
+        AgentCard blocking = AgentCard.builder()
+                .name(card.name())
+                .description(card.description())
+                .version(card.version())
+                .capabilities(AgentCapabilities.builder()
+                        .streaming(false)
+                        .pushNotifications(true)
+                        .build())
+                .defaultInputModes(card.defaultInputModes())
+                .defaultOutputModes(card.defaultOutputModes())
+                .skills(card.skills())
+                .supportedInterfaces(card.supportedInterfaces())
+                .build();
+        var done = A2aOutbound.send(blocking, "token", "百润精密", null, null, Duration.ofSeconds(10), null);
+        assertThat(done.state()).isEqualTo("completed");
+        assertThat(done.text()).contains("风险等级 中");
+        assertThat(done.exchanges()).anyMatch(e -> e.body() != null && e.body().contains("SendMessage"));
+        var ask = A2aOutbound.send(blocking, null, "有风险吗", null, null, Duration.ofSeconds(10), null);
+        assertThat(ask.state()).isEqualTo("input-required");
+        var resumed =
+                A2aOutbound.send(blocking, null, "百润精密", ask.contextId(), ask.taskId(), Duration.ofSeconds(10), null);
+        assertThat(resumed.state()).isEqualTo("completed");
+        var slow = A2aOutbound.send(
+                blocking,
+                null,
+                "慢慢查百润",
+                null,
+                null,
+                Duration.ofMillis(300),
+                new A2aOutbound.PushTarget(base + "/callback", "t"));
+        assertThat(slow.async()).isTrue();
+    }
 }

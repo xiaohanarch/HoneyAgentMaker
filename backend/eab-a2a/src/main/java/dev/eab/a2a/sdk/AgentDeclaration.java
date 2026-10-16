@@ -18,11 +18,7 @@ public final class AgentDeclaration {
      * @param assistant 所属岗位助手，为 null 时统一入口直达
      */
     public static Map<String, Object> remoteAgent(
-            CodeAgentServer.Description d,
-            String tenantId,
-            String owner,
-            String connection,
-            String assistant) {
+            CodeAgentServer.Description d, String tenantId, String owner, String connection, String assistant) {
         Map<String, Object> routing = new LinkedHashMap<>();
         routing.put("description", d.description());
         routing.put("examples", d.examples());

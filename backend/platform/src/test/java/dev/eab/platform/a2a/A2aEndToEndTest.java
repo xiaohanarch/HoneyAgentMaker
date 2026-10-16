@@ -395,4 +395,27 @@ class A2aEndToEndTest {
         JsonNode forbidden = call("POST", "/studio/external/inspect", "zhangmin", Map.of("cardUrl", remote.url));
         assertThat(forbidden.path("error").path("code").asString()).isEqualTo("FORBIDDEN");
     }
+
+    @Test
+    @DisplayName("入站：允许被其他 Agent 调用的 Agent 直接运行，流式请求以 SSE 返回；其他租户的 Agent 不能调用")
+    void inboundAgentStreams() throws Exception {
+        String body = sendMessage("百润精密最近表现怎么样").replace("\"SendMessage\"", "\"SendStreamingMessage\"");
+        var response = send(
+                "POST",
+                "/a2a/agents/vendor.pur/supplier-performance-analyst",
+                Map.of(
+                        "content-type", "application/json",
+                        "authorization", "Bearer " + login("zhangmin"),
+                        "A2A-Version", "1.0"),
+                body);
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.headers().firstValue("content-type").orElse("")).contains("text/event-stream");
+        assertThat(response.body()).contains("TASK_STATE_COMPLETED", "百润精密");
+        var foreign = send(
+                "POST",
+                "/a2a/agents/tenant.t002.agents/anything",
+                Map.of("content-type", "application/json", "authorization", "Bearer " + login("zhangmin")),
+                body);
+        assertThat(foreign.statusCode()).isEqualTo(404);
+    }
 }

@@ -108,7 +108,8 @@ public final class CodeAgentServer implements AutoCloseable {
             try {
                 reply = agent.reply(new CodeAgent.Request(caller, context.getUserInput(), context.getContextId()));
             } catch (RuntimeException e) {
-                emitter.fail(emitter.newAgentMessage(List.of(new TextPart("代码 Agent 执行失败：" + e.getMessage())), Map.of()));
+                emitter.fail(
+                        emitter.newAgentMessage(List.of(new TextPart("代码 Agent 执行失败：" + e.getMessage())), Map.of()));
                 return;
             }
             if (reply.needsInput()) {

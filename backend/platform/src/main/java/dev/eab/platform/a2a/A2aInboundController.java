@@ -6,6 +6,7 @@ import dev.eab.platform.audit.AuditStore.NewAuditEvent;
 import dev.eab.platform.http.ApiException;
 import dev.eab.platform.http.Principals;
 import io.swagger.v3.oas.annotations.Hidden;
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -13,14 +14,12 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Flow;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 /**
  * 入站 A2A 的 HTTP 端点：Agent Card 在标准路径和旧路径各一份，JSON-RPC 请求必须带平台签发的用户令牌。
@@ -63,13 +62,15 @@ public class A2aInboundController {
     }
 
     @PostMapping("/a2a/agents/{namespace}/{name}")
-    public ResponseEntity<?> call(
+    public void call(
+            HttpServletResponse servletResponse,
             @PathVariable String namespace,
             @PathVariable String name,
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestHeader(value = CALLER_HEADER, required = false) String caller,
             @RequestHeader(value = A2aServer.VERSION_HEADER, required = false) String version,
-            @RequestBody String body) {
+            @RequestBody String body)
+            throws IOException {
         InboundAgents.Exposed target = exposed(namespace, name);
         Principals.Principal principal;
         try {
@@ -110,12 +111,17 @@ public class A2aInboundController {
                 Map.of(A2aServer.PRINCIPAL_KEY, new InboundRunner.Caller(principal, label(caller))),
                 version);
         A2aServer.Response response = agents.server(target).handle(body, context);
+        servletResponse.setCharacterEncoding("UTF-8");
         if (response instanceof A2aServer.Response.Json json) {
-            return ResponseEntity.ok().contentType(MediaType.APPLICATION_JSON).body(json.body());
+            servletResponse.setContentType(MediaType.APPLICATION_JSON_VALUE);
+            servletResponse.getOutputStream().write(json.body().getBytes(StandardCharsets.UTF_8));
+            return;
         }
-        var stream = (A2aServer.Response.Stream) response;
-        StreamingResponseBody out = output -> pipe(stream.events(), output);
-        return ResponseEntity.ok().contentType(MediaType.TEXT_EVENT_STREAM).body(out);
+        // 流式响应直接写到连接上，一个事件一刷新；请求在虚拟线程上执行，等待事件不占平台线程
+        servletResponse.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE);
+        servletResponse.setHeader("Cache-Control", "no-cache");
+        servletResponse.flushBuffer();
+        pipe(((A2aServer.Response.Stream) response).events(), servletResponse.getOutputStream());
     }
 
     static String label(String caller) {
