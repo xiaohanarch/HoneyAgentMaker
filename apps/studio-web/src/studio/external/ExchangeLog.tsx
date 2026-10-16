@@ -16,7 +16,8 @@ const KIND_CLASS: Record<Exchange['kind'], string> = {
 }
 
 function ExchangeRow({ exchange, index }: { exchange: Exchange; index: number }): ReactNode {
-  const [open, setOpen] = useState(index < 2)
+  // 请求默认展开（看得到脱敏后的令牌和请求体），响应和事件默认只展开第一条
+  const [open, setOpen] = useState(exchange.kind === 'request' || index < 2)
   const failed = exchange.status !== undefined && exchange.status >= 400
   return (
     <li className="border-b border-line last:border-b-0">
