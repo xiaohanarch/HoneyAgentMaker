@@ -17,8 +17,11 @@
 | `eab-assembler` | 组装规则、CEL 条件的检查与求值、钩子执行 |
 | `eab-directory` | 演示租户、组织、角色、用户 |
 | `eab-policy` | 策略规则与判定引擎（鉴权点 1 到 3） |
-| `platform` | 注册中心、身份、策略、审计、事件接收，以及资产与数据命令行 |
+| `eab-tracing` | span 模型（兼容 OpenTelemetry 语义）、按查看者裁剪、OTLP JSON |
+| `eab-runtime` | 模型网关（基于 Spring AI）、工具网关、Agent 循环、技能与工作流、监督层、语义查询 |
+| `platform` | 注册中心、身份、策略、审计、事件接收、运行接口与 MCP 端点，以及资产与数据命令行 |
 | `demo-erp` | 模拟 ERP：BO API（鉴权点 4）、Open API、元数据、页面、业务事件 |
+| `eab-cli` | `pnpm agent:run`：进程内启动平台与 DemoERP，跑一次 Agent |
 
 `packages/ui` 定义视觉规范：三类资产来源（标品、租户、外部，另加平台）的颜色、图标与标签组件，写操作级别标签，鉴权裁决标签。颜色以 CSS 变量定义，浅色和深色模式各一套，前端通过 Tailwind 的主题变量使用。
 
@@ -168,6 +171,95 @@ DemoERP 的其他接口：
 - 平台身份能查全部；
 - 厂商身份不能查。
 
+## 运行时（P3）
+
+运行时让 Agent 真正跑起来，并且每一步都可追踪。设计取舍见 ADR 0008。
+
+### 一次运行
+
+`AgentRuntime` 是一个自研的轻量循环：
+
+1. 组装有效定义（assemble span），签发本次运行的 Agent 令牌，scope 是 Agent 声明的 BO 操作（含技能、钩子工作流里用到的）；
+2. 读取长期记忆和会话记忆（memory span），执行前置技能；
+3. 最多八轮“模型调用、工具调用”。模型返回工具调用时，每个调用都交给工具网关；没有工具调用时得到最终回复；
+4. 后置步骤：输出守卫核对回复里的单号和金额，回复复述了保密片段时产生告警；结构化结果满足条件时执行 onResult 钩子，标品钩子失败中止运行，租户钩子失败只在回复里提示；
+5. 写会话记忆，推送最终结果。
+
+运行事件逐个推给调用方：step（思考步骤摘要）、tool_call、tool_result、confirmation_required、text_delta、final、error。`POST /runs` 默认以 SSE 推送，请求头 `Accept: application/json` 时同步返回全部事件。
+
+子 Agent 是一种工具：先过鉴权点 2（例如调用深度不超过三层），再组装子 Agent，以它自己的 Agent 身份递归执行，事件和 span 挂在父运行下面。
+
+### 模型网关
+
+模型提供方都是 Spring AI 的 `ChatModel`：脚本化模型（默认，读 `demo/scripts`）、Anthropic 协议、OpenAI 兼容协议，由环境变量 `EAB_MODEL_PROVIDER` 选择。Agent 只引用档位（fast、reasoning、judge），档位到模型名的映射也来自环境变量。每次调用记录 token 数和估算成本。
+
+模型调用经过一条处理管道：
+
+| 环节 | 做什么 |
+|---|---|
+| 知识检索注入 | 按话术从挂载的语义包里取最相关的指标口径和规则 |
+| 提示模板 | 有效定义的片段（每段带来源标记）、用户上下文、长期记忆、检索到的知识、结构化结果格式 |
+| 脱敏与还原 | 身份证号、银行账号、手机号在发给模型前换成占位符，回复和工具参数里还原 |
+| 输入过滤 | 拦截提示注入特征，拦截时不调用模型 |
+| 输出过滤 | 去掉片段标记，遮蔽复述的保密片段并报告片段编号 |
+
+后三个环节实现为 Spring AI 的 Advisor。工具由平台执行：调用模型时关闭 Spring AI 的自动工具执行，模型返回的工具调用交给工具网关。
+
+### 工具网关
+
+平台暴露给 Agent 的所有工具都经过工具网关。每次调用依次经过：
+
+1. 鉴权点 3：策略引擎裁决工具是否声明、调用模式、写级别、委托范围、确认与审批点，裁决写入审计；
+2. 守卫：写级别不能超过 Agent 声明的上限；
+3. 确认：需要确认时挂起运行；需要审批的写操作在审批收件箱上线（P8）之前一律拒绝；
+4. 按工具类型执行。
+
+| 类型 | 执行方式 |
+|---|---|
+| BO API | 按工具定义的方法和路径构造请求，经令牌交换以“用户加 Agent”的身份调用；写操作带幂等键 |
+| 语义查询 | `semantic.describe_object` 等四个工具，只在 Agent 挂载的语义包范围内查询，投影段的定义实时从元数据服务取 |
+| 内置工具 | 计算器用 CEL 计算四则运算 |
+| 技能 | 技能执行器按步骤执行，步骤里的工具调用同样经过工具网关 |
+| 子 Agent | 见上文 |
+| 外部 MCP Server | 连接别名在部署配置里绑定地址，用 MCP 官方 Java SDK 的 Streamable HTTP 客户端调用 |
+| http | IM_WEBHOOK 连到模拟的 IM 渠道，其他别名按部署配置调用 |
+| 文档检索 | 知识源列出的 Markdown 文档按段落切分，用 BM25 检索 |
+| 远程 Agent | P7 实现 |
+
+BO 工具的入参 schema 从 DemoERP 的 OpenAPI 生成：`pnpm tools:import-bo` 读取 `/bo/v1/openapi.json`，与资产比对，加 `--write` 写回资产并升次版本号；有测试检查两者一致。
+
+### 技能与工作流
+
+技能和工作流是确定性的步骤序列，不调用模型。步骤类型有 tool、skill、agent、transform、condition、parallel、confirm、notify、waitEvent，其中 agent、parallel、waitEvent 只用于工作流。with、transform、condition 的值是 CEL 表达式，confirm 和 notify 的消息用 mustache 渲染。技能调用前已经取得确认时，技能内部的确认步骤和写操作不再重复询问。waitEvent 在 P3 只做挂起，P4 接上事件触发后恢复。
+
+### 挂起与恢复
+
+运行需要确认时挂起，保存的状态是一份运行日志：按结构化路径记录模型调用、工具调用、鉴权裁决和确认决定。用户决定后，运行从头重放：日志里已有的步骤直接取记录的结果，不再调用模型、不再重复写入。spanId 由运行编号和同一条路径派生，挂起时以 suspended 落库的 span 在恢复后被最终状态覆盖。
+
+### 监督层
+
+监督层是提示词之外的第二道防线，全部是确定性逻辑：
+
+- 写操作前：写级别、SoD、委托范围由策略引擎裁决，写级别上限由守卫检查；
+- 输出守卫：回复里的单号和金额必须能在本次运行的工具结果里找到，找不到的在原文后标注“未经核实”；
+- 行为异常：同一会话十分钟内写操作超过五次，或者运行中访问的数据范围扩大，写入风险告警（`GET /runtime/alerts`）；回复复述了保密片段时同样告警。
+
+### 记忆
+
+会话记忆保存同一会话的问答，注入下一次运行。长期记忆按“租户、用户、Agent”三元组隔离，保存用户偏好和确认过的事实，注入系统提示词；`GET/POST/DELETE /memory` 查看、添加和清除本人的记忆。
+
+### 追踪
+
+span 存在平台数据库里，种类有 run、assemble、pipeline、model、policy、tool、skill、workflow、agent、guard、hook、confirmation、memory，属性名尽量沿用 OpenTelemetry 的 `gen_ai.*` 语义约定。模型 span 只保存系统提示词的片段数组，`GET /traces/{traceId}` 按查看者裁剪：租户视角下标品指令和平台规则原文换成占位块；用户只能看自己的运行，租户管理员能看本租户的，平台运维能看全部，厂商看不到租户的运行。设置 `EAB_OTLP_ENDPOINT` 时运行结束后按 OTLP/HTTP JSON 导出，导出内容只带片段编号。
+
+### 平台对外的 MCP 端点
+
+`/mcp` 用 MCP 官方 Java SDK 的无状态 Streamable HTTP 传输。外部 MCP 客户端带用户令牌访问，能用的工具是只读的 BO 操作和语义查询工具。每次调用以 `agent:platform/mcp-endpoint` 的身份做令牌交换，经过工具网关，鉴权点 3、4 与审计照常，并记一次运行。
+
+### 命令行
+
+`pnpm agent:run <namespace/name> --user <用户> "<话术>"` 在进程内启动平台（加载仓库资产，签名入库）和 DemoERP（内存库），两者经本机随机端口互通，链路与部署相同，不依赖 `pnpm demo`。终端里流式打印运行事件，遇到确认时提示 y/n（加 `--yes` 自动确认），结束后打印追踪树。
+
 ## 技术选型
 
 | 方面 | 选择 | 依据 |
@@ -180,4 +272,7 @@ DemoERP 的其他接口：
 | 资产 schema | `eab-spec` 自写的 schema 描述，Jackson 3 解析 YAML | ADR 0007 |
 | 存储 | SQLite（sqlite-jdbc）、Flyway 迁移、`JdbcClient` 加仓储接口 | 主提示词第 14 节、ADR 0006 |
 | 条件表达式 | CEL，cel-java 0.14 | ADR 0003 |
+| 模型调用 | Spring AI 2.0：`ChatClient`、Advisor、Anthropic 与 OpenAI 模块；脚本化模型自己实现 `ChatModel` | ADR 0006、ADR 0008 |
+| 模板 | jmustache（剧本回复、确认与通知消息） | ADR 0008 |
+| MCP | MCP Java SDK 2.0：Streamable HTTP 客户端，Spring WebMVC 无状态服务端 | ADR 0002 |
 | 令牌 | Nimbus JOSE JWT 10.10，EdDSA（Tink） | ADR 0005 |

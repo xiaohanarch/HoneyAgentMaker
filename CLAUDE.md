@@ -21,11 +21,17 @@ pnpm assets:assemble vendor.fin/transaction-anomaly-analyst --tenant t001 --as t
 pnpm spec:json-schema 修改 eab-spec 的 schema 后重新生成 schemas/ 下的 JSON Schema（有测试检查同步）
 pnpm seed:reset       重置演示数据：DemoERP 重新生成，平台清空审计、事件、委托（资产与密钥保留）
 pnpm data:backup      数据快照：data/backups/eab-data-<时间>.tar.gz，保留最近 10 份
+pnpm agent:run vendor.pur/supplier-performance-analyst --user zhangmin "百润精密最近表现怎么样" [--yes]
+                      进程内启动平台与 DemoERP 跑一次 Agent，打印流式事件和追踪树，断网可用
+pnpm tools:import-bo  从运行中的 DemoERP 的 OpenAPI 生成 BO 工具入参 schema 并与资产比对；加 --write 写回并升版本
+node scripts/acceptance-p2.mjs、acceptance-p3.mjs   对运行中的 pnpm demo 做阶段验收（只用 HTTP）
 ```
 
 资产、数据类命令经 `scripts/java-cli.mjs` 运行 Java 命令行工具（`platform`、`demo-erp` 模块的 `cli` 包）。
 
-以下命令在对应阶段加入：`pnpm agent:run`（P3）、`pnpm eval:smoke`（P8）。
+以下命令在对应阶段加入：`pnpm eval:smoke`（P8）。
+
+模型提供方由环境变量决定：`EAB_MODEL_PROVIDER` 取 scripted（默认）、anthropic、openai；Key 只从环境变量读取（`ANTHROPIC_API_KEY`、`OPENAI_API_KEY` 加 `EAB_OPENAI_BASE_URL`），档位映射 `EAB_MODEL_FAST/REASONING/JUDGE`。
 
 本机只有独立安装的 `docker-compose`（没有 `docker compose` 插件），容器方式启动用 `docker-compose up --build`。
 
@@ -40,6 +46,10 @@ pnpm data:backup      数据快照：data/backups/eab-data-<时间>.tar.gz，保
 - Java 进程输出中文时加 `-Dstdout.encoding=UTF-8`，否则 Windows 控制台会乱码。
 - Ed25519 令牌校验按 kid 选出 OKP 公钥后用 `Ed25519Verifier` 直接验签；Nimbus 的通用 `JWSVerificationKeySelector` 不支持 OKP 密钥。
 - DemoERP 的种子数据必须与 `seed-golden.json.gz` 逐条一致（剧本和验收脚本依赖它），改生成逻辑时同步更新黄金样本并说明原因。
+- 运行时（ADR 0008）：模型调用用 Spring AI 的 `ChatClient`，必须关闭工具调用 Advisor 的自动注册，工具一律由平台的 `ToolGateway` 执行（鉴权点 3、守卫、确认）。新增工具类型时在 `ToolGateway.execute` 和 `inputSchema` 里各加一个分支。
+- 挂起与恢复靠运行日志重放（`Journal`）：会产生副作用或不确定结果的步骤（模型调用、工具调用、鉴权裁决）都要经 `journal.record` 按结构化路径记录，span 用 `Exec.span` 开，路径与日志一致。循环里不要引入日志之外的不确定输入。
+- 演示话术改动时同步 `demo/scripts/*.yaml` 和对应 Agent 的 `routing.examples`（并升 Agent 版本）；回复里的单号和金额必须从工具结果渲染，`DemoScriptsTest` 检查剧本可加载、示例话术有剧本。
+- BO 操作的参数改动后运行 `BoToolSourceSyncTest`（加 `-Deab.updateBoTools=true` 写回）或 `pnpm tools:import-bo --write`，保持 `demo-erp-bo.yaml` 的入参 schema 与 OpenAPI 一致。
 - 前端只访问同源的 `/api`（平台）和 `/erp`（DemoERP），由 Vite 代理转发。
 - 资产来源的颜色、图标、写级别和裁决标签统一从 `@eab/ui` 取，不在页面里另写颜色；Tailwind 类名不要动态拼接。
 - TypeScript 固定在 6.0.x，typescript-eslint 目前不支持 7.x。
@@ -52,6 +62,7 @@ pnpm data:backup      数据快照：data/backups/eab-data-<时间>.tar.gz，保
 
 - 资产 schema 的唯一来源是 `backend/eab-spec`，平台、命令行和后续的 Studio MCP Server 都从这里取，不要另写一份类型。前端只用到命名空间分层规则（`packages/ui/src/layers.ts`）。
 - 运行时组装规则在 `backend/eab-assembler`，修改前先读主提示词 5.4 节，改完必须补测试。
+- Agent 运行时在 `backend/eab-runtime`（Agent 循环、工具网关、技能与工作流、监督层、模型网关），平台里的 `RuntimeService` 把它的端口接到注册中心、令牌交换和审计上。
 - 鉴权逻辑只放在 `backend/eab-policy`、平台的身份服务和 DemoERP 的 BO API 层（`BoAuthorizer`），不要散落在业务代码里。
 - 身份透传失败一律拒绝，任何情况下都不能退回到技术账号。
 - 写操作级别、SoD、金额阈值这类硬约束写在工具定义、守卫和 BO API 里，不写在提示词里。

@@ -45,3 +45,17 @@ scripts/ecs.sh restore backups/ecs/<最新的快照>.tar.gz
 ```
 
 签名私钥必须和数据库一起恢复。数据库里的标品资产是用这把私钥签的，只恢复数据库、换了新密钥，所有标品资产都会因为验签失败被拒绝加载。如果快照丢了，删掉主机上的 `data/` 目录重新启动即可：平台会生成新密钥，并把仓库里的标品资产重新签名入库，代价是丢失运行期产生的数据。
+
+## 使用真实模型
+
+演示默认使用脚本化模型，不需要任何 Key。要在主机上用真实模型验证，在主机上创建 `/home/eab/.config/eab/model.env`（属主 eab，权限 600），systemd 单元会读取它；这个文件只存在于主机，不进仓库，也不进数据快照。
+
+```bash
+EAB_MODEL_PROVIDER=anthropic          # 或 openai（OpenAI 兼容协议）
+ANTHROPIC_API_KEY=...                 # openai 时用 OPENAI_API_KEY 和 EAB_OPENAI_BASE_URL
+# 可选：档位到模型名的映射，默认 fast=claude-haiku-5-5、reasoning=claude-sonnet-5-5、judge=claude-opus-5-5
+EAB_MODEL_REASONING=claude-sonnet-5-5
+```
+
+修改后执行 `systemctl restart eab-demo`。选了真实提供方却缺少 Key 时平台启动失败，日志里说明缺哪个变量，不会静默退回脚本化模型。删除这个文件并重启即回到脚本化模型。
+
