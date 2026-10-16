@@ -70,6 +70,11 @@ public final class SemanticService {
                 + pack.metadata().version();
     }
 
+    /** 挂载的语义包里的全部规则，约束守卫按它们的检查条件判断 */
+    public List<SemanticRule> rules() {
+        return packs.stream().flatMap(p -> orEmpty(p.spec().rules()).stream()).toList();
+    }
+
     public List<String> packRefs() {
         return packs.stream().map(SemanticService::packRef).toList();
     }

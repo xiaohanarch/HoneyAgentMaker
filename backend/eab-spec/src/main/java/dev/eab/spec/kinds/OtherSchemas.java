@@ -167,7 +167,8 @@ public final class OtherSchemas {
                 .optional("ref", string())
                 .field("severity", enumOf("block", "warn", "info"))
                 .optional("description", string())
-                .field("remedy", string().min(1));
+                .field("remedy", string().min(1))
+                .optional("check", object().field("tool", string().min(1)).field("when", string().min(1)));
         Schema verifiedTask = object().field(
                         "id", string().regex("^[A-Z][A-Z0-9]*-VT-\\d{3}$", "已验证任务编号格式应为 域-VT-三位数字"))
                 .field("question", string().min(1))

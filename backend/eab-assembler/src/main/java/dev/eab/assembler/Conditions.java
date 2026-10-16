@@ -75,6 +75,11 @@ public final class Conditions {
         return new Environment(Map.of("input", DYN_MAP, "user", DYN_MAP), null);
     }
 
+    /** 语义规则的检查条件只有一个变量 output，即工具的返回数据 */
+    public static Environment ruleCheckEnvironment() {
+        return new Environment(Map.of("output", DYN_MAP), null);
+    }
+
     /** 策略规则只有一个变量 input */
     public static Environment policyEnvironment() {
         return new Environment(Map.of("input", DYN_MAP), null);
