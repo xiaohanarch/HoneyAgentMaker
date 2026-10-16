@@ -5,6 +5,7 @@ import { percent } from './geometry'
 import { Button, Empty, ErrorLine, Loading, Pill, SectionHeader, shortTime, toneOf } from './ui'
 import { useHubAction, useHubQuery, useHubRole } from './use-hub'
 import type {
+  Inventory,
   EvalSuite,
   Regression,
   SolutionEntry,
@@ -119,11 +120,17 @@ function Score({ label, summary }: { label: string; summary: Regression['baselin
 /** 方案包：把扩展及其依赖的租户资产编译成带清单、哈希、签名的包，按 dev → test → prod 部署 */
 export function SolutionSection(): ReactNode {
   const list = useHubQuery<SolutionEntry[]>('/hub/solutions')
+  const inventory = useHubQuery<Inventory>('/hub/inventory')
   const { canWrite } = useHubRole()
+  // 方案以本租户对交易异常解析 Agent 的扩展为根：故事 B 在扩展编辑器里发布的、或演示完成态快照里的都可以
+  const root =
+    inventory.data?.edges.find(
+      (e) => e.from.startsWith('tenant.') && e.to === 'vendor.fin/transaction-anomaly-analyst',
+    )?.from ?? 'tenant.t001.finance/anomaly-analyst-ext'
   const compile = useHubAction<SolutionPackage>(
     'POST',
     () => '/hub/solutions/compile',
-    () => ({ name: 'finance-extension', root: 'tenant.t001.finance/anomaly-analyst-ext' }),
+    () => ({ name: 'finance-extension', root }),
   )
   const deploy = useHubAction<unknown, { id: string; environment: string }>(
     'POST',

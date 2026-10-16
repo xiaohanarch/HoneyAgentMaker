@@ -92,9 +92,33 @@ public final class ExtensionReleases {
         String suiteRef = ExtensionComposer.evalNamespaceFor(user.tenantId()) + "/"
                 + tree.path("metadata").path("name").asString() + "-smoke";
         ((ObjectNode) tree.path("spec")).putObject("evals").putArray("suites").add(suiteRef);
-        String evalYaml = ExtensionComposer.evalSuite(user.tenantId(), user.id(), tree, List.of(c));
+        List<Map<String, Object>> cases = new ArrayList<>(List.of(c));
+        hookCase(ext, testUser, question).ifPresent(cases::add);
+        String evalYaml = ExtensionComposer.evalSuite(user.tenantId(), user.id(), tree, cases);
         return studio().view(studio().drafts()
                 .update(draft, draft.namespace(), draft.name(), draft.step(), ExtensionComposer.write(tree), evalYaml));
+    }
+
+    /**
+     * 扩展挂了结果钩子时，再生成一个用例断言钩子确实执行了（调用了钩子的工作流或技能）。
+     * 标品升级把钩子条件引用的字段改名后，钩子会被停用，这个用例随之失败，升级回归据此发现问题（故事 F）。
+     */
+    static java.util.Optional<Map<String, Object>> hookCase(AgentExtensionAsset ext, String testUser, String question) {
+        if (ext.spec().hooks() == null) return java.util.Optional.empty();
+        List<Map<String, Object>> assertions = new ArrayList<>();
+        for (var hook : ext.spec().hooks().of("onResult")) {
+            String ref = hook.workflow() != null ? hook.workflow() : hook.skill();
+            if (ref == null) continue;
+            String name = ref.substring(ref.indexOf('/') + 1).replaceAll("@.*$", "");
+            assertions.add(Map.of("type", "calledTool", "tool", name, "description", "结果钩子触发，调用了 " + name));
+        }
+        if (assertions.isEmpty()) return java.util.Optional.empty();
+        Map<String, Object> c = new LinkedHashMap<>();
+        c.put("id", "extension-hooks");
+        c.put("user", testUser);
+        c.put("question", question);
+        c.put("assertions", assertions);
+        return java.util.Optional.of(c);
     }
 
     public DraftView putEvals(DemoUser user, String id, String yaml) {

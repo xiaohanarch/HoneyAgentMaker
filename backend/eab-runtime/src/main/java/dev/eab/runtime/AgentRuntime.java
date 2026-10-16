@@ -473,6 +473,19 @@ public final class AgentRuntime {
                     .set(
                             "eab.hook.layer",
                             hook.layer() == null ? null : hook.layer().name());
+            // 推送 hook 事件：界面和评测据此知道钩子执行了（钩子里的写操作被拒绝时也算执行过）
+            String hookName = target.substring(target.indexOf('/') + 1).replaceAll("@.*$", "");
+            exec.emit(RunEvent.of(
+                    "hook",
+                    exec.ctx().agent(),
+                    "event",
+                    "onResult",
+                    "target",
+                    target,
+                    "name",
+                    hookName,
+                    "source",
+                    hook.source()));
             Exec inner = exec.under(span, segment);
             String failure;
             try {

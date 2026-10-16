@@ -5,7 +5,9 @@
 // 需要先完成故事 B（node scripts/acceptance-p6.mjs）。脚本会撤销库存 Agent 的委托、发布标品 1.3.0、
 // 写入租户语义包，结束后运行 pnpm seed:reset 恢复。
 const PLATFORM = process.env.EAB_PLATFORM_URL ?? 'http://127.0.0.1:4000'
-const EXTENSION = 'tenant.t001.finance/anomaly-analyst-ext'
+// 故事 B 发布的扩展名取决于在扩展编辑器里怎么建（例如 tenant.t001.extensions/transaction-anomaly-analyst-ext），
+// 也可能是演示完成态快照里的 tenant.t001.finance/anomaly-analyst-ext；下面按血缘图里指向标品的边来找
+let EXTENSION = 'tenant.t001.finance/anomaly-analyst-ext'
 const ANALYST = 'vendor.pur/supplier-performance-analyst'
 
 let failures = 0
@@ -111,7 +113,8 @@ check(
 )
 
 const delegations = (await call('GET', '/identity/v1/delegations', 'zhaoadmin')).body?.data ?? []
-const active = delegations.find((d) => d.revokedAt === null)
+// 接口不输出值为 null 的字段，未撤销的委托没有 revokedAt
+const active = delegations.find((d) => d.revokedAt == null)
 const revoked = await call('DELETE', `/identity/v1/delegations/${active?.id}`, 'zhaoadmin')
 check('管理员撤销库存 Agent 的委托', revoked.status === 200, active?.id ?? '没有有效委托')
 await call('POST', '/demo/v1/events', 'zhaoadmin', { type: 'inventory.below_safety_stock' })
@@ -143,6 +146,10 @@ check(
 // ── 故事 F：治理与演进 ──
 
 const inventory = (await call('GET', '/hub/inventory', 'zhaoadmin')).body?.data
+EXTENSION =
+  (inventory?.edges ?? []).find(
+    (e) => e.from.startsWith('tenant.t001.') && e.to === 'vendor.fin/transaction-anomaly-analyst',
+  )?.from ?? EXTENSION
 const hasExtension = (inventory?.items ?? []).some((i) => i.ref === EXTENSION)
 check('资产清单里有交易异常扩展（需先完成故事 B）', hasExtension)
 check(
@@ -158,7 +165,8 @@ if (hasExtension) {
   check(
     '发布标品 1.3.0 后自动回归：钩子用例失败，并指出钩子条件失效',
     regression?.status === 'failed' &&
-      regression.regressions.includes('followup-hook-fires') &&
+      // 钩子用例：完成态快照里叫 followup-hook-fires，扩展编辑器按扩展内容生成的叫 extension-hooks
+      regression.regressions.some((c) => ['followup-hook-fires', 'extension-hooks'].includes(c)) &&
       regression.issues.some((i) => i.includes('HOOK_CONDITION_INVALID')),
     upgrade.status === 200
       ? (regression?.regressions ?? []).join('、')

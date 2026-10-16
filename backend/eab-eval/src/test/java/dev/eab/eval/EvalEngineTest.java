@@ -266,4 +266,18 @@ class EvalEngineTest {
         assertThat(JsonObjects.parse("没有 JSON")).isNull();
         assertThat(JsonObjects.parse(null)).isNull();
     }
+
+    @Test
+    @DisplayName("结果钩子执行的工作流算调用过：钩子里的写操作被拒绝时，calledTool 断言仍然通过")
+    void hookEventsCountAsCalls() {
+        var run = new CaseRun(
+                "回复",
+                Map.of(),
+                List.of(
+                        RunEvent.of("tool_call", "a/b", "tool", "transaction_anomaly_list"),
+                        RunEvent.of("hook", "a/b", "event", "onResult", "name", "create-followup-task")),
+                "completed",
+                null);
+        assertThat(run.calledTools()).containsExactly("transaction_anomaly_list", "create-followup-task");
+    }
 }

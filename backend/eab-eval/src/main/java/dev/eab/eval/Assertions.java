@@ -36,6 +36,8 @@ public final class Assertions {
             Set<String> tools = new LinkedHashSet<>();
             for (RunEvent e : events) {
                 if (e.type().equals("tool_call") && e.data().get("tool") instanceof String t) tools.add(t);
+                // 结果钩子执行的工作流或技能也算调用过（hook 事件），钩子里的写操作被拒绝时同样算
+                if (e.type().equals("hook") && e.data().get("name") instanceof String n) tools.add(n);
             }
             return tools;
         }

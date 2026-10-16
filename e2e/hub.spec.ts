@@ -8,7 +8,7 @@ const RUN_TIMEOUT = { timeout: 30_000 }
 async function openHub(page: Page, userId: string, tab?: string): Promise<void> {
   await page.addInitScript((id) => localStorage.setItem('eab.identity', id), userId)
   await page.goto(tab === undefined ? '/hub' : `/hub?tab=${tab}`)
-  await expect(page.getByRole('heading', { name: '治理中心' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '治理中心' })).toBeVisible(RUN_TIMEOUT)
 }
 
 test('业务用户进入治理中心只看到提示，没有分区导航', async ({ page }) => {
@@ -41,9 +41,9 @@ test('运行指标：生成 30 天演示数据后显示技术指标表、流程�
 }) => {
   await openHub(page, 'zhaoadmin', 'metrics')
   await page.getByRole('button', { name: '生成 30 天演示数据' }).click()
-  await expect(page.getByText('技术指标')).toBeVisible(RUN_TIMEOUT)
-  await expect(page.getByText('流程指标')).toBeVisible()
-  await expect(page.getByText('业务结果')).toBeVisible()
+  await expect(page.getByText('技术指标', { exact: true })).toBeVisible(RUN_TIMEOUT)
+  await expect(page.getByText('流程指标', { exact: true })).toBeVisible()
+  await expect(page.getByText('业务结果', { exact: true })).toBeVisible()
   await expect(page.getByText('岗位助手 KPI')).toBeVisible()
   await expect(page.getByRole('img', { name: '每日运行次数与失败次数' })).toBeVisible()
 })
@@ -75,6 +75,14 @@ test('经验回流：王芳在结果卡片上点“结论有误”提交理由�
   await page.getByLabel('输入问题').fill('本月有哪些高风险交易异常')
   await page.getByRole('button', { name: '发送' }).click()
   const result = page.getByTestId('result-card')
+  // 故事 B 的扩展发布后（e2e/extend.spec.ts 先运行），回答前要确认 IM 通知和跟进任务；只点可用的确认按钮
+  const confirm = page.getByRole('button', { name: '确认执行', disabled: false })
+  for (let i = 0; i < 5; i++) {
+    await expect(confirm.or(result).first()).toBeVisible(RUN_TIMEOUT)
+    if ((await result.count()) > 0) break
+    await confirm.first().click()
+    await expect(confirm).toHaveCount(0, RUN_TIMEOUT)
+  }
   await expect(result).toBeVisible(RUN_TIMEOUT)
   await result.getByRole('button', { name: '结论有误' }).click()
   await result.getByRole('textbox').fill('这类跨期冲销不算异常')
