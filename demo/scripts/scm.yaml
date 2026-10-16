@@ -44,3 +44,24 @@ scripts:
                 relatedObject: '{{vars.material}}',
               }
       - reply: '{{#tools.create_followup_task.item}}已创建跟进任务 {{id}}：“{{title}}”，指派给 {{assignee}}。{{/tools.create_followup_task.item}}{{#tools.create_followup_task.error}}没有创建跟进任务：{{reason}}{{/tools.create_followup_task.error}}'
+
+  - id: scm-delivery-overdue-event
+    description: 业务事件触发（受托自主运行）：交付逾期事件到达后，评估逾期物料对库存的影响，结果推送到委托人的通知区
+    agent: vendor.scm/inventory-risk-analyst
+    match:
+      all: [交付逾期事件]
+      pattern: '(?<material>M-\d{4})'
+    vars: { material: M-0007 }
+    steps:
+      - thought: 定位逾期订单涉及的物料 {{vars.material}}，查看它的库存余额
+        calls:
+          - { tool: inventory_balance_list, args: { materialId: '{{vars.material}}' } }
+      - reply: |
+          交付逾期影响评估（受托自主运行，只读）：
+          {{#tools.inventory_balance_list.items}}
+          - {{materialId}} {{materialName}}（{{warehouseName}}）：可用 {{quantity}} {{unit}}，安全库存 {{safetyStock}} {{unit}}{{#belowSafetyStock}}，已低于安全库存{{/belowSafetyStock}}
+          {{/tools.inventory_balance_list.items}}
+          建议：优先与供应商确认逾期订单的新交期；可用量低于安全库存时，由采购部评估临时补货。本次为受托运行，没有执行任何写操作。
+        output:
+          riskLevel: "=tools.inventory_balance_list.items.exists(b, b.belowSafetyStock) ? 'high' : 'medium'"
+          shortageItems: "=tools.inventory_balance_list.items.filter(b, b.belowSafetyStock).map(b, b.materialId)"

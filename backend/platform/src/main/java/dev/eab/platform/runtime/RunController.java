@@ -6,6 +6,7 @@ import dev.eab.platform.http.ApiResponse;
 import dev.eab.platform.http.Principals;
 import dev.eab.platform.http.Principals.Principal;
 import dev.eab.platform.http.RateLimiter;
+import dev.eab.platform.http.SseRuns;
 import dev.eab.platform.runtime.RuntimeStores.RunRecord;
 import dev.eab.runtime.Journal;
 import dev.eab.runtime.RunEvents.RunEvent;
@@ -17,7 +18,6 @@ import dev.eab.tracing.TraceView;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -33,7 +33,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 /**
  * 运行接口（主提示词 8.1.1 节）：发起运行、确认或拒绝、读取追踪、查看和清除记忆。
@@ -140,27 +139,7 @@ public class RunController {
             var outcome = work.apply(events::add);
             return ApiResponse.success(view(outcome, events));
         }
-        SseEmitter emitter = new SseEmitter(SSE_TIMEOUT_MILLIS);
-        Thread.ofVirtual().start(() -> {
-            try {
-                work.apply(event -> send(emitter, event));
-                emitter.complete();
-            } catch (RuntimeException e) {
-                send(emitter, RunEvent.of("error", null, "code", "RUN_FAILED", "message", e.getMessage()));
-                emitter.complete();
-            }
-        });
-        return emitter;
-    }
-
-    private static void send(SseEmitter emitter, RunEvent event) {
-        try {
-            emitter.send(SseEmitter.event()
-                    .name(event.type())
-                    .data(Json.MAPPER.writeValueAsString(event), MediaType.APPLICATION_JSON));
-        } catch (IOException e) {
-            // 浏览器断开后运行照常完成，结果和追踪仍可以通过 GET /runs/{id}、GET /traces/{traceId} 查看
-        }
+        return SseRuns.start(SSE_TIMEOUT_MILLIS, "RUN_FAILED", work::apply);
     }
 
     private static RunView view(RuntimeService.RunOutcome outcome, List<RunEvent> events) {

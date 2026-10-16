@@ -42,3 +42,56 @@ scripts:
           longOverdueCount: '=size(tools.purchase_order_list.items.filter(p, p.overdueDays > 90))'
           lateDeliveries: '=size(tools.delivery_list.items.filter(d, d.actualDate != null && d.actualDate > d.plannedDate))'
           risks: "=tools.purchase_order_list.items.filter(p, p.overdueDays > 90).map(p, p.id + ' 逾期 ' + string(p.overdueDays) + ' 天')"
+
+  - id: pur-overdue-delivery-rate
+    description: 分析型：按语义包口径计算本季度逾期交付率，回答附口径说明，数据按用户的采购组织过滤
+    agent: vendor.pur/supplier-performance-analyst
+    match:
+      all: [逾期交付率]
+    steps:
+      - thought: 先取逾期交付率的口径，再统计本季度的交付记录
+        calls:
+          - { tool: semantic.get_metric, args: { name: overdue_delivery_rate } }
+          - { tool: delivery_list, args: { from: '{{quarterStart}}', to: '{{today}}', limit: 200 } }
+      - reply: |
+          本季度（{{quarterStart}} 至 {{today}}）计划交付的记录共 {{tools.delivery_list.total}} 条，其中逾期 {{output.late}} 条，逾期交付率 {{output.rate}}%。
+
+          口径说明：{{tools.semantic_get_metric.displayName}}，{{tools.semantic_get_metric.definition}}。口径来自语义包 {{tools.semantic_get_metric.provenance.semanticPack}}。
+          数据范围：{{tools.delivery_list.scopeLabel}}，只统计你有权查看的采购组织。
+        output:
+          period: '{{quarterStart}}'
+          total: '=tools.delivery_list.total'
+          late: "=size(tools.delivery_list.items.filter(d, d.actualDate == null ? d.plannedDate < today : d.actualDate > d.plannedDate))"
+          rate: "=tools.delivery_list.total == 0 ? 0.0 : double(int(double(size(tools.delivery_list.items.filter(d, d.actualDate == null ? d.plannedDate < today : d.actualDate > d.plannedDate))) * 1000.0 / double(tools.delivery_list.total))) / 10.0"
+
+  - id: pur-change-delivery-date
+    description: 事务型：把订单交期改到下月 15 号，提交交期变更单，写入前需要确认
+    agent: vendor.pur/purchase-order-clerk
+    match:
+      all: [交期]
+      pattern: '(?<po>PO-\d{4}-\d{4})'
+    steps:
+      - thought: 为 {{vars.po}} 提交交期变更单，新交期 {{nextMonth}}-15，写入前需要你确认
+        calls:
+          - tool: purchase_order_change_delivery_date
+            args: { poId: '{{vars.po}}', newDate: '{{nextMonth}}-15', reason: 用户在统一入口发起 }
+      - reply: '{{#tools.purchase_order_change_delivery_date.item}}已提交交期变更单 {{id}}：{{poId}} 的交期由 {{oldDate}} 改为 {{newDate}}，当前状态为待审批。按职责分离要求，需要由你以外有审批权限的同事审批后才生效。{{/tools.purchase_order_change_delivery_date.item}}{{#tools.purchase_order_change_delivery_date.error}}没有提交交期变更：{{reason}}{{/tools.purchase_order_change_delivery_date.error}}'
+
+  - id: pur-negotiation-policy
+    description: 信息型：检索采购管理制度，回答附出处
+    agent: vendor.pur/procurement-policy-advisor
+    match:
+      any: [制度, 规定, 办法]
+    steps:
+      - thought: 在采购管理制度里检索相关条款
+        calls:
+          - { tool: kb_procurement_policies, args: { query: '{{utterance}}' } }
+      - reply: |
+          {{#tools.kb_procurement_policies.items.0}}根据《{{title}}》，相关条款如下：{{/tools.kb_procurement_policies.items.0}}
+          {{#tools.kb_procurement_policies.items}}
+
+          {{text}}
+          （出处：{{title}}，{{source}}）
+          {{/tools.kb_procurement_policies.items}}
+
+          以上是制度原文，具体执行以本企业正式发布的版本为准。

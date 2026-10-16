@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import tools.jackson.databind.json.JsonMapper;
 
 /**
  * Agent 循环（主提示词 8.1.1 节）：自研的轻量循环，保持源码可读。一次运行的流程：
@@ -72,7 +73,21 @@ public final class AgentRuntime {
             String delegationId,
             RunContext.Subject subject,
             String agent,
-            String utterance) {}
+            String utterance,
+            Map<String, Object> routing) {
+
+        public RunRequest(
+                String runId,
+                String sessionId,
+                RunContext.User user,
+                String mode,
+                String delegationId,
+                RunContext.Subject subject,
+                String agent,
+                String utterance) {
+            this(runId, sessionId, user, mode, delegationId, subject, agent, utterance, null);
+        }
+    }
 
     /**
      * 运行结果。
@@ -103,6 +118,8 @@ public final class AgentRuntime {
                 .set("eab.delegation.id", request.delegationId())
                 .set("gen_ai.system", deps.gateway().providerName());
         try {
+            // 恢复运行时 routing 为 null：路由 span 在第一次执行时已经写入同一条追踪
+            if (request.routing() != null) recordRouting(root, request.routing(), sink, request.agent());
             EffectiveDefinition definition = assemble(
                     root, "run/assemble", request.agent(), request.user().tenantId());
             String token =
@@ -185,6 +202,32 @@ public final class AgentRuntime {
         }
     }
 
+    /** 路由记录里写进 span 属性的键 */
+    public static final List<String> ROUTING_KEYS =
+            List.of("query", "levels", "target", "assistant", "confidence", "reason", "decidedBy");
+
+    private static final JsonMapper JSON = JsonMapper.builder().build();
+
+    /**
+     * 路由决策（主提示词 9.2 节第 4 步）：候选、分数、过滤原因、选择与理由写进同一条追踪，并作为第一个事件推给调用方。
+     */
+    public static void recordRouting(Span root, Map<String, Object> routing, RunEvents.Sink sink, String agent) {
+        Span span = root.tracer()
+                .start(
+                        "路由 · " + routing.getOrDefault("target", agent),
+                        SpanKind.routing,
+                        root,
+                        "run/routing",
+                        Map.of());
+        for (String key : ROUTING_KEYS) {
+            Object value = routing.get(key);
+            if (value != null)
+                span.set("eab.routing." + key, value instanceof String ? value : JSON.writeValueAsString(value));
+        }
+        span.end();
+        if (sink != null) sink.accept(new RunEvent("routing", agent, routing));
+    }
+
     private EffectiveDefinition assemble(Span parent, String key, String agent, String tenantId) {
         Span span = parent.tracer().start("组装 · " + agent, SpanKind.assemble, parent, key, Map.of());
         try {
@@ -233,7 +276,8 @@ public final class AgentRuntime {
                 deps.memory().longTerm(ctx.tenantId(), ctx.user().id(), ctx.agent());
         List<Turn> turns = new ArrayList<>();
         if (withSession) {
-            for (List<String> pair : deps.memory().session(ctx.sessionId())) {
+            for (List<String> pair : deps.memory()
+                    .session(ctx.sessionId(), ctx.tenantId(), ctx.user().id())) {
                 turns.add(new UserTurn(pair.get(0)));
                 turns.add(new AssistantTurn(pair.get(1), List.of()));
             }
@@ -300,6 +344,13 @@ public final class AgentRuntime {
             cost += result.costUsd();
             leaked.addAll(result.leakedSegments());
             if (result.toolCalls().isEmpty()) {
+                if (result.text() == null || result.text().isBlank()) {
+                    // 带推理过程的模型可能把输出上限全用在推理上，正文为空；明确失败，不给用户一个空回复
+                    throw new ModelException(
+                            "MODEL_EMPTY_REPLY",
+                            "模型没有给出回复（结束原因 " + result.stopReason() + "）。如果结束原因是输出长度，可以调大 EAB_MODEL_MAX_TOKENS",
+                            null);
+                }
                 text = result.text();
                 output = result.output();
                 break;

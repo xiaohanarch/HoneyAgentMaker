@@ -11,9 +11,25 @@ import tools.jackson.databind.json.JsonMapper;
  * Key 只从环境变量读取，不写入任何文件；选择了真实提供方却缺少 Key 或模型名时启动即报错，而不是静默退回脚本化模型。
  *
  * @param prices 每百万 token 的美元单价，用于估算成本
+ * @param maxTokens 单次调用的输出上限。带推理过程的模型（例如 GLM-5.3）推理也计入输出，上限太小时会没有正文
+ * @param timeoutSeconds 单次请求的超时。厂商模块默认 60 秒，推理模型处理大输入时常常超过
+ * @param maxRetries 请求失败或超时后的重试次数。厂商模块默认 3 次，慢模型超时后重发同样的请求只会更慢
  */
 public record GatewayConfig(
-        String provider, Map<String, String> profiles, String baseUrl, String apiKey, Map<String, Price> prices) {
+        String provider,
+        Map<String, String> profiles,
+        String baseUrl,
+        String apiKey,
+        Map<String, Price> prices,
+        int maxTokens,
+        int timeoutSeconds,
+        int maxRetries) {
+
+    public static final int DEFAULT_MAX_TOKENS = 16_384;
+    static final int MIN_MAX_TOKENS = 256;
+    static final int MAX_MAX_TOKENS = 131_072;
+    public static final int DEFAULT_TIMEOUT_SECONDS = 300;
+    public static final int DEFAULT_MAX_RETRIES = 1;
 
     public static final List<String> PROVIDERS = List.of("scripted", "openai", "anthropic");
     public static final List<String> PROFILES = List.of("fast", "reasoning", "judge");
@@ -53,6 +69,9 @@ public record GatewayConfig(
             String value = env.get("EAB_MODEL_" + profile.toUpperCase());
             profiles.put(profile, blank(value) ? DEFAULT_PROFILES.get(provider).get(profile) : value);
         }
+        int maxTokens = parseMaxTokens(env.get("EAB_MODEL_MAX_TOKENS"));
+        int timeoutSeconds = parseInt(env, "EAB_MODEL_TIMEOUT_SECONDS", DEFAULT_TIMEOUT_SECONDS, 10, 3600);
+        int maxRetries = parseInt(env, "EAB_MODEL_MAX_RETRIES", DEFAULT_MAX_RETRIES, 0, 5);
         Map<String, Price> prices = new LinkedHashMap<>(DEFAULT_PRICES);
         prices.putAll(parsePrices(env.get("EAB_MODEL_PRICES")));
         return switch (provider) {
@@ -62,7 +81,10 @@ public record GatewayConfig(
                         profiles,
                         env.getOrDefault("EAB_ANTHROPIC_BASE_URL", "https://api.anthropic.com"),
                         require(env, "ANTHROPIC_API_KEY"),
-                        prices);
+                        prices,
+                        maxTokens,
+                        timeoutSeconds,
+                        maxRetries);
             case "openai" -> {
                 String apiKey = require(env, "OPENAI_API_KEY");
                 String baseUrl = require(env, "EAB_OPENAI_BASE_URL");
@@ -71,10 +93,35 @@ public record GatewayConfig(
                         throw new ConfigException("OpenAI 兼容提供方需要设置 EAB_MODEL_" + profile.toUpperCase());
                     }
                 });
-                yield new GatewayConfig(provider, profiles, baseUrl, apiKey, prices);
+                yield new GatewayConfig(
+                        provider, profiles, baseUrl, apiKey, prices, maxTokens, timeoutSeconds, maxRetries);
             }
-            default -> new GatewayConfig(provider, profiles, null, null, prices);
+            default -> new GatewayConfig(provider, profiles, null, null, prices, maxTokens, timeoutSeconds, maxRetries);
         };
+    }
+
+    static int parseInt(Map<String, String> env, String name, int defaultValue, int min, int max) {
+        String value = env.get(name);
+        if (blank(value)) return defaultValue;
+        try {
+            int parsed = Integer.parseInt(value.strip());
+            if (parsed >= min && parsed <= max) return parsed;
+        } catch (NumberFormatException e) {
+            // 落到下面的报错
+        }
+        throw new ConfigException(name + " 应为 " + min + " 到 " + max + " 之间的整数，实际为 " + value);
+    }
+
+    static int parseMaxTokens(String value) {
+        if (blank(value)) return DEFAULT_MAX_TOKENS;
+        try {
+            int parsed = Integer.parseInt(value.strip());
+            if (parsed >= MIN_MAX_TOKENS && parsed <= MAX_MAX_TOKENS) return parsed;
+        } catch (NumberFormatException e) {
+            // 落到下面的报错
+        }
+        throw new ConfigException(
+                "EAB_MODEL_MAX_TOKENS 应为 " + MIN_MAX_TOKENS + " 到 " + MAX_MAX_TOKENS + " 之间的整数，实际为 " + value);
     }
 
     private static boolean blank(String value) {

@@ -95,7 +95,7 @@ final class TestRuntime {
                     }
 
                     @Override
-                    public List<List<String>> session(String sessionId) {
+                    public List<List<String>> session(String sessionId, String tenantId, String userId) {
                         return session;
                     }
 

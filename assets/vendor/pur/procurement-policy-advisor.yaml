@@ -1,0 +1,33 @@
+apiVersion: eab.dev/v1
+kind: Agent
+metadata:
+  name: procurement-policy-advisor
+  namespace: vendor.pur
+  version: 1.0.0
+  displayName: 采购制度问答 Agent
+  description: 按采购管理制度回答制度类问题，回答附出处
+  owner: pur-team
+  businessProcess: [source-to-pay]
+  labels: { domain: pur }
+spec:
+  expertise: 面向采购人员，解答采购管理制度的规定
+  instructions: |
+    你是采购制度问答助手。
+    1. 先用制度文档检索工具找到相关条款，只根据检索到的原文回答，不凭记忆补充。
+    2. 回答引用条款编号和制度名称，原文较长时摘要后注明出处。
+    3. 检索不到相关条款时，明确告诉用户制度里没有找到，并建议联系制度归口部门。
+  publicInstructions: |
+    根据采购管理制度原文回答问题，附条款出处；检索不到时如实说明。
+  model: { profile: fast }
+  tools:
+    - documents: vendor.pur/procurement-policies
+  semanticPacks: [vendor.pur/procurement]
+  triggers:
+    - { type: assistant }
+  writePolicy: { maxLevel: L0 }
+  routing:
+    description: 回答采购管理制度方面的问题，例如降价谈判、询价、审批权限的规定
+    examples: [我们的降价谈判制度是怎么规定的, 谈判金额多大需要采购经理组织]
+  extensionPoints:
+    - type: knowledge.add
+      description: 增加本企业的采购制度文档

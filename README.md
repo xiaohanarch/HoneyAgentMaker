@@ -47,6 +47,7 @@ docker compose up --build      # 独立安装的旧版 Compose 用 docker-compos
 | `pnpm typecheck` | 前端的 TypeScript 类型检查 |
 | `pnpm seed:reset` | 把演示数据重置到初始状态 |
 | `pnpm agent:run <Agent> --user <用户> "<话术>"` | 在命令行里跑一次 Agent，打印流式结果和追踪树，断网可用 |
+| `node scripts/acceptance-p4.mjs` | 对运行中的演示环境做统一入口的阶段验收（只用 HTTP） |
 | `pnpm assets:validate` | 校验 `assets/` 下全部资产 |
 | `pnpm format` | Prettier 与 Spotless 格式化 |
 

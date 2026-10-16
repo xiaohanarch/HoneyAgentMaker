@@ -51,6 +51,8 @@ import tools.jackson.databind.json.JsonMapper;
  */
 public final class ModelGateway {
 
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(ModelGateway.class);
+
     private static final JsonMapper JSON = JsonMapper.builder().build();
     private static final int MAX_TEXT_IN_TRACE = 2000;
 
@@ -59,7 +61,15 @@ public final class ModelGateway {
 
     public ModelGateway(ChatModel chatModel, GatewayConfig config) {
         this.client = ChatClient.builder(chatModel).build();
+        this.chatModel = chatModel;
         this.config = config;
+    }
+
+    private final ChatModel chatModel;
+
+    /** 底层的模型，路由决策等不经过 Agent 管道的调用使用 */
+    public ChatModel chatModel() {
+        return chatModel;
     }
 
     public GatewayConfig config() {
@@ -232,9 +242,19 @@ public final class ModelGateway {
             span.fail(e.getMessage());
             throw e;
         } catch (RuntimeException e) {
-            span.fail(e.getMessage());
-            throw new ModelException("MODEL_CALL_FAILED", "模型调用失败：" + e.getMessage(), e);
+            // 厂商 SDK 的异常信息常常只有一句概括（例如 Request failed），根因在 cause 链的末端
+            String cause = rootCause(e);
+            LOG.warn("模型调用失败：{}", cause, e);
+            span.fail(cause);
+            throw new ModelException("MODEL_CALL_FAILED", "模型调用失败：" + cause, e);
         }
+    }
+
+    static String rootCause(Throwable e) {
+        Throwable root = e;
+        while (root.getCause() != null && root.getCause() != root) root = root.getCause();
+        String message = root.getMessage() == null ? root.getClass().getSimpleName() : root.getMessage();
+        return root == e ? message : e.getMessage() + "（" + root.getClass().getSimpleName() + "：" + message + "）";
     }
 
     private static String truncate(String text) {

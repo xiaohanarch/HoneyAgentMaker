@@ -3,17 +3,28 @@ kind: Assistant
 metadata:
   name: procurement-assistant
   namespace: vendor.pur
-  version: 1.0.0
+  version: 1.1.0
   displayName: 采购助手
   description: 采购岗位的助手，编排供应商绩效分析等采购域 Agent
   owner: pur-team
   businessProcess: [source-to-pay]
 spec:
-  members: [vendor.pur/supplier-performance-analyst]
+  members:
+    [
+      vendor.pur/supplier-performance-analyst,
+      vendor.pur/purchase-order-clerk,
+      vendor.pur/procurement-policy-advisor,
+    ]
   routing:
     description: 处理供应商、询价、采购订单、交付相关的问题和操作
     examples:
-      [百润精密最近表现怎么样, 把 PO-2026-0117 的交期改到下月 15 号, 打开百润精密的供应商详情]
+      [
+        百润精密最近表现怎么样,
+        把 PO-2026-0117 的交期改到下月 15 号,
+        打开百润精密的供应商详情,
+        我们的降价谈判制度是怎么规定的,
+        华东区本季度逾期交付率是多少,
+      ]
   kpis:
     - { name: on_time_delivery_rate, displayName: 准时交付率, unit: '%', target: 95, direction: up }
     - {

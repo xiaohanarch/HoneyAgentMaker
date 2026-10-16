@@ -34,18 +34,37 @@ as_eab "pnpm assets:validate"
 log "Java 后端构建与测试（Maven 镜像在 /home/eab/.m2/settings.xml）"
 as_eab "pnpm -s test:java"
 
+restart_service() {
+  systemctl restart eab-demo
+  for i in $(seq 1 60); do
+    curl -fsS http://127.0.0.1:4000/health >/dev/null 2>&1 \
+      && curl -fsS http://127.0.0.1:4100/health >/dev/null 2>&1 \
+      && curl -fsS http://127.0.0.1:5173/ >/dev/null 2>&1 && break
+    sleep 2
+  done
+  curl -fsS http://127.0.0.1:4000/health && echo
+}
+
+# 真实模型配置只在主机上，不进仓库。端到端测试按脚本化模型的确定输出断言，测试期间暂时移开，结束后一定恢复
+MODEL_ENV=/home/eab/.config/eab/model.env
+restore_model_env() {
+  if [ -f "$MODEL_ENV.paused" ]; then
+    mv "$MODEL_ENV.paused" "$MODEL_ENV"
+    log "已恢复真实模型配置，重启服务"
+    restart_service
+  fi
+}
+trap restore_model_env EXIT
+
 log "重启服务"
 install -m 644 "$APP/deploy/eab-demo.service" /etc/systemd/system/eab-demo.service
 systemctl daemon-reload
 systemctl enable -q eab-demo
-systemctl restart eab-demo
-for i in $(seq 1 60); do
-  curl -fsS http://127.0.0.1:4000/health >/dev/null 2>&1 \
-    && curl -fsS http://127.0.0.1:4100/health >/dev/null 2>&1 \
-    && curl -fsS http://127.0.0.1:5173/ >/dev/null 2>&1 && break
-  sleep 2
-done
-curl -fsS http://127.0.0.1:4000/health && echo
+if [ "$SKIP_E2E" != "--skip-e2e" ] && [ -f "$MODEL_ENV" ]; then
+  log "端到端测试期间暂时改用脚本化模型"
+  mv "$MODEL_ENV" "$MODEL_ENV.paused"
+fi
+restart_service
 
 if [ "$SKIP_E2E" != "--skip-e2e" ]; then
   log "端到端测试（复用正在运行的演示环境）"
@@ -58,6 +77,7 @@ if [ "$SKIP_E2E" != "--skip-e2e" ]; then
   fi
   as_eab "pnpm test:e2e --reporter=line"
 fi
+restore_model_env
 
 log "数据快照"
 as_eab "pnpm -s data:backup"
