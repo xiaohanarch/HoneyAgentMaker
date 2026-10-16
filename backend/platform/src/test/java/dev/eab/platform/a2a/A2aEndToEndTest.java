@@ -312,4 +312,49 @@ class A2aEndToEndTest {
         assertThat(reply.state()).isEqualTo("failed");
         assertThat(reply.text()).contains("身份透传失败");
     }
+
+    @Test
+    @DisplayName("接入外部 Agent：陈工输入 Agent Card 地址看到技能和建议配置，连通性测试展示请求与响应原文，发布后进入能力目录")
+    void studioConnectsExternalAgent() throws Exception {
+        String cardUrl = remote.url + "/.well-known/agent-card.json";
+        JsonNode inspected = call("POST", "/studio/external/inspect", "chengong", Map.of("cardUrl", cardUrl));
+        assertThat(inspected.path("success").asBoolean()).as(inspected.toString()).isTrue();
+        JsonNode data = inspected.path("data");
+        assertThat(data.path("card").path("name").asString()).isEqualTo("供应商风险舆情 Agent");
+        assertThat(data.path("card").path("streaming").asBoolean()).isTrue();
+        assertThat(data.path("skills").toString()).contains("supplier-risk");
+        assertThat(data.path("suggestion").path("connection").asString()).isEqualTo("SUPPLIER_RISK_AGENT");
+        assertThat(data.path("suggestion").path("name").asString()).isEqualTo("supplier-risk");
+
+        JsonNode tested = call(
+                "POST", "/studio/external/test", "chengong", Map.of("cardUrl", cardUrl, "message", "百润精密最近有没有什么风险"));
+        assertThat(tested.path("data").path("state").asString()).as(tested.toString()).isEqualTo("completed");
+        assertThat(tested.path("data").path("exchanges").toString()).contains("agent-card.json", "Bearer ***");
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("cardUrl", cardUrl);
+        body.put("name", "supplier-risk");
+        body.put("displayName", "供应商风险舆情 Agent");
+        body.put("connection", "SUPPLIER_RISK_AGENT");
+        body.put("assistant", "vendor.pur/procurement-assistant");
+        body.put("routing", Map.of("description", "查询供应商的外部风险和舆情", "examples", java.util.List.of("百润精密最近有没有什么风险")));
+        JsonNode published = call("POST", "/studio/external/publish", "chengong", body);
+        assertThat(published.path("data").path("ref").asString()).as(published.toString())
+                .startsWith("tenant.t001.remote/supplier-risk@");
+        assertThat(call("GET", "/studio/external", "chengong", null).path("data").toString())
+                .contains("tenant.t001.remote/supplier-risk", "vendor.pur/procurement-assistant");
+        assertThat(call("GET", "/studio/catalog", "chengong", null).path("data").path("agents").toString())
+                .contains("tenant.t001.remote/supplier-risk");
+    }
+
+    @Test
+    @DisplayName("接入外部 Agent：未登记的外部地址拒绝访问，非开发者不能使用")
+    void studioExternalGuards() throws Exception {
+        JsonNode foreign = call(
+                "POST", "/studio/external/inspect", "chengong", Map.of("cardUrl", "http://10.1.2.3/.well-known/agent-card.json"));
+        assertThat(foreign.path("error").path("code").asString()).isEqualTo("A2A_HOST_NOT_ALLOWED");
+        JsonNode forbidden =
+                call("POST", "/studio/external/inspect", "zhangmin", Map.of("cardUrl", remote.url));
+        assertThat(forbidden.path("error").path("code").asString()).isEqualTo("FORBIDDEN");
+    }
 }

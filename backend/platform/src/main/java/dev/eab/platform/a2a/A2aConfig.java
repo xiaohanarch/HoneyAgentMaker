@@ -51,6 +51,11 @@ public class A2aConfig {
                 Executors.newVirtualThreadPerTaskExecutor());
     }
 
+    @Bean
+    public ExternalAgentService externalAgentService(PlatformServices services, RemoteAgentGateway gateway) {
+        return new ExternalAgentService(services, gateway);
+    }
+
     static String publicUrl(Environment env) {
         String configured = env.getProperty("eab.public-url");
         if (configured != null && !configured.isBlank()) return configured.replaceAll("/+$", "");
