@@ -138,6 +138,20 @@ class GovernanceEndToEndTest {
         return finalText;
     }
 
+    record Asked(String runId, String traceId, String text) {}
+
+    /** 统一入口提问并依次确认确认点（故事 B 的扩展发布后有 IM 通知、跟进任务两个确认点），返回运行编号、追踪和最终文本 */
+    Asked askRun(String user, String message) throws Exception {
+        JsonNode result = ok(call("POST", "/assist", user, Map.of("message", message)));
+        String finalText = text(result);
+        String runId = result.path("runId").asString();
+        for (int i = 0; i < 3 && finalText.isEmpty() && !runId.isEmpty(); i++) {
+            JsonNode confirmed = ok(call("POST", "/runs/" + runId + "/confirmation", user, Map.of("approved", true)));
+            finalText = confirmed.path("text").asString();
+        }
+        return new Asked(runId, result.path("traceId").asString(), finalText);
+    }
+
     // ── 故事 D ──
 
     @Test
@@ -280,14 +294,10 @@ class GovernanceEndToEndTest {
     @Order(13)
     @DisplayName("故事 F：经验回流——王芳指出跨期冲销不算异常，审核通过后重新提问结论改变，追踪显示规则来自租户语义包")
     void feedbackLoop() throws Exception {
-        JsonNode first = ok(call("POST", "/assist", "wangfang", Map.of("message", "本月有哪些高风险交易异常")));
-        String before = text(first);
+        Asked first = askRun("wangfang", "本月有哪些高风险交易异常");
+        String before = first.text();
         assertThat(before).contains("reversal");
-        JsonNode fb = ok(call(
-                "POST",
-                "/feedback",
-                "wangfang",
-                Map.of("runId", first.path("runId").asString(), "reason", "这类跨期冲销不算异常")));
+        JsonNode fb = ok(call("POST", "/feedback", "wangfang", Map.of("runId", first.runId(), "reason", "这类跨期冲销不算异常")));
         assertThat(fb.path("decidedBy").asString()).isEqualTo("model");
         assertThat(fb.path("candidate").asString()).contains("transaction_anomaly_list");
         // 业务用户不能审核
@@ -300,10 +310,10 @@ class GovernanceEndToEndTest {
                 "POST", "/hub/feedback/" + fb.path("id").asString() + "/approve", "zhaoadmin", Map.of("note", "确认")));
         assertThat(approved.path("packRef").asString()).isEqualTo("tenant.t001.semantic/finance-ext@1.0.0");
 
-        JsonNode second = ok(call("POST", "/assist", "wangfang", Map.of("message", "本月有哪些高风险交易异常")));
-        String after = text(second);
+        Asked second = askRun("wangfang", "本月有哪些高风险交易异常");
+        String after = second.text();
         assertThat(after).startsWith("按规则 T001-R-001").doesNotContain("reversal");
-        JsonNode trace = ok(call("GET", "/traces/" + second.path("traceId").asString(), "wangfang", null));
+        JsonNode trace = ok(call("GET", "/traces/" + second.traceId(), "wangfang", null));
         assertThat(trace.path("spans").toString())
                 .contains("约束 · T001-R-001 触发", "tenant.t001.semantic/finance-ext@1.0.0");
     }

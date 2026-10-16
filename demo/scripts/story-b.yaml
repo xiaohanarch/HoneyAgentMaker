@@ -28,11 +28,12 @@ scripts:
               to: 财务经理群
               message: '本月有 {{tools.transaction_anomaly_list.total}} 条高风险交易异常，涉及金额合计 {{tools.calculator.value}} {{tools.transaction_anomaly_list.items.0.currency}}，请关注。'
       - reply: |
-          本月（{{month}}）共有 {{tools.transaction_anomaly_list.total}} 条高风险或严重的交易异常，涉及金额合计 {{tools.calculator.value}} {{tools.transaction_anomaly_list.items.0.currency}}。
+          {{#tools.transaction_anomaly_list.platformConstraints}}按规则 {{rule}}：{{remedy}}。
+          {{/tools.transaction_anomaly_list.platformConstraints}}本月（{{month}}）共有 {{output.anomalyCount}} 条高风险或严重的交易异常{{^tools.transaction_anomaly_list.platformConstraints}}，涉及金额合计 {{tools.calculator.value}} {{tools.transaction_anomaly_list.items.0.currency}}{{/tools.transaction_anomaly_list.platformConstraints}}。
 
-          {{#tools.transaction_anomaly_list.items}}
+          {{#output.kept}}
           - {{id}}（{{companyName}}）：{{anomalyType}}，严重程度 {{severity}}，金额 {{amount}} {{currency}}。{{description}}
-          {{/tools.transaction_anomaly_list.items}}
+          {{/output.kept}}
 
           按本公司规定，单笔金额超过 50 万元的异常须给出责任部门：
           {{#output.departments}}
@@ -43,7 +44,9 @@ scripts:
           已通知财务经理群。数据范围：{{tools.transaction_anomaly_list.scopeLabel}}。
         output:
           severity: "=tools.transaction_anomaly_list.items.exists(a, a.severity == 'critical') ? 'critical' : 'high'"
-          anomalyCount: '=tools.transaction_anomaly_list.total'
+          # 经验回流写入的租户规则（P8）触发时，按规则排除跨期冲销类记录，与 fin.yaml 的标品剧本一致
+          kept: "=has(tools.transaction_anomaly_list.platformConstraints) ? tools.transaction_anomaly_list.items.filter(a, a.anomalyType != 'reversal') : tools.transaction_anomaly_list.items"
+          anomalyCount: "=has(tools.transaction_anomaly_list.platformConstraints) ? size(tools.transaction_anomaly_list.items.filter(a, a.anomalyType != 'reversal')) : tools.transaction_anomaly_list.total"
           totalAmount: '=tools.calculator.value'
           currency: '{{tools.transaction_anomaly_list.items.0.currency}}'
           findings: "=tools.transaction_anomaly_list.items.map(a, {'id': a.id, 'type': a.anomalyType, 'amount': a.amount, 'severity': a.severity, 'status': '疑似'})"
