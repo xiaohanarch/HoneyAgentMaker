@@ -40,3 +40,6 @@ Thumbs.db
 
 # Java 构建产物
 target/
+
+# 并行开发用的 git worktree
+.claude/worktrees/
