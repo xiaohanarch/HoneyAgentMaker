@@ -1,6 +1,6 @@
 # ADR 0002 A2A 与 MCP 的协议版本和 SDK 版本
 
-状态：已采纳（P0，2026-10-14）；2026-10-15 因后端改用 Java（ADR 0006）补充 Java SDK 版本。P7 动手实现 A2A 前再核对一次版本，有变化就更新本文。
+状态：已采纳（P0，2026-10-14）；2026-10-15 因后端改用 Java（ADR 0006）补充 Java SDK 版本；2026-10-16 P7 实现 A2A 时重新核对版本，补充实际用法（见文末）。
 
 ## 背景
 
@@ -45,6 +45,20 @@
 平台对外的 MCP 端点选用无状态传输：每个请求独立鉴权（Bearer 用户令牌经传输上下文传给工具处理函数），不需要服务端保存会话，多实例部署也不用粘性会话。端点只暴露只读工具，调用时以 `agent:platform/mcp-endpoint` 的身份做令牌交换。
 
 A2A Java SDK 在 2026 年把 groupId 从 `io.github.a2asdk` 改为 `org.a2aproject.sdk`，包名从 `io.a2a` 改为 `org.a2aproject.sdk`，查资料时注意区分。上文 TypeScript SDK 的兼容层用法在 P7 按 Java SDK 的接口重新核对。外部 Agent 样例仍按上表使用 Python 和 JS SDK。
+
+### P7 核对结果（2026-10-16）
+
+P7 实现前在 Maven Central、PyPI 和 npm 重新查了一遍，各 SDK 的最新稳定版与上表一致，没有升级：
+
+| 组件 | 版本 | 用在哪里 |
+|---|---|---|
+| A2A Java SDK `org.a2aproject.sdk`（BOM `a2a-java-sdk-bom`） | 1.4.0.Final | `backend/eab-a2a`：client、client-transport-jsonrpc、server-common、transport-jsonrpc、compat-0.3-transport-jsonrpc |
+| `a2a-sdk[http-server]`（Python） | 1.2.2 | `external-agents/supplier-risk-py` |
+| `langgraph`（Python） | 1.2.15 | 同上 |
+| `@a2a-js/sdk` | 1.3.0 | `external-agents/fx-rate-ts`（服务端）、`external-agents/client-demo`（客户端） |
+| `@modelcontextprotocol/sdk` | 1.32.1 | `external-agents/logistics-mcp` |
+
+外部 Agent 样例的依赖固定到上表的精确版本（Python 由 `uv.lock` 锁定）。0.3 兼容在 Java 侧用 `JSONRPCHandler_v0_3` 和 `Convert_v0_3_To10RequestHandler` 实现，取代上文 TypeScript 兼容层的写法；平台出站只面向 1.0 的 Agent Card。实现细节和两处绕行见 ADR 0012。
 
 ## 影响
 
