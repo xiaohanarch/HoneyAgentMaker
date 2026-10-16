@@ -19,8 +19,10 @@ public final class SimulateHistory {
         Path dataDir = DataDirs.resolve();
         try (PlatformDb db = PlatformDb.open(dataDir.resolve("platform.db").toString())) {
             HistorySimulator.Report[] report = new HistorySimulator.Report[1];
-            db.inTransaction(() -> report[0] = HistorySimulator.generate(db.jdbc(), "t001", LocalDate.now(ZoneOffset.UTC)));
-            System.out.println("已生成过去 30 天的模拟数据：运行指标 " + report[0].runs() + " 条，流程与业务指标 " + report[0].metricPoints() + " 个点（" + dataDir + "）");
+            db.inTransaction(
+                    () -> report[0] = HistorySimulator.generate(db.jdbc(), "t001", LocalDate.now(ZoneOffset.UTC)));
+            System.out.println("已生成过去 30 天的模拟数据：运行指标 " + report[0].runs() + " 条，流程与业务指标 " + report[0].metricPoints()
+                    + " 个点（" + dataDir + "）");
         }
     }
 }

@@ -33,7 +33,10 @@ final class ConstraintGuard {
     /** 只按声明生效的旧入口（测试用）：规则视为来自标品层 */
     static ConstraintGuard of(EffectiveDefinition definition, List<SemanticRule> rules) {
         return ofSourced(
-                definition, rules.stream().map(r -> new SemanticService.SourcedRule(r, null, false)).toList());
+                definition,
+                rules.stream()
+                        .map(r -> new SemanticService.SourcedRule(r, null, false))
+                        .toList());
     }
 
     /**
@@ -48,7 +51,8 @@ final class ConstraintGuard {
             if (constraint && segment.label() != null) declared.add(segment.label());
         }
         return new ConstraintGuard(rules.stream()
-                .filter(r -> r.rule().check() != null && (r.tenantLayer() || declared.contains(r.rule().id())))
+                .filter(r -> r.rule().check() != null
+                        && (r.tenantLayer() || declared.contains(r.rule().id())))
                 .toList());
     }
 

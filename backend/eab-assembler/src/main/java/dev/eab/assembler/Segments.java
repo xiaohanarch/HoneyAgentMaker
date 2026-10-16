@@ -85,7 +85,9 @@ final class Segments {
             boolean mounted = packs.stream()
                     .anyMatch(p -> p.metadata().namespace().equals(base.namespace())
                             && p.metadata().name().equals(base.name()));
-            if (mounted && seen.add(AssetRef.key(ext.metadata().namespace(), ext.metadata().name()))) packs.add(ext);
+            if (mounted
+                    && seen.add(AssetRef.key(
+                            ext.metadata().namespace(), ext.metadata().name()))) packs.add(ext);
         }
         return new PackResolution(packs, issues);
     }

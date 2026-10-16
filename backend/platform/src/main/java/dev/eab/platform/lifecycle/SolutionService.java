@@ -80,7 +80,14 @@ public final class SolutionService {
             String createdAt,
             String createdBy) {}
 
-    public record PackageDeployment(long id, String environment, String packageId, boolean active, String deployedAt, String deployedBy, String note) {}
+    public record PackageDeployment(
+            long id,
+            String environment,
+            String packageId,
+            boolean active,
+            String deployedAt,
+            String deployedBy,
+            String note) {}
 
     private final PlatformServices services;
     private final StudioStores.DeploymentStore deployments;
@@ -109,7 +116,9 @@ public final class SolutionService {
             found.put(parsed.key(), asset.metadata().version());
             for (var r : References.collect(asset)) queue.add(r.ref());
         }
-        return found.entrySet().stream().map(e -> e.getKey() + "@" + e.getValue()).toList();
+        return found.entrySet().stream()
+                .map(e -> e.getKey() + "@" + e.getValue())
+                .toList();
     }
 
     /** 新建（或沿用同内容的）方案资产并编译成方案包 */
@@ -133,14 +142,35 @@ public final class SolutionService {
         Map<String, Object> asset = new LinkedHashMap<>();
         asset.put("apiVersion", "eab.dev/v1");
         asset.put("kind", "Solution");
-        asset.put("metadata", Map.of(
-                "name", name, "namespace", ns, "version", version, "displayName", "方案 · " + rootRef, "owner", userId));
+        asset.put(
+                "metadata",
+                Map.of(
+                        "name",
+                        name,
+                        "namespace",
+                        ns,
+                        "version",
+                        version,
+                        "displayName",
+                        "方案 · " + rootRef,
+                        "owner",
+                        userId));
         asset.put("spec", Map.of("assets", assets));
         String yaml = Json.YAML.writeValueAsString(asset);
         var put = services.registry().put(viewer, yaml, "由 " + rootRef + " 生成方案");
-        if (!put.ok()) throw new SolutionException(422, "SOLUTION_INVALID", "方案写入失败：" + put.error().message(), put.error().issues());
+        if (!put.ok())
+            throw new SolutionException(
+                    422,
+                    "SOLUTION_INVALID",
+                    "方案写入失败：" + put.error().message(),
+                    put.error().issues());
         var published = services.registry().setStatus(viewer, ns, name, version, AssetResolver.Status.published);
-        if (!published.ok()) throw new SolutionException(422, "SOLUTION_INVALID", "方案发布失败：" + published.error().message(), published.error().issues());
+        if (!published.ok())
+            throw new SolutionException(
+                    422,
+                    "SOLUTION_INVALID",
+                    "方案发布失败：" + published.error().message(),
+                    published.error().issues());
         return compile(tenantId, userId, ns + "/" + name + "@" + version);
     }
 
@@ -149,7 +179,8 @@ public final class SolutionService {
         Viewer viewer = Viewer.tenant(tenantId);
         var resolver = services.registry().resolverFor(viewer);
         AssetRef ref = AssetRef.parse(solutionRef);
-        Asset.SolutionAsset solution = resolver.resolveOfKind(solutionRef, Asset.SolutionAsset.class, AssetResolver.PUBLISHED)
+        Asset.SolutionAsset solution = resolver.resolveOfKind(
+                        solutionRef, Asset.SolutionAsset.class, AssetResolver.PUBLISHED)
                 .orElseThrow(() -> new SolutionException(404, "NOT_FOUND", "方案 " + solutionRef + " 不存在或没有发布", null));
         String key = ref.key();
         Optional<Package> existing = find(tenantId, key, solution.metadata().version());
@@ -165,7 +196,8 @@ public final class SolutionService {
                     .orElseThrow(() -> new SolutionException(422, "REFERENCE_UNRESOLVED", pinned + " 不存在", null));
             items.add(new Item(pinned, asset.kind(), asset.metadata().version(), StudioService.contentHash(asset)));
             for (var issue : Lint.lint(asset, resolver)) {
-                if (issue.severity().equals("error")) problems.add(Map.of("asset", pinned, "rule", issue.rule(), "message", issue.message()));
+                if (issue.severity().equals("error"))
+                    problems.add(Map.of("asset", pinned, "rule", issue.rule(), "message", issue.message()));
             }
             for (var dep : References.collect(asset)) {
                 if (!AssetRef.isValid(dep.ref())) continue;
@@ -178,22 +210,41 @@ public final class SolutionService {
                     }
                 });
             }
-            if (asset instanceof Asset.ToolSourceAsset tool && tool.spec().connection() != null && !connections.contains(tool.spec().connection())) {
+            if (asset instanceof Asset.ToolSourceAsset tool
+                    && tool.spec().connection() != null
+                    && !connections.contains(tool.spec().connection())) {
                 connections.add(tool.spec().connection());
             }
         }
         if (!problems.isEmpty()) throw new SolutionException(409, "LINT_FAILED", "方案里的资产有静态检查错误，不能编译", problems);
-        Manifest manifest = new Manifest(key, solution.metadata().version(), tenantId, items, requires, connections, IsoTime.now(clock));
+        Manifest manifest = new Manifest(
+                key, solution.metadata().version(), tenantId, items, requires, connections, IsoTime.now(clock));
         String canonical = CanonicalJson.of((ObjectNode) Json.MAPPER.valueToTree(manifest));
         String hash = CanonicalJson.hashOf(canonical);
-        String signature = services.registry().signer().sign("eab.dev/v1|solution|" + key + "@" + manifest.version() + "|" + hash);
+        String signature =
+                services.registry().signer().sign("eab.dev/v1|solution|" + key + "@" + manifest.version() + "|" + hash);
         String id = "pkg-" + UUID.randomUUID().toString().substring(0, 8);
-        jdbc.sql("INSERT INTO solution_packages (id, tenant_id, solution, version, manifest, manifest_hash, signature, created_at,"
-                        + " created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-                .params(id, tenantId, key, manifest.version(), canonical, hash, signature, manifest.compiledAt(), userId)
+        jdbc.sql(
+                        "INSERT INTO solution_packages (id, tenant_id, solution, version, manifest, manifest_hash, signature, created_at,"
+                                + " created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                .params(
+                        id,
+                        tenantId,
+                        key,
+                        manifest.version(),
+                        canonical,
+                        hash,
+                        signature,
+                        manifest.compiledAt(),
+                        userId)
                 .update();
         services.audit()
-                .append(NewAuditEvent.of(userId, "solution.compile", key + "@" + manifest.version(), "allow", "方案包 " + id + "，" + items.size() + " 个资产")
+                .append(NewAuditEvent.of(
+                                userId,
+                                "solution.compile",
+                                key + "@" + manifest.version(),
+                                "allow",
+                                "方案包 " + id + "，" + items.size() + " 个资产")
                         .tenantId(tenantId));
         return get(tenantId, id).orElseThrow();
     }
@@ -203,39 +254,55 @@ public final class SolutionService {
         String canonical = CanonicalJson.of((ObjectNode) Json.MAPPER.valueToTree(pkg.manifest()));
         String hash = CanonicalJson.hashOf(canonical);
         return hash.equals(pkg.manifestHash())
-                && services.registry().signer().verify(
-                        "eab.dev/v1|solution|" + pkg.solution() + "@" + pkg.version() + "|" + hash, pkg.signature());
+                && services.registry()
+                        .signer()
+                        .verify(
+                                "eab.dev/v1|solution|" + pkg.solution() + "@" + pkg.version() + "|" + hash,
+                                pkg.signature());
     }
 
     /** 部署方案包：dev 可以直接部署；test、prod 要求上一个环境当前部署的就是这个包 */
     public PackageDeployment deploy(String tenantId, String userId, String packageId, String environment) {
-        if (!StudioStores.ENVIRONMENTS.contains(environment)) throw new SolutionException(400, "BAD_REQUEST", "未知的环境 " + environment, null);
-        Package pkg = get(tenantId, packageId).orElseThrow(() -> new SolutionException(404, "NOT_FOUND", "方案包 " + packageId + " 不存在", null));
-        if (!verify(pkg)) throw new SolutionException(409, "INTEGRITY_VIOLATION", "方案包 " + packageId + " 的签名或清单哈希不一致，拒绝部署", null);
+        if (!StudioStores.ENVIRONMENTS.contains(environment))
+            throw new SolutionException(400, "BAD_REQUEST", "未知的环境 " + environment, null);
+        Package pkg = get(tenantId, packageId)
+                .orElseThrow(() -> new SolutionException(404, "NOT_FOUND", "方案包 " + packageId + " 不存在", null));
+        if (!verify(pkg))
+            throw new SolutionException(409, "INTEGRITY_VIOLATION", "方案包 " + packageId + " 的签名或清单哈希不一致，拒绝部署", null);
         int index = StudioStores.ENVIRONMENTS.indexOf(environment);
         if (index > 0) {
             String previous = StudioStores.ENVIRONMENTS.get(index - 1);
-            boolean inPrevious = activePackage(tenantId, previous, pkg.solution()).map(d -> d.packageId().equals(packageId)).orElse(false);
+            boolean inPrevious = activePackage(tenantId, previous, pkg.solution())
+                    .map(d -> d.packageId().equals(packageId))
+                    .orElse(false);
             if (!inPrevious) throw new SolutionException(409, "GATE_BLOCKED", "方案包还没有部署到 " + previous, null);
         }
         return deployPackage(tenantId, userId, pkg, environment, "部署方案包");
     }
 
-    private PackageDeployment deployPackage(String tenantId, String userId, Package pkg, String environment, String note) {
+    private PackageDeployment deployPackage(
+            String tenantId, String userId, Package pkg, String environment, String note) {
         for (Item item : pkg.manifest().assets()) {
             AssetRef r = AssetRef.parse(item.ref());
-            deployments.deploy(tenantId, environment, r.namespace(), r.name(), item.version(), userId, note + " " + pkg.id());
+            deployments.deploy(
+                    tenantId, environment, r.namespace(), r.name(), item.version(), userId, note + " " + pkg.id());
         }
         jdbc.sql("UPDATE package_deployments SET active = 0 WHERE tenant_id = ? AND environment = ? AND package_id IN"
                         + " (SELECT id FROM solution_packages WHERE tenant_id = ? AND solution = ?)")
                 .params(tenantId, environment, tenantId, pkg.solution())
                 .update();
-        jdbc.sql("INSERT INTO package_deployments (tenant_id, environment, package_id, active, deployed_at, deployed_by, note)"
-                        + " VALUES (?, ?, ?, 1, ?, ?, ?)")
+        jdbc.sql(
+                        "INSERT INTO package_deployments (tenant_id, environment, package_id, active, deployed_at, deployed_by, note)"
+                                + " VALUES (?, ?, ?, 1, ?, ?, ?)")
                 .params(tenantId, environment, pkg.id(), IsoTime.now(clock), userId, note)
                 .update();
         services.audit()
-                .append(NewAuditEvent.of(userId, "solution.deploy", pkg.solution() + "@" + pkg.version(), "allow", note + " 到 " + environment)
+                .append(NewAuditEvent.of(
+                                userId,
+                                "solution.deploy",
+                                pkg.solution() + "@" + pkg.version(),
+                                "allow",
+                                note + " 到 " + environment)
                         .tenantId(tenantId));
         return activePackage(tenantId, environment, pkg.solution()).orElseThrow();
     }
@@ -244,20 +311,23 @@ public final class SolutionService {
     public PackageDeployment rollback(String tenantId, String userId, String solution, String environment) {
         var current = activePackage(tenantId, environment, solution)
                 .orElseThrow(() -> new SolutionException(409, "NOTHING_TO_ROLLBACK", environment + " 里没有部署这个方案", null));
-        Optional<String> previous = jdbc.sql("SELECT d.package_id FROM package_deployments d JOIN solution_packages p ON p.id = d.package_id"
-                        + " WHERE d.tenant_id = ? AND d.environment = ? AND p.solution = ? AND d.package_id <> ? AND d.id < ?"
-                        + " ORDER BY d.id DESC LIMIT 1")
+        Optional<String> previous = jdbc.sql(
+                        "SELECT d.package_id FROM package_deployments d JOIN solution_packages p ON p.id = d.package_id"
+                                + " WHERE d.tenant_id = ? AND d.environment = ? AND p.solution = ? AND d.package_id <> ? AND d.id < ?"
+                                + " ORDER BY d.id DESC LIMIT 1")
                 .params(tenantId, environment, solution, current.packageId(), current.id())
                 .query(String.class)
                 .optional();
         Package pkg = previous.flatMap(id -> get(tenantId, id))
-                .orElseThrow(() -> new SolutionException(409, "NOTHING_TO_ROLLBACK", environment + " 里没有可以回滚的上一个方案包", null));
+                .orElseThrow(
+                        () -> new SolutionException(409, "NOTHING_TO_ROLLBACK", environment + " 里没有可以回滚的上一个方案包", null));
         return deployPackage(tenantId, userId, pkg, environment, "回滚到方案包");
     }
 
     public Optional<PackageDeployment> activePackage(String tenantId, String environment, String solution) {
-        return jdbc.sql("SELECT d.* FROM package_deployments d JOIN solution_packages p ON p.id = d.package_id"
-                        + " WHERE d.tenant_id = ? AND d.environment = ? AND p.solution = ? AND d.active = 1 ORDER BY d.id DESC LIMIT 1")
+        return jdbc.sql(
+                        "SELECT d.* FROM package_deployments d JOIN solution_packages p ON p.id = d.package_id"
+                                + " WHERE d.tenant_id = ? AND d.environment = ? AND p.solution = ? AND d.active = 1 ORDER BY d.id DESC LIMIT 1")
                 .params(tenantId, environment, solution)
                 .query((rs, i) -> new PackageDeployment(
                         rs.getLong("id"),
@@ -271,7 +341,10 @@ public final class SolutionService {
     }
 
     public Optional<Package> get(String tenantId, String id) {
-        return jdbc.sql("SELECT * FROM solution_packages WHERE id = ? AND tenant_id = ?").params(id, tenantId).query((rs, i) -> row(rs)).optional();
+        return jdbc.sql("SELECT * FROM solution_packages WHERE id = ? AND tenant_id = ?")
+                .params(id, tenantId)
+                .query((rs, i) -> row(rs))
+                .optional();
     }
 
     Optional<Package> find(String tenantId, String solution, String version) {

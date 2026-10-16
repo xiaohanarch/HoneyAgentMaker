@@ -42,9 +42,10 @@ public final class VersionDiff {
             if (x != null && y != null && x.equals(y)) continue;
             boolean redacted = isRedacted(x) || isRedacted(y);
             String change = x == null ? "added" : y == null ? "removed" : "changed";
-            changes.add(redacted
-                    ? new Change(path, change, null, HIDDEN, true)
-                    : new Change(path, change, text(x), text(y), false));
+            changes.add(
+                    redacted
+                            ? new Change(path, change, null, HIDDEN, true)
+                            : new Change(path, change, text(x), text(y), false));
         }
         return changes;
     }
@@ -60,7 +61,8 @@ public final class VersionDiff {
             out.put(prefix, node);
         } else if (node.isObject()) {
             if (node.isEmpty()) out.put(prefix, node);
-            for (var e : node.properties()) flatten(prefix.isEmpty() ? e.getKey() : prefix + "." + e.getKey(), e.getValue(), out);
+            for (var e : node.properties())
+                flatten(prefix.isEmpty() ? e.getKey() : prefix + "." + e.getKey(), e.getValue(), out);
         } else if (node.isArray()) {
             if (node.isEmpty()) out.put(prefix, node);
             for (int i = 0; i < node.size(); i++) flatten(prefix + "[" + i + "]", node.get(i), out);

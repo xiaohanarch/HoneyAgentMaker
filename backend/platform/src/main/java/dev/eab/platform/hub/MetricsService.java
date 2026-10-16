@@ -68,9 +68,17 @@ public final class MetricsService {
 
     public record SeriesPoint(String day, double value) {}
 
-    public record Series(String metric, String label, String unit, String agent, List<SeriesPoint> points, Double latest) {}
+    public record Series(
+            String metric, String label, String unit, String agent, List<SeriesPoint> points, Double latest) {}
 
-    public record Kpi(String name, String displayName, String unit, Double target, String direction, Double value, Double previous) {}
+    public record Kpi(
+            String name,
+            String displayName,
+            String unit,
+            Double target,
+            String direction,
+            Double value,
+            Double previous) {}
 
     public record AssistantKpis(String ref, String name, List<Kpi> kpis) {}
 
@@ -108,7 +116,8 @@ public final class MetricsService {
                         + " WHERE m.run_id IS NULL AND r.status IN ('completed', 'failed')")
                 .query()
                 .listOfRows();
-        for (Map<String, Object> run : pending) insert(summarize(run, traces.list(String.valueOf(run.get("trace_id")))));
+        for (Map<String, Object> run : pending)
+            insert(summarize(run, traces.list(String.valueOf(run.get("trace_id")))));
         return pending.size();
     }
 
@@ -130,7 +139,8 @@ public final class MetricsService {
             out += number(s.attributes().get("gen_ai.usage.output_tokens"));
             if (s.kind() == SpanKind.tool || s.kind() == SpanKind.skill) {
                 tools++;
-                if (s.status() == SpanStatus.error || Boolean.FALSE.equals(s.attributes().get("eab.tool.ok"))) toolErrors++;
+                if (s.status() == SpanStatus.error
+                        || Boolean.FALSE.equals(s.attributes().get("eab.tool.ok"))) toolErrors++;
             }
             if (s.kind() == SpanKind.confirmation) confirmations++;
         }
@@ -161,11 +171,25 @@ public final class MetricsService {
     }
 
     public void insert(RunMetric m) {
-        jdbc.sql("INSERT OR IGNORE INTO run_metrics (run_id, tenant_id, agent, user_id, at, status, latency_ms, input_tokens,"
-                        + " output_tokens, cost_usd, tool_calls, tool_errors, confirmations, simulated)"
-                        + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-                .params(m.runId(), m.tenantId(), m.agent(), m.userId(), m.at(), m.status(), m.latencyMs(), m.inputTokens(),
-                        m.outputTokens(), m.costUsd(), m.toolCalls(), m.toolErrors(), m.confirmations(), m.simulated() ? 1 : 0)
+        jdbc.sql(
+                        "INSERT OR IGNORE INTO run_metrics (run_id, tenant_id, agent, user_id, at, status, latency_ms, input_tokens,"
+                                + " output_tokens, cost_usd, tool_calls, tool_errors, confirmations, simulated)"
+                                + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                .params(
+                        m.runId(),
+                        m.tenantId(),
+                        m.agent(),
+                        m.userId(),
+                        m.at(),
+                        m.status(),
+                        m.latencyMs(),
+                        m.inputTokens(),
+                        m.outputTokens(),
+                        m.costUsd(),
+                        m.toolCalls(),
+                        m.toolErrors(),
+                        m.confirmations(),
+                        m.simulated() ? 1 : 0)
                 .update();
     }
 
@@ -192,17 +216,22 @@ public final class MetricsService {
 
     public Overview overview(String tenantId, int days) {
         collect();
-        String since = LocalDate.now(services.clock().withZone(ZoneOffset.UTC)).minusDays(days).toString();
+        String since = LocalDate.now(services.clock().withZone(ZoneOffset.UTC))
+                .minusDays(days)
+                .toString();
         List<RunMetric> rows = rows(tenantId, since);
         Map<String, String> names = agentNames(tenantId);
         Map<String, List<RunMetric>> byAgent = new TreeMap<>();
-        rows.forEach(r -> byAgent.computeIfAbsent(r.agent(), k -> new ArrayList<>()).add(r));
+        rows.forEach(
+                r -> byAgent.computeIfAbsent(r.agent(), k -> new ArrayList<>()).add(r));
         List<AgentMetrics> agents = new ArrayList<>();
-        byAgent.forEach((agent, list) -> agents.add(agentMetrics(agent, names.getOrDefault(agent, agent), list, toolCorrectness(tenantId, agent))));
+        byAgent.forEach((agent, list) -> agents.add(
+                agentMetrics(agent, names.getOrDefault(agent, agent), list, toolCorrectness(tenantId, agent))));
         agents.sort(Comparator.comparingInt(AgentMetrics::runs).reversed());
 
         Map<String, List<RunMetric>> byDay = new TreeMap<>();
-        rows.forEach(r -> byDay.computeIfAbsent(r.at().substring(0, 10), k -> new ArrayList<>()).add(r));
+        rows.forEach(r -> byDay.computeIfAbsent(r.at().substring(0, 10), k -> new ArrayList<>())
+                .add(r));
         List<DailyPoint> daily = new ArrayList<>();
         byDay.forEach((day, list) -> daily.add(new DailyPoint(
                 day,
@@ -210,12 +239,19 @@ public final class MetricsService {
                 (int) list.stream().filter(r -> r.status().equals("failed")).count(),
                 percentile(list.stream().map(RunMetric::latencyMs).toList(), 95),
                 round(list.stream().mapToDouble(RunMetric::costUsd).sum(), 4))));
-        return new Overview(days, agents, daily, series(tenantId, "process", since), series(tenantId, "business", since), assistants(tenantId, since));
+        return new Overview(
+                days,
+                agents,
+                daily,
+                series(tenantId, "process", since),
+                series(tenantId, "business", since),
+                assistants(tenantId, since));
     }
 
     static AgentMetrics agentMetrics(String agent, String name, List<RunMetric> list, Double toolCorrectness) {
         int runs = list.size();
-        long completed = list.stream().filter(r -> r.status().equals("completed")).count();
+        long completed =
+                list.stream().filter(r -> r.status().equals("completed")).count();
         long intervened = list.stream().filter(r -> r.confirmations() > 0).count();
         return new AgentMetrics(
                 agent,
@@ -256,15 +292,22 @@ public final class MetricsService {
 
     Map<String, String> agentNames(String tenantId) {
         Map<String, String> names = new LinkedHashMap<>();
-        for (Asset a : services.registry().latestPublished(new AssetFilter("Agent", null, null, null, null), Viewer.tenant(tenantId)).assets()) {
-            names.put(a.metadata().namespace() + "/" + a.metadata().name(), a.metadata().displayName() == null ? a.metadata().name() : a.metadata().displayName());
+        for (Asset a : services.registry()
+                .latestPublished(new AssetFilter("Agent", null, null, null, null), Viewer.tenant(tenantId))
+                .assets()) {
+            names.put(
+                    a.metadata().namespace() + "/" + a.metadata().name(),
+                    a.metadata().displayName() == null
+                            ? a.metadata().name()
+                            : a.metadata().displayName());
         }
         return names;
     }
 
     List<Series> series(String tenantId, String layer, String since) {
-        List<Map<String, Object>> rows = jdbc.sql("SELECT day, metric, agent, value FROM business_metrics WHERE tenant_id = ? AND layer = ?"
-                        + " AND day >= ? ORDER BY metric, day")
+        List<Map<String, Object>> rows = jdbc.sql(
+                        "SELECT day, metric, agent, value FROM business_metrics WHERE tenant_id = ? AND layer = ?"
+                                + " AND day >= ? ORDER BY metric, day")
                 .params(tenantId, layer, since)
                 .query()
                 .listOfRows();
@@ -272,13 +315,20 @@ public final class MetricsService {
         Map<String, String> agents = new LinkedHashMap<>();
         for (Map<String, Object> r : rows) {
             String metric = String.valueOf(r.get("metric"));
-            byMetric.computeIfAbsent(metric, k -> new ArrayList<>()).add(new SeriesPoint(String.valueOf(r.get("day")), ((Number) r.get("value")).doubleValue()));
+            byMetric.computeIfAbsent(metric, k -> new ArrayList<>())
+                    .add(new SeriesPoint(String.valueOf(r.get("day")), ((Number) r.get("value")).doubleValue()));
             if (r.get("agent") != null) agents.put(metric, String.valueOf(r.get("agent")));
         }
         List<Series> result = new ArrayList<>();
         byMetric.forEach((metric, points) -> {
             String[] label = LABELS.getOrDefault(metric, new String[] {metric, ""});
-            result.add(new Series(metric, label[0], label[1], agents.get(metric), points, points.isEmpty() ? null : points.getLast().value()));
+            result.add(new Series(
+                    metric,
+                    label[0],
+                    label[1],
+                    agents.get(metric),
+                    points,
+                    points.isEmpty() ? null : points.getLast().value()));
         });
         return result;
     }
@@ -289,19 +339,25 @@ public final class MetricsService {
         Map<String, List<SeriesPoint>> values = new LinkedHashMap<>();
         for (Series s : series(tenantId, "process", since)) values.put(s.metric(), s.points());
         for (Series s : series(tenantId, "business", since)) values.put(s.metric(), s.points());
-        var assets = services.registry().latestPublished(new AssetFilter("Assistant", null, null, null, null), Viewer.tenant(tenantId)).assets();
+        var assets = services.registry()
+                .latestPublished(new AssetFilter("Assistant", null, null, null, null), Viewer.tenant(tenantId))
+                .assets();
         for (Asset a : assets) {
-            if (!(a instanceof Asset.AssistantAsset assistant) || assistant.spec().kpis() == null) continue;
+            if (!(a instanceof Asset.AssistantAsset assistant)
+                    || assistant.spec().kpis() == null) continue;
             List<Kpi> kpis = new ArrayList<>();
             for (var k : assistant.spec().kpis()) {
                 List<SeriesPoint> points = values.getOrDefault(k.name(), List.of());
                 Double latest = points.isEmpty() ? null : points.getLast().value();
-                Double previous = points.size() > 7 ? points.get(points.size() - 8).value() : null;
+                Double previous =
+                        points.size() > 7 ? points.get(points.size() - 8).value() : null;
                 kpis.add(new Kpi(k.name(), k.displayName(), k.unit(), k.target(), k.direction(), latest, previous));
             }
             result.add(new AssistantKpis(
                     a.metadata().namespace() + "/" + a.metadata().name(),
-                    a.metadata().displayName() == null ? a.metadata().name() : a.metadata().displayName(),
+                    a.metadata().displayName() == null
+                            ? a.metadata().name()
+                            : a.metadata().displayName(),
                     kpis));
         }
         return result;

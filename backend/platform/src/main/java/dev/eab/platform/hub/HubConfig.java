@@ -46,7 +46,8 @@ public class HubConfig {
     }
 
     @Bean
-    public UpgradeService upgradeService(PlatformServices services, EvalService evals, NotificationStore notifications) {
+    public UpgradeService upgradeService(
+            PlatformServices services, EvalService evals, NotificationStore notifications) {
         return new UpgradeService(services, evals, notifications);
     }
 
@@ -66,7 +67,8 @@ public class HubConfig {
     }
 
     @Bean
-    public HubService hubService(PlatformServices services, RuntimeService runtime, StudioStores.DeploymentStore deployments) {
+    public HubService hubService(
+            PlatformServices services, RuntimeService runtime, StudioStores.DeploymentStore deployments) {
         return new HubService(services, runtime, deployments, evalRuns(services));
     }
 }

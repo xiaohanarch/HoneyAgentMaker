@@ -102,9 +102,7 @@ public final class UpgradeService {
     /** 当前最新的已发布版本 */
     Optional<String> latestVendorVersion(String agent) {
         var ref = AssetRef.parse(agent);
-        return services.registry()
-                .resolverFor(Viewer.VENDOR)
-                .resolveVersion(ref, dev.eab.spec.AssetResolver.PUBLISHED);
+        return services.registry().resolverFor(Viewer.VENDOR).resolveVersion(ref, dev.eab.spec.AssetResolver.PUBLISHED);
     }
 
     /** 依赖该标品 Agent 的租户扩展，以及它们的评测集 */
@@ -138,35 +136,52 @@ public final class UpgradeService {
 
     /** 模拟一次标品升级，返回各租户扩展的回归结果 */
     public List<Regression> simulate(Preset preset, String triggeredBy) {
-        String current = latestVendorVersion(preset.agent()).orElseThrow(() -> new UpgradeException(preset.agent() + " 没有已发布的版本"));
+        String current = latestVendorVersion(preset.agent())
+                .orElseThrow(() -> new UpgradeException(preset.agent() + " 没有已发布的版本"));
         if (Versions.compare(current, preset.toVersion()) >= 0) {
-            throw new UpgradeException(preset.agent() + " 已经是 " + current + "，不能再升到 " + preset.toVersion() + "；需要重新演示时先重置演示数据");
+            throw new UpgradeException(
+                    preset.agent() + " 已经是 " + current + "，不能再升到 " + preset.toVersion() + "；需要重新演示时先重置演示数据");
         }
         List<Dependent> dependents = dependents(preset.agent(), preset.toVersion());
         Map<String, SuiteResult> baseline = new LinkedHashMap<>();
         for (Dependent d : dependents) {
-            for (EvalSuiteAsset suite : d.suites()) baseline.put(key(d, suite), evals.run(d.tenantId(), suite, triggeredBy).result());
+            for (EvalSuiteAsset suite : d.suites())
+                baseline.put(
+                        key(d, suite),
+                        evals.run(d.tenantId(), suite, triggeredBy).result());
         }
 
         String yaml = readResource(preset.resource());
         var parsed = AssetParser.parseYaml(yaml);
         if (!parsed.ok()) throw new UpgradeException("升级资源不合法：" + parsed.issues());
         var published = services.registry().publishAsset(Viewer.VENDOR, parsed.asset(), yaml);
-        if (!published.ok()) throw new UpgradeException("发布 " + preset.toVersion() + " 失败：" + published.error().message());
+        if (!published.ok())
+            throw new UpgradeException(
+                    "发布 " + preset.toVersion() + " 失败：" + published.error().message());
         services.audit()
-                .append(NewAuditEvent.of("vendor", "upgrade.publish", preset.agent() + "@" + preset.toVersion(), "allow", preset.summary()));
+                .append(NewAuditEvent.of(
+                        "vendor",
+                        "upgrade.publish",
+                        preset.agent() + "@" + preset.toVersion(),
+                        "allow",
+                        preset.summary()));
 
         List<Regression> results = new ArrayList<>();
         for (Dependent d : dependents) {
             var assembled = EffectiveAssembly.assemble(
-                    services.registry(), Viewer.tenant(d.tenantId()), EffectiveAssembly.Request.of(preset.agent(), d.tenantId()));
+                    services.registry(),
+                    Viewer.tenant(d.tenantId()),
+                    EffectiveAssembly.Request.of(preset.agent(), d.tenantId()));
             List<String> issues = assembled.issues().stream()
                     .map(i -> (i.isError() ? "错误 " : "警告 ") + i.code() + "：" + i.message())
                     .toList();
             for (EvalSuiteAsset suite : d.suites()) {
                 SuiteResult before = baseline.get(key(d, suite));
                 SuiteResult after = evals.run(d.tenantId(), suite, triggeredBy).result();
-                Set<String> passedBefore = before.cases().stream().filter(CaseResult::passed).map(CaseResult::id).collect(Collectors.toSet());
+                Set<String> passedBefore = before.cases().stream()
+                        .filter(CaseResult::passed)
+                        .map(CaseResult::id)
+                        .collect(Collectors.toSet());
                 List<String> regressions = after.cases().stream()
                         .filter(c -> !c.passed() && passedBefore.contains(c.id()))
                         .map(CaseResult::id)
@@ -175,8 +190,17 @@ public final class UpgradeService {
                 results.add(record(preset, current, d, suite, status, before, after, regressions, issues, triggeredBy));
             }
             if (d.suites().isEmpty()) {
-                results.add(record(preset, current, d, null, issues.stream().anyMatch(i -> i.startsWith("错误")) ? "failed" : "passed",
-                        null, null, List.of(), issues, triggeredBy));
+                results.add(record(
+                        preset,
+                        current,
+                        d,
+                        null,
+                        issues.stream().anyMatch(i -> i.startsWith("错误")) ? "failed" : "passed",
+                        null,
+                        null,
+                        List.of(),
+                        issues,
+                        triggeredBy));
             }
         }
         notifyTenants(preset, results);
@@ -184,7 +208,8 @@ public final class UpgradeService {
     }
 
     private static String key(Dependent d, EvalSuiteAsset suite) {
-        return d.tenantId() + "|" + d.extension().metadata().name() + "|" + suite.metadata().name();
+        return d.tenantId() + "|" + d.extension().metadata().name() + "|"
+                + suite.metadata().name();
     }
 
     static Map<String, Object> summary(SuiteResult r) {
@@ -193,12 +218,18 @@ public final class UpgradeService {
         m.put("status", r.status());
         m.put("passed", r.passed());
         m.put("total", r.total());
-        m.put("cases", r.cases().stream()
-                .map(c -> Map.of(
-                        "id", c.id(),
-                        "passed", c.passed(),
-                        "failures", c.assertions().stream().filter(a -> !a.passed()).map(a -> a.type() + "：" + a.detail()).toList()))
-                .toList());
+        m.put(
+                "cases",
+                r.cases().stream()
+                        .map(c -> Map.of(
+                                "id", c.id(),
+                                "passed", c.passed(),
+                                "failures",
+                                        c.assertions().stream()
+                                                .filter(a -> !a.passed())
+                                                .map(a -> a.type() + "：" + a.detail())
+                                                .toList()))
+                        .toList());
         return m;
     }
 
@@ -215,20 +246,46 @@ public final class UpgradeService {
             String triggeredBy) {
         String id = "upg-" + UUID.randomUUID().toString().substring(0, 8);
         String at = IsoTime.now(clock);
-        String extension = d.extension().metadata().namespace() + "/" + d.extension().metadata().name() + "@" + d.extension().metadata().version();
-        String suiteRef = suite == null ? "" : suite.metadata().namespace() + "/" + suite.metadata().name();
-        jdbc.sql("INSERT INTO upgrade_regressions (id, at, agent, from_version, to_version, tenant_id, extension, suite, status,"
-                        + " baseline, after, regressions, issues, triggered_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+        String extension = d.extension().metadata().namespace() + "/"
+                + d.extension().metadata().name() + "@"
+                + d.extension().metadata().version();
+        String suiteRef = suite == null
+                ? ""
+                : suite.metadata().namespace() + "/" + suite.metadata().name();
+        jdbc.sql(
+                        "INSERT INTO upgrade_regressions (id, at, agent, from_version, to_version, tenant_id, extension, suite, status,"
+                                + " baseline, after, regressions, issues, triggered_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
                 .params(
-                        id, at, preset.agent(), fromVersion, preset.toVersion(), d.tenantId(), extension, suiteRef, status,
+                        id,
+                        at,
+                        preset.agent(),
+                        fromVersion,
+                        preset.toVersion(),
+                        d.tenantId(),
+                        extension,
+                        suiteRef,
+                        status,
                         Json.MAPPER.writeValueAsString(summary(before)),
                         Json.MAPPER.writeValueAsString(summary(after)),
                         Json.MAPPER.writeValueAsString(regressions),
                         Json.MAPPER.writeValueAsString(issues),
                         triggeredBy)
                 .update();
-        return new Regression(id, at, preset.agent(), fromVersion, preset.toVersion(), d.tenantId(), extension, suiteRef, status,
-                summary(before), summary(after), regressions, issues, triggeredBy);
+        return new Regression(
+                id,
+                at,
+                preset.agent(),
+                fromVersion,
+                preset.toVersion(),
+                d.tenantId(),
+                extension,
+                suiteRef,
+                status,
+                summary(before),
+                summary(after),
+                regressions,
+                issues,
+                triggeredBy);
     }
 
     /** 回归失败时通知租户：扩展的负责人和租户管理员 */
@@ -236,7 +293,8 @@ public final class UpgradeService {
         for (Regression r : results) {
             if (!r.status().equals("failed")) continue;
             String title = "标品升级回归未通过：" + preset.agent() + " " + r.fromVersion() + " → " + r.toVersion();
-            String body = "扩展 " + r.extension() + " 的评测集 " + r.suite() + " 有 " + r.regressions().size() + " 个用例在升级后失败："
+            String body = "扩展 " + r.extension() + " 的评测集 " + r.suite() + " 有 "
+                    + r.regressions().size() + " 个用例在升级后失败："
                     + String.join("、", r.regressions())
                     + (r.issues().isEmpty() ? "" : "。组装问题：" + String.join("；", r.issues()));
             List<String> recipients = new ArrayList<>();
@@ -245,7 +303,8 @@ public final class UpgradeService {
                     .forEach(u -> recipients.add(u.id()));
             String owner = owner(r.tenantId(), r.extension());
             if (owner != null && !recipients.contains(owner)) recipients.add(owner);
-            for (String user : recipients) notifications.add(r.tenantId(), user, title, body, "upgrade:" + r.id(), null, null);
+            for (String user : recipients)
+                notifications.add(r.tenantId(), user, title, body, "upgrade:" + r.id(), null, null);
         }
     }
 
@@ -259,7 +318,8 @@ public final class UpgradeService {
     }
 
     public List<Regression> list(String tenantId) {
-        String sql = "SELECT * FROM upgrade_regressions" + (tenantId == null ? "" : " WHERE tenant_id = ?") + " ORDER BY at DESC LIMIT 50";
+        String sql = "SELECT * FROM upgrade_regressions" + (tenantId == null ? "" : " WHERE tenant_id = ?")
+                + " ORDER BY at DESC LIMIT 50";
         var spec = jdbc.sql(sql);
         if (tenantId != null) spec = spec.param(tenantId);
         return spec.query((rs, i) -> new Regression(

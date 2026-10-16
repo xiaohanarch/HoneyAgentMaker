@@ -84,7 +84,11 @@ public final class FeedbackService {
         for (var span : runtime.traces().list(run.traceId())) {
             if (span.attributes().get("eab.tool.name") instanceof String name) {
                 String sample = String.valueOf(span.attributes().getOrDefault("eab.tool.result", ""));
-                tools.add(Map.of("name", name, "sample", sample.length() > SAMPLE_CHARS ? sample.substring(0, SAMPLE_CHARS) : sample));
+                tools.add(Map.of(
+                        "name",
+                        name,
+                        "sample",
+                        sample.length() > SAMPLE_CHARS ? sample.substring(0, SAMPLE_CHARS) : sample));
             }
         }
         var context = new FeedbackCandidates.Context(agent, run.utterance(), answer, reason, tools);
@@ -117,12 +121,17 @@ public final class FeedbackService {
      */
     public Feedback approve(DemoUser reviewer, String id, Map<String, Object> edited, String note) {
         Feedback f = pending(reviewer, id);
-        Map<String, Object> candidate = edited != null
-                ? edited
-                : Json.MAPPER.readValue(f.candidate(), Map.class);
+        Map<String, Object> candidate = edited != null ? edited : Json.MAPPER.readValue(f.candidate(), Map.class);
         String basePack = basePack(reviewer.tenantId(), f.agent());
         String packRef = TenantPacks.append(services, reviewer.tenantId(), basePack, candidate, f.reason());
-        store.review(reviewer.tenantId(), id, "approved", reviewer.id(), note, packRef, Json.MAPPER.writeValueAsString(candidate));
+        store.review(
+                reviewer.tenantId(),
+                id,
+                "approved",
+                reviewer.id(),
+                note,
+                packRef,
+                Json.MAPPER.writeValueAsString(candidate));
         audit(reviewer, f, "approve", "写入 " + packRef);
         return store.get(reviewer.tenantId(), id).orElseThrow();
     }
@@ -167,7 +176,11 @@ public final class FeedbackService {
 
         /** 追加一条规则或已验证任务，写成新版本并发布，返回 namespace/name@version */
         static String append(
-                PlatformServices services, String tenantId, String basePack, Map<String, Object> candidate, String reason) {
+                PlatformServices services,
+                String tenantId,
+                String basePack,
+                Map<String, Object> candidate,
+                String reason) {
             Viewer viewer = Viewer.tenant(tenantId);
             String ns = namespace(tenantId);
             String name = name(basePack);
@@ -186,7 +199,8 @@ public final class FeedbackService {
             }
             ((ObjectNode) tree.path("metadata")).put("version", version);
             ObjectNode spec = (ObjectNode) tree.path("spec");
-            String prefix = "T" + tenantId.replaceAll("[^0-9A-Za-z]", "").toUpperCase().replaceFirst("^T", "");
+            String prefix =
+                    "T" + tenantId.replaceAll("[^0-9A-Za-z]", "").toUpperCase().replaceFirst("^T", "");
             if ("verified_task".equals(candidate.get("kind"))) {
                 ArrayNode tasks = array(spec, "verified_tasks");
                 ObjectNode t = tasks.addObject();
@@ -213,11 +227,18 @@ public final class FeedbackService {
             String yaml = Json.YAML.writeValueAsString(tree);
             var put = services.registry().put(viewer, yaml, "经验回流：" + reason);
             if (!put.ok()) {
-                throw new FeedbackException(422, "PACK_INVALID", "写入租户语义包扩展失败：" + put.error().message() + " " + put.error().issues());
+                throw new FeedbackException(
+                        422,
+                        "PACK_INVALID",
+                        "写入租户语义包扩展失败：" + put.error().message() + " "
+                                + put.error().issues());
             }
             var published = services.registry().setStatus(viewer, ns, name, version, AssetResolver.Status.published);
             if (!published.ok()) {
-                throw new FeedbackException(422, "PACK_PUBLISH_FAILED", "发布租户语义包扩展失败：" + published.error().message());
+                throw new FeedbackException(
+                        422,
+                        "PACK_PUBLISH_FAILED",
+                        "发布租户语义包扩展失败：" + published.error().message());
             }
             return ns + "/" + name + "@" + version;
         }
@@ -229,12 +250,18 @@ public final class FeedbackService {
             asset.put(
                     "metadata",
                     Map.of(
-                            "name", name,
-                            "namespace", ns,
-                            "version", "1.0.0",
-                            "displayName", "租户经验 · " + basePack,
-                            "description", "经验回流审核通过的规则与已验证任务，扩展 " + basePack,
-                            "owner", "tenant-" + tenantId));
+                            "name",
+                            name,
+                            "namespace",
+                            ns,
+                            "version",
+                            "1.0.0",
+                            "displayName",
+                            "租户经验 · " + basePack,
+                            "description",
+                            "经验回流审核通过的规则与已验证任务，扩展 " + basePack,
+                            "owner",
+                            "tenant-" + tenantId));
             asset.put("spec", Map.of("extends", basePack));
             return Json.MAPPER.valueToTree(asset);
         }

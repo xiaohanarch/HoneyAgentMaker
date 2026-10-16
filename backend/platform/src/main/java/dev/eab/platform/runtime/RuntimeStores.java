@@ -217,7 +217,13 @@ public final class RuntimeStores {
             }
             return jdbc.sql("SELECT id FROM runs WHERE tenant_id = ? AND user_id = ? AND (agent = ? OR agent LIKE ?)"
                             + " AND created_at >= ? AND created_at <= ? ORDER BY created_at DESC LIMIT 1")
-                    .params(tenantId, userId, agent, agent + "@%", t.minus(window).toString(), t.plus(window).toString())
+                    .params(
+                            tenantId,
+                            userId,
+                            agent,
+                            agent + "@%",
+                            t.minus(window).toString(),
+                            t.plus(window).toString())
                     .query(String.class)
                     .optional()
                     .flatMap(this::get);

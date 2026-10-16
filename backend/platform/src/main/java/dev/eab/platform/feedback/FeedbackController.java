@@ -49,7 +49,8 @@ public class FeedbackController {
         }
         limiter.check("feedback:" + principal.user().id());
         try {
-            return ApiResponse.success(feedback.submit(principal.user(), body.runId(), body.reason().strip()));
+            return ApiResponse.success(feedback.submit(
+                    principal.user(), body.runId(), body.reason().strip()));
         } catch (FeedbackException e) {
             throw new ApiException(e.status(), e.code(), e.getMessage());
         }

@@ -27,13 +27,15 @@ public final class IntegrationCompare {
     /** 对照里用的平台身份，记入审计和运行记录 */
     static final String AGENT = "platform/governance";
 
-    public record Side(String channel, String identity, boolean filtered, String scope, int total, Map<String, Integer> byOrg) {}
+    public record Side(
+            String channel, String identity, boolean filtered, String scope, int total, Map<String, Integer> byOrg) {}
 
     public record Result(String question, Side bo, Side open, String explanation) {}
 
     private final PlatformServices services;
     private final RuntimeService runtime;
-    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+    private final HttpClient http =
+            HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
 
     public IntegrationCompare(PlatformServices services, RuntimeService runtime) {
         this.services = services;
@@ -43,8 +45,14 @@ public final class IntegrationCompare {
     @SuppressWarnings("unchecked")
     public Result compare(DemoUser user) {
         String question = "列出逾期超过 30 天的采购订单";
-        String token = services.tokens().issueUser(new TokenService.UserClaims(user.id(), user.tenantId(), user.roles()));
-        var bo = runtime.callPlatformTool(RuntimeService.NAVIGATOR_AGENT, user, token, "purchase_order_list", Map.of("overdueDaysGt", 30, "limit", 200));
+        String token =
+                services.tokens().issueUser(new TokenService.UserClaims(user.id(), user.tenantId(), user.roles()));
+        var bo = runtime.callPlatformTool(
+                RuntimeService.NAVIGATOR_AGENT,
+                user,
+                token,
+                "purchase_order_list",
+                Map.of("overdueDaysGt", 30, "limit", 200));
         Map<String, Object> boData = bo.ok() && bo.data() instanceof Map<?, ?> m ? (Map<String, Object>) m : Map.of();
         Side boSide = side("BO API", user.name() + "（" + user.id() + "）经 Agent", boData);
 
@@ -53,7 +61,8 @@ public final class IntegrationCompare {
         Map<String, Object> openData;
         try {
             var response = http.send(
-                    HttpRequest.newBuilder(URI.create(runtime.settings().erpUrl()).resolve("/open/v1/purchase-orders?overdueDaysGt=30&limit=200"))
+                    HttpRequest.newBuilder(URI.create(runtime.settings().erpUrl())
+                                    .resolve("/open/v1/purchase-orders?overdueDaysGt=30&limit=200"))
                             .timeout(Duration.ofSeconds(10))
                             .header("authorization", "Bearer " + clientToken)
                             .GET()
@@ -68,10 +77,16 @@ public final class IntegrationCompare {
         }
         Side openSide = side("Open API", "集成账号 " + clientId, openData);
         services.audit()
-                .append(NewAuditEvent.of(user.id(), "demo.integration-compare", clientId, "allow", "演示：BO API 与 Open API 的数据范围对照")
+                .append(NewAuditEvent.of(
+                                user.id(),
+                                "demo.integration-compare",
+                                clientId,
+                                "allow",
+                                "演示：BO API 与 Open API 的数据范围对照")
                         .tenantId(user.tenantId()));
         String explanation = "BO API 以“用户 + Agent”的身份调用，按 " + user.name() + " 的数据权限过滤，只返回 " + boSide.scope()
-                + "；Open API 以集成账号调用，不区分用户，返回 " + openSide.total() + " 张订单、" + openSide.byOrg().size()
+                + "；Open API 以集成账号调用，不区分用户，返回 " + openSide.total() + " 张订单、"
+                + openSide.byOrg().size()
                 + " 个采购组织的全部数据。Agent 如果用集成账号兜底，就会让用户看到自己在 ERP 里看不到的数据，所以平台只允许 Agent 走 BO API，"
                 + "身份透传失败时一律拒绝。";
         return new Result(question, boSide, openSide, explanation);
@@ -79,11 +94,14 @@ public final class IntegrationCompare {
 
     @SuppressWarnings("unchecked")
     static Side side(String channel, String identity, Map<String, Object> data) {
-        List<Map<String, Object>> items = data.get("items") instanceof List<?> l ? (List<Map<String, Object>>) l : List.of();
+        List<Map<String, Object>> items =
+                data.get("items") instanceof List<?> l ? (List<Map<String, Object>>) l : List.of();
         Map<String, Integer> byOrg = new TreeMap<>();
-        for (var item : items) byOrg.merge(String.valueOf(item.getOrDefault("purchasingOrgName", "未知")), 1, Integer::sum);
+        for (var item : items)
+            byOrg.merge(String.valueOf(item.getOrDefault("purchasingOrgName", "未知")), 1, Integer::sum);
         String scope = data.get("scopeLabel") instanceof String s ? s : String.join("、", byOrg.keySet());
         int total = data.get("total") instanceof Number n ? n.intValue() : items.size();
-        return new Side(channel, identity, Boolean.TRUE.equals(data.get("filtered")), scope, total, new LinkedHashMap<>(byOrg));
+        return new Side(
+                channel, identity, Boolean.TRUE.equals(data.get("filtered")), scope, total, new LinkedHashMap<>(byOrg));
     }
 }

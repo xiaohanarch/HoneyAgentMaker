@@ -30,7 +30,8 @@ public final class FeedbackCandidates {
     public static final String FEEDBACK_AGENT = "platform/feedback";
 
     /** 生成候选时交给模型的上下文：用户问了什么、Agent 怎么答的、用了哪些工具，以及工具结果的片段 */
-    public record Context(String agent, String utterance, String answer, String reason, List<Map<String, String>> tools) {}
+    public record Context(
+            String agent, String utterance, String answer, String reason, List<Map<String, String>> tools) {}
 
     /** @param decidedBy model 或 rule */
     public record Generated(Map<String, Object> candidate, String decidedBy) {}
@@ -54,7 +55,9 @@ public final class FeedbackCandidates {
     static Map<String, Object> fallback(Context context) {
         Map<String, Object> c = new LinkedHashMap<>();
         c.put("kind", "rule");
-        c.put("description", context.reason().length() > 30 ? context.reason().substring(0, 30) + "…" : context.reason());
+        c.put(
+                "description",
+                context.reason().length() > 30 ? context.reason().substring(0, 30) + "…" : context.reason());
         c.put("severity", "warn");
         c.put("remedy", context.reason());
         c.put("reason", "按用户反馈原文生成，没有可执行的检查条件；审核时可以补充");
@@ -106,10 +109,14 @@ public final class FeedbackCandidates {
                             .model(modelName)
                             .temperature(0.0)
                             .toolContext(Map.of(
-                                    ScriptedChatModel.CONTEXT_AGENT, FEEDBACK_AGENT,
-                                    ScriptedChatModel.CONTEXT_AGENT_NAME, "经验回流助手",
-                                    ScriptedChatModel.CONTEXT_USER, userId,
-                                    ScriptedChatModel.CONTEXT_EXAMPLES, new ArrayList<String>())))
+                                    ScriptedChatModel.CONTEXT_AGENT,
+                                    FEEDBACK_AGENT,
+                                    ScriptedChatModel.CONTEXT_AGENT_NAME,
+                                    "经验回流助手",
+                                    ScriptedChatModel.CONTEXT_USER,
+                                    userId,
+                                    ScriptedChatModel.CONTEXT_EXAMPLES,
+                                    new ArrayList<String>())))
                     .call()
                     .chatResponse();
             if (response == null || response.getResult() == null) return null;

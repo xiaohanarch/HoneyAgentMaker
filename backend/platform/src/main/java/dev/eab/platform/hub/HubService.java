@@ -41,11 +41,27 @@ public final class HubService {
 
     public record Check(String name, boolean passed, String detail) {}
 
-    public record AdmissionItem(String ref, String kind, String name, String version, Map<String, String> environments, List<Check> checks, boolean ready) {}
+    public record AdmissionItem(
+            String ref,
+            String kind,
+            String name,
+            String version,
+            Map<String, String> environments,
+            List<Check> checks,
+            boolean ready) {}
 
     /** 审计反查的一条记录：谁、通过哪个 Agent、在什么时候、做了什么、结果如何，以及对应的运行 */
     public record Finding(
-            String at, String userId, String agent, String operation, String target, String decision, String reason, String mode, String runId, String traceId) {}
+            String at,
+            String userId,
+            String agent,
+            String operation,
+            String target,
+            String decision,
+            String reason,
+            String mode,
+            String runId,
+            String traceId) {}
 
     private final PlatformServices services;
     private final RuntimeService runtime;
@@ -63,7 +79,8 @@ public final class HubService {
         this.evalRuns = evalRuns;
     }
 
-    static final List<String> KINDS = List.of("Assistant", "Agent", "AgentExtension", "RemoteAgent", "ToolSource", "SemanticPack");
+    static final List<String> KINDS =
+            List.of("Assistant", "Agent", "AgentExtension", "RemoteAgent", "ToolSource", "SemanticPack");
 
     /** 资产来源：标品、租户、扩展、外部、平台 */
     static String source(Asset a) {
@@ -72,10 +89,12 @@ public final class HubService {
         return switch (a.layer()) {
             case vendor -> "vendor";
             case platform -> "platform";
-            case tenant -> a instanceof Asset.AgentExtensionAsset
-                            || (a instanceof Asset.SemanticPackAsset p && p.spec().extendsRef() != null)
-                    ? "extension"
-                    : "tenant";
+            case tenant ->
+                a instanceof Asset.AgentExtensionAsset
+                                || (a instanceof Asset.SemanticPackAsset p
+                                        && p.spec().extendsRef() != null)
+                        ? "extension"
+                        : "tenant";
         };
     }
 
@@ -84,7 +103,9 @@ public final class HubService {
     }
 
     public Inventory inventory(String tenantId) {
-        var latest = services.registry().latestPublished(AssetFilter.all(), Viewer.tenant(tenantId)).assets();
+        var latest = services.registry()
+                .latestPublished(AssetFilter.all(), Viewer.tenant(tenantId))
+                .assets();
         var summaries = services.registry().list(Viewer.tenant(tenantId), AssetFilter.all());
         List<InventoryItem> items = new ArrayList<>();
         List<Edge> edges = new ArrayList<>();
@@ -94,11 +115,19 @@ public final class HubService {
             if (a instanceof Asset.ToolSourceAsset t && !"mcp".equals(t.spec().type())) continue;
             String r = ref(a);
             boolean signed = summaries.stream()
-                    .anyMatch(s -> (s.namespace() + "/" + s.name()).equals(r) && s.version().equals(a.metadata().version()) && s.signed());
+                    .anyMatch(s -> (s.namespace() + "/" + s.name()).equals(r)
+                            && s.version().equals(a.metadata().version())
+                            && s.signed());
             Map<String, String> envs = new LinkedHashMap<>();
             if (a.layer() == dev.eab.spec.Layers.Layer.tenant) {
                 for (String env : StudioStores.ENVIRONMENTS) {
-                    deployments.active(tenantId, env, a.metadata().namespace(), a.metadata().name()).ifPresent(d -> envs.put(env, d.version()));
+                    deployments
+                            .active(
+                                    tenantId,
+                                    env,
+                                    a.metadata().namespace(),
+                                    a.metadata().name())
+                            .ifPresent(d -> envs.put(env, d.version()));
                 }
             }
             items.add(new InventoryItem(
@@ -106,22 +135,28 @@ public final class HubService {
                     a.kind(),
                     a.metadata().version(),
                     source(a),
-                    a.metadata().displayName() == null ? a.metadata().name() : a.metadata().displayName(),
+                    a.metadata().displayName() == null
+                            ? a.metadata().name()
+                            : a.metadata().displayName(),
                     a.metadata().description(),
                     "published",
                     signed,
                     envs));
             switch (a) {
                 case Asset.AssistantAsset s -> {
-                    if (s.spec().members() != null) s.spec().members().forEach(m -> edges.add(new Edge(r, key(m), "成员")));
+                    if (s.spec().members() != null)
+                        s.spec().members().forEach(m -> edges.add(new Edge(r, key(m), "成员")));
                 }
-                case Asset.AgentExtensionAsset e -> edges.add(new Edge(r, key(e.spec().target()), "扩展"));
-                case Asset.AgentAsset ag -> ag.spec().tools().forEach(t -> {
-                    if (t.agent() != null) edges.add(new Edge(r, key(t.agent()), "协作"));
-                    if (t.remoteAgent() != null) edges.add(new Edge(r, key(t.remoteAgent()), "协作"));
-                });
+                case Asset.AgentExtensionAsset e ->
+                    edges.add(new Edge(r, key(e.spec().target()), "扩展"));
+                case Asset.AgentAsset ag ->
+                    ag.spec().tools().forEach(t -> {
+                        if (t.agent() != null) edges.add(new Edge(r, key(t.agent()), "协作"));
+                        if (t.remoteAgent() != null) edges.add(new Edge(r, key(t.remoteAgent()), "协作"));
+                    });
                 case Asset.SemanticPackAsset p -> {
-                    if (p.spec().extendsRef() != null) edges.add(new Edge(r, key(p.spec().extendsRef()), "扩展"));
+                    if (p.spec().extendsRef() != null)
+                        edges.add(new Edge(r, key(p.spec().extendsRef()), "扩展"));
                 }
                 default -> {}
             }
@@ -143,7 +178,9 @@ public final class HubService {
     public List<AdmissionItem> admission(String tenantId) {
         var resolver = services.registry().resolverFor(Viewer.tenant(tenantId));
         List<AdmissionItem> result = new ArrayList<>();
-        var latest = services.registry().latestPublished(AssetFilter.all(), Viewer.tenant(tenantId)).assets();
+        var latest = services.registry()
+                .latestPublished(AssetFilter.all(), Viewer.tenant(tenantId))
+                .assets();
         for (Asset a : latest) {
             boolean candidate = a.layer() == dev.eab.spec.Layers.Layer.tenant
                     && (a instanceof Asset.AgentAsset || a instanceof Asset.AgentExtensionAsset);
@@ -151,20 +188,44 @@ public final class HubService {
             String r = ref(a);
             Map<String, String> envs = new LinkedHashMap<>();
             for (String env : StudioStores.ENVIRONMENTS) {
-                deployments.active(tenantId, env, a.metadata().namespace(), a.metadata().name()).ifPresent(d -> envs.put(env, d.version()));
+                deployments
+                        .active(
+                                tenantId,
+                                env,
+                                a.metadata().namespace(),
+                                a.metadata().name())
+                        .ifPresent(d -> envs.put(env, d.version()));
             }
             if (a.metadata().version().equals(envs.get("prod"))) continue;
             List<Check> checks = new ArrayList<>();
             var passed = evalRuns.latestPassed(tenantId, r, StudioService.contentHash(a));
-            checks.add(new Check("评测门禁", passed.isPresent(),
-                    passed.map(e -> "评测 " + e.id() + " 通过（" + e.passed() + "/" + e.total() + "）").orElse("没有与该版本内容一致的评测通过记录")));
-            var writeIssues = Lint.lint(a, resolver).stream().filter(i -> i.rule().equals("tool-write-level") && i.severity().equals("error")).toList();
-            checks.add(new Check("工具写级别合规", writeIssues.isEmpty(),
-                    writeIssues.isEmpty() ? "所有工具都声明了写级别，且不超过上限" : writeIssues.getFirst().message()));
+            checks.add(new Check(
+                    "评测门禁",
+                    passed.isPresent(),
+                    passed.map(e -> "评测 " + e.id() + " 通过（" + e.passed() + "/" + e.total() + "）")
+                            .orElse("没有与该版本内容一致的评测通过记录")));
+            var writeIssues = Lint.lint(a, resolver).stream()
+                    .filter(i ->
+                            i.rule().equals("tool-write-level") && i.severity().equals("error"))
+                    .toList();
+            checks.add(new Check(
+                    "工具写级别合规",
+                    writeIssues.isEmpty(),
+                    writeIssues.isEmpty()
+                            ? "所有工具都声明了写级别，且不超过上限"
+                            : writeIssues.getFirst().message()));
             checks.add(mcpCheck(a, resolver));
             checks.add(new Check("完整性", true, "租户资产在读取时核对了内容哈希（标品与平台资产验签）"));
-            result.add(new AdmissionItem(r, a.kind(), a.metadata().displayName() == null ? a.metadata().name() : a.metadata().displayName(),
-                    a.metadata().version(), envs, checks, checks.stream().allMatch(Check::passed)));
+            result.add(new AdmissionItem(
+                    r,
+                    a.kind(),
+                    a.metadata().displayName() == null
+                            ? a.metadata().name()
+                            : a.metadata().displayName(),
+                    a.metadata().version(),
+                    envs,
+                    checks,
+                    checks.stream().allMatch(Check::passed)));
         }
         return result;
     }
@@ -175,15 +236,19 @@ public final class HubService {
         int used = 0;
         for (var r : dev.eab.spec.References.collect(a)) {
             if (!AssetRef.isValid(r.ref())) continue;
-            var target = resolver.resolve(AssetRef.parse(r.ref()), dev.eab.spec.AssetResolver.PUBLISHED).orElse(null);
-            if (target instanceof Asset.ToolSourceAsset t && "mcp".equals(t.spec().type())) {
+            var target = resolver.resolve(AssetRef.parse(r.ref()), dev.eab.spec.AssetResolver.PUBLISHED)
+                    .orElse(null);
+            if (target instanceof Asset.ToolSourceAsset t
+                    && "mcp".equals(t.spec().type())) {
                 used++;
                 var labels = t.metadata().labels();
                 if (labels == null || !"approved".equals(labels.get("approval"))) unapproved.add(ref(t));
             }
         }
         if (used == 0) return new Check("MCP Server 已审批", true, "没有使用 MCP Server");
-        return new Check("MCP Server 已审批", unapproved.isEmpty(),
+        return new Check(
+                "MCP Server 已审批",
+                unapproved.isEmpty(),
                 unapproved.isEmpty() ? "用到的 " + used + " 个 MCP Server 都已审批" : "未审批：" + String.join("、", unapproved));
     }
 
@@ -192,7 +257,8 @@ public final class HubService {
      * 再按用户、Agent 和时间找到对应的运行（可以打开追踪）。
      */
     public List<Finding> reverseLookup(String tenantId, String object) {
-        List<AuditEvent> events = services.audit().list(AuditFilter.all().withAction("bo.access").withTenant(tenantId));
+        List<AuditEvent> events =
+                services.audit().list(AuditFilter.all().withAction("bo.access").withTenant(tenantId));
         List<Finding> findings = new ArrayList<>();
         for (AuditEvent e : events) {
             boolean hit = (e.target() != null && e.target().contains(object))
@@ -200,8 +266,17 @@ public final class HubService {
             if (!hit) continue;
             String agent = e.agent() == null ? "" : e.agent().replaceAll("@.*$", "");
             var run = runtime.runs().near(tenantId, e.userId(), agent, e.at(), Duration.ofMinutes(10));
-            findings.add(new Finding(e.at(), e.userId(), e.agent(), e.tool(), e.target(), e.decision(), e.reason(), e.mode(),
-                    run.map(x -> x.id()).orElse(null), run.map(x -> x.traceId()).orElse(null)));
+            findings.add(new Finding(
+                    e.at(),
+                    e.userId(),
+                    e.agent(),
+                    e.tool(),
+                    e.target(),
+                    e.decision(),
+                    e.reason(),
+                    e.mode(),
+                    run.map(x -> x.id()).orElse(null),
+                    run.map(x -> x.traceId()).orElse(null)));
         }
         return findings;
     }

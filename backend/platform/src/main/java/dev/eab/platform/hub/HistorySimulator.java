@@ -23,7 +23,8 @@ public final class HistorySimulator {
      * @param latencyMs 典型耗时
      * @param confirmRate 需要人工确认的运行比例（写操作类 Agent 较高）
      */
-    record Profile(String agent, String user, int dailyRuns, long latencyMs, double failRate, double confirmRate, int tools) {}
+    record Profile(
+            String agent, String user, int dailyRuns, long latencyMs, double failRate, double confirmRate, int tools) {}
 
     static final List<Profile> PROFILES = List.of(
             new Profile("vendor.pur/supplier-performance-analyst", "zhangmin", 14, 9_000, 0.04, 0.0, 4),
@@ -49,8 +50,12 @@ public final class HistorySimulator {
 
     public static Report generate(JdbcClient jdbc, String tenantId, LocalDate today) {
         Random random = new Random(SEED + tenantId.hashCode());
-        jdbc.sql("DELETE FROM run_metrics WHERE tenant_id = ? AND simulated = 1").param(tenantId).update();
-        jdbc.sql("DELETE FROM business_metrics WHERE tenant_id = ?").param(tenantId).update();
+        jdbc.sql("DELETE FROM run_metrics WHERE tenant_id = ? AND simulated = 1")
+                .param(tenantId)
+                .update();
+        jdbc.sql("DELETE FROM business_metrics WHERE tenant_id = ?")
+                .param(tenantId)
+                .update();
         int runs = 0;
         int points = 0;
         for (int d = DAYS; d >= 1; d--) {
@@ -58,15 +63,23 @@ public final class HistorySimulator {
             boolean weekend = day.getDayOfWeek().getValue() >= 6;
             double progress = (DAYS - d) / (double) DAYS;
             for (Profile p : PROFILES) {
-                int count = Math.max(0, (int) Math.round(p.dailyRuns() * (weekend ? 0.3 : 1) * (0.7 + 0.6 * random.nextDouble())));
+                int count = Math.max(
+                        0, (int) Math.round(p.dailyRuns() * (weekend ? 0.3 : 1) * (0.7 + 0.6 * random.nextDouble())));
                 for (int i = 0; i < count; i++) {
                     insertRun(jdbc, tenantId, day, p, random, progress, runs++);
                 }
             }
             for (Trend t : TRENDS) {
                 double value = t.start() + (t.end() - t.start()) * progress + (random.nextGaussian() * t.noise());
-                jdbc.sql("INSERT INTO business_metrics (tenant_id, day, layer, metric, agent, value) VALUES (?, ?, ?, ?, ?, ?)")
-                        .params(tenantId, day.toString(), t.layer(), t.metric(), t.agent(), Math.round(value * 10) / 10.0)
+                jdbc.sql(
+                                "INSERT INTO business_metrics (tenant_id, day, layer, metric, agent, value) VALUES (?, ?, ?, ?, ?, ?)")
+                        .params(
+                                tenantId,
+                                day.toString(),
+                                t.layer(),
+                                t.metric(),
+                                t.agent(),
+                                Math.round(value * 10) / 10.0)
                         .update();
                 points++;
             }
@@ -74,7 +87,8 @@ public final class HistorySimulator {
         return new Report(runs, points);
     }
 
-    private static void insertRun(JdbcClient jdbc, String tenantId, LocalDate day, Profile p, Random random, double progress, int n) {
+    private static void insertRun(
+            JdbcClient jdbc, String tenantId, LocalDate day, Profile p, Random random, double progress, int n) {
         // 失败率随时间略降（标品和扩展在迭代），耗时服从偏态分布，少数长尾
         boolean failed = random.nextDouble() < p.failRate() * (1.2 - 0.5 * progress);
         double factor = Math.exp(random.nextGaussian() * 0.45);
@@ -85,11 +99,26 @@ public final class HistorySimulator {
         int tools = Math.max(1, p.tools() + random.nextInt(3) - 1);
         int toolErrors = failed ? 1 : (random.nextDouble() < 0.03 ? 1 : 0);
         int confirmations = random.nextDouble() < p.confirmRate() ? 1 : 0;
-        String at = day.atTime(8 + random.nextInt(11), random.nextInt(60), random.nextInt(60)).toInstant(ZoneOffset.UTC).toString();
-        jdbc.sql("INSERT INTO run_metrics (run_id, tenant_id, agent, user_id, at, status, latency_ms, input_tokens, output_tokens,"
-                        + " cost_usd, tool_calls, tool_errors, confirmations, simulated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)")
-                .params("sim-" + tenantId + "-" + day + "-" + n, tenantId, p.agent(), p.user(), at, failed ? "failed" : "completed",
-                        latency, in, out, cost, tools, toolErrors, confirmations)
+        String at = day.atTime(8 + random.nextInt(11), random.nextInt(60), random.nextInt(60))
+                .toInstant(ZoneOffset.UTC)
+                .toString();
+        jdbc.sql(
+                        "INSERT INTO run_metrics (run_id, tenant_id, agent, user_id, at, status, latency_ms, input_tokens, output_tokens,"
+                                + " cost_usd, tool_calls, tool_errors, confirmations, simulated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)")
+                .params(
+                        "sim-" + tenantId + "-" + day + "-" + n,
+                        tenantId,
+                        p.agent(),
+                        p.user(),
+                        at,
+                        failed ? "failed" : "completed",
+                        latency,
+                        in,
+                        out,
+                        cost,
+                        tools,
+                        toolErrors,
+                        confirmations)
                 .update();
     }
 }

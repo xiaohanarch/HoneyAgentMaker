@@ -126,7 +126,8 @@ public class HubController {
 
     @GetMapping("/hub/inventory")
     @Operation(summary = "资产清单与血缘：岗位助手、Agent、扩展、远程 Agent、MCP Server、模型档位")
-    public ApiResponse<HubService.Inventory> inventory(HttpServletRequest request, @RequestParam(required = false) String tenant) {
+    public ApiResponse<HubService.Inventory> inventory(
+            HttpServletRequest request, @RequestParam(required = false) String tenant) {
         return ApiResponse.success(hub.inventory(scope(request, tenant).tenantId()));
     }
 
@@ -138,7 +139,8 @@ public class HubController {
         AssetRef r = parse(ref);
         var list = services.registry().resolverFor(Viewer.tenant(s.tenantId())).listVersions(r.namespace(), r.name());
         return ApiResponse.success(list.stream()
-                .map(v -> Map.<String, Object>of("version", v.version(), "status", v.status().name()))
+                .map(v -> Map.<String, Object>of(
+                        "version", v.version(), "status", v.status().name()))
                 .toList());
     }
 
@@ -151,20 +153,27 @@ public class HubController {
             @RequestParam String to,
             @RequestParam(required = false) String tenant) {
         Principal principal = services.principals().require(request);
-        Viewer viewer = principal.viewer() instanceof Viewer.Platform ? Viewer.PLATFORM : Viewer.tenant(scope(request, tenant).tenantId());
+        Viewer viewer = principal.viewer() instanceof Viewer.Platform
+                ? Viewer.PLATFORM
+                : Viewer.tenant(scope(request, tenant).tenantId());
         AssetRef r = parse(ref);
         var a = services.registry().view(viewer, r.namespace(), r.name(), from);
         var b = services.registry().view(viewer, r.namespace(), r.name(), to);
         if (!a.ok() || !b.ok()) throw new ApiException(404, "NOT_FOUND", "版本不存在");
         return ApiResponse.success(Map.of(
-                "ref", r.key(),
-                "from", from,
-                "to", to,
-                "changes", VersionDiff.diff(a.value().asset(), b.value().asset())));
+                "ref",
+                r.key(),
+                "from",
+                from,
+                "to",
+                to,
+                "changes",
+                VersionDiff.diff(a.value().asset(), b.value().asset())));
     }
 
     static AssetRef parse(String ref) {
-        if (ref == null || !AssetRef.isValid(ref)) throw new ApiException(400, "BAD_REQUEST", "请求参数不合法：ref 写作 namespace/name");
+        if (ref == null || !AssetRef.isValid(ref))
+            throw new ApiException(400, "BAD_REQUEST", "请求参数不合法：ref 写作 namespace/name");
         return AssetRef.parse(ref);
     }
 
@@ -172,7 +181,8 @@ public class HubController {
 
     @GetMapping("/hub/admission")
     @Operation(summary = "上架准入队列：评测门禁、写级别合规、MCP Server 审批、完整性")
-    public ApiResponse<List<HubService.AdmissionItem>> admission(HttpServletRequest request, @RequestParam(required = false) String tenant) {
+    public ApiResponse<List<HubService.AdmissionItem>> admission(
+            HttpServletRequest request, @RequestParam(required = false) String tenant) {
         return ApiResponse.success(hub.admission(scope(request, tenant).tenantId()));
     }
 
@@ -180,7 +190,8 @@ public class HubController {
 
     @PostMapping("/hub/admission/approve")
     @Operation(summary = "批准上架：晋级到 prod（晋级门禁照常检查）")
-    public ApiResponse<StudioReleases.PromoteResult> approve(HttpServletRequest request, @RequestBody ApproveBody body) {
+    public ApiResponse<StudioReleases.PromoteResult> approve(
+            HttpServletRequest request, @RequestBody ApproveBody body) {
         Scope s = admin(scope(request, null));
         if (body == null || body.version() == null || !body.version().matches("^\\d+\\.\\d+\\.\\d+$")) {
             throw new ApiException(400, "BAD_REQUEST", "请求参数不合法：需要 ref 和 version");
@@ -194,7 +205,9 @@ public class HubController {
     @GetMapping("/hub/metrics")
     @Operation(summary = "运行指标：技术指标、流程指标、业务结果、岗位助手 KPI")
     public ApiResponse<MetricsService.Overview> metrics(
-            HttpServletRequest request, @RequestParam(defaultValue = "30") int days, @RequestParam(required = false) String tenant) {
+            HttpServletRequest request,
+            @RequestParam(defaultValue = "30") int days,
+            @RequestParam(required = false) String tenant) {
         if (days < 1 || days > 90) throw new ApiException(400, "BAD_REQUEST", "days 应在 1 到 90 之间");
         return ApiResponse.success(metrics.overview(scope(request, tenant).tenantId(), days));
     }
@@ -205,13 +218,15 @@ public class HubController {
     @Operation(summary = "审计反查：某个业务对象被谁通过哪个 Agent 改过")
     public ApiResponse<List<HubService.Finding>> reverse(
             HttpServletRequest request, @RequestParam String object, @RequestParam(required = false) String tenant) {
-        if (object == null || object.isBlank() || object.length() > 64) throw new ApiException(400, "BAD_REQUEST", "请求参数不合法：object 不能为空，最长 64 字");
+        if (object == null || object.isBlank() || object.length() > 64)
+            throw new ApiException(400, "BAD_REQUEST", "请求参数不合法：object 不能为空，最长 64 字");
         return ApiResponse.success(hub.reverseLookup(scope(request, tenant).tenantId(), object.strip()));
     }
 
     @GetMapping("/hub/demo/integration-compare")
     @Operation(summary = "演示：同一问题经 BO API（用户身份）与 Open API（集成账号）的数据范围对照")
-    public ApiResponse<IntegrationCompare.Result> integrationCompare(HttpServletRequest request, @RequestParam(defaultValue = "zhangmin") String user) {
+    public ApiResponse<IntegrationCompare.Result> integrationCompare(
+            HttpServletRequest request, @RequestParam(defaultValue = "zhangmin") String user) {
         requireDemo();
         Scope s = scope(request, null);
         var target = dev.eab.directory.DemoDirectory.findUser(user)
@@ -228,9 +243,11 @@ public class HubController {
 
     @GetMapping("/hub/upgrades")
     @Operation(summary = "标品升级记录与各租户扩展的回归结果")
-    public ApiResponse<Map<String, Object>> upgradeList(HttpServletRequest request, @RequestParam(required = false) String tenant) {
+    public ApiResponse<Map<String, Object>> upgradeList(
+            HttpServletRequest request, @RequestParam(required = false) String tenant) {
         Scope s = scope(request, tenant);
-        return ApiResponse.success(Map.of("presets", UpgradeService.PRESETS, "regressions", upgrades.list(s.tenantId())));
+        return ApiResponse.success(
+                Map.of("presets", UpgradeService.PRESETS, "regressions", upgrades.list(s.tenantId())));
     }
 
     @PostMapping("/hub/demo/upgrade")
@@ -238,7 +255,8 @@ public class HubController {
     public ApiResponse<List<UpgradeService.Regression>> upgrade(HttpServletRequest request) {
         requireDemo();
         Scope s = admin(scope(request, null));
-        return ApiResponse.success(call(() -> upgrades.simulate(UpgradeService.PRESETS.getFirst(), s.user().id())));
+        return ApiResponse.success(call(() ->
+                upgrades.simulate(UpgradeService.PRESETS.getFirst(), s.user().id())));
     }
 
     @PostMapping("/hub/demo/history")
@@ -247,8 +265,11 @@ public class HubController {
         requireDemo();
         Scope s = admin(scope(request, null));
         HistorySimulator.Report[] report = new HistorySimulator.Report[1];
-        services.db().inTransaction(() -> report[0] = HistorySimulator.generate(
-                services.db().jdbc(), s.tenantId(), LocalDate.now(services.clock().withZone(ZoneOffset.UTC))));
+        services.db()
+                .inTransaction(() -> report[0] = HistorySimulator.generate(
+                        services.db().jdbc(),
+                        s.tenantId(),
+                        LocalDate.now(services.clock().withZone(ZoneOffset.UTC))));
         return ApiResponse.success(report[0]);
     }
 
@@ -257,7 +278,9 @@ public class HubController {
     @GetMapping("/hub/feedback")
     @Operation(summary = "经验回流的审核队列")
     public ApiResponse<List<Feedback>> feedbackList(
-            HttpServletRequest request, @RequestParam(required = false) String status, @RequestParam(required = false) String tenant) {
+            HttpServletRequest request,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String tenant) {
         if (status != null && !List.of("pending", "approved", "rejected").contains(status)) {
             throw new ApiException(400, "BAD_REQUEST", "status 只能是 pending、approved、rejected");
         }
@@ -268,14 +291,17 @@ public class HubController {
 
     @PostMapping("/hub/feedback/{id}/approve")
     @Operation(summary = "审核通过：写入租户语义包扩展，所有相关 Agent 下次运行即生效")
-    public ApiResponse<Feedback> approveFeedback(HttpServletRequest request, @PathVariable String id, @RequestBody(required = false) ReviewBody body) {
+    public ApiResponse<Feedback> approveFeedback(
+            HttpServletRequest request, @PathVariable String id, @RequestBody(required = false) ReviewBody body) {
         Scope s = admin(scope(request, null));
-        return ApiResponse.success(call(() -> feedback.approve(s.user(), id, body == null ? null : body.candidate(), body == null ? null : body.note())));
+        return ApiResponse.success(call(() -> feedback.approve(
+                s.user(), id, body == null ? null : body.candidate(), body == null ? null : body.note())));
     }
 
     @PostMapping("/hub/feedback/{id}/reject")
     @Operation(summary = "驳回候选规则")
-    public ApiResponse<Feedback> rejectFeedback(HttpServletRequest request, @PathVariable String id, @RequestBody(required = false) ReviewBody body) {
+    public ApiResponse<Feedback> rejectFeedback(
+            HttpServletRequest request, @PathVariable String id, @RequestBody(required = false) ReviewBody body) {
         Scope s = admin(scope(request, null));
         return ApiResponse.success(call(() -> feedback.reject(s.user(), id, body == null ? null : body.note())));
     }
@@ -284,13 +310,15 @@ public class HubController {
 
     @GetMapping("/hub/solutions")
     @Operation(summary = "方案包及其在各环境的部署")
-    public ApiResponse<List<Map<String, Object>>> solutionList(HttpServletRequest request, @RequestParam(required = false) String tenant) {
+    public ApiResponse<List<Map<String, Object>>> solutionList(
+            HttpServletRequest request, @RequestParam(required = false) String tenant) {
         Scope s = scope(request, tenant);
         return ApiResponse.success(solutions.list(s.tenantId()).stream()
                 .map(p -> {
                     Map<String, Object> envs = new java.util.LinkedHashMap<>();
                     for (String env : List.of("dev", "test", "prod")) {
-                        solutions.activePackage(s.tenantId(), env, p.solution())
+                        solutions
+                                .activePackage(s.tenantId(), env, p.solution())
                                 .filter(d -> d.packageId().equals(p.id()))
                                 .ifPresent(d -> envs.put(env, d.deployedAt()));
                     }
@@ -305,29 +333,37 @@ public class HubController {
     @Operation(summary = "从一个租户资产（通常是扩展）生成方案并编译成方案包")
     public ApiResponse<SolutionService.Package> compile(HttpServletRequest request, @RequestBody CompileBody body) {
         Scope s = admin(scope(request, null));
-        if (body == null || body.name() == null || !body.name().matches(NAME)) throw new ApiException(400, "BAD_REQUEST", "请求参数不合法：name 用小写字母、数字和连字符");
+        if (body == null || body.name() == null || !body.name().matches(NAME))
+            throw new ApiException(400, "BAD_REQUEST", "请求参数不合法：name 用小写字母、数字和连字符");
         parse(body.root());
-        return ApiResponse.success(call(() -> solutions.compileFrom(s.tenantId(), s.user().id(), body.name(), body.root())));
+        return ApiResponse.success(
+                call(() -> solutions.compileFrom(s.tenantId(), s.user().id(), body.name(), body.root())));
     }
 
     public record DeployBody(String environment) {}
 
     @PostMapping("/hub/solutions/packages/{id}/deploy")
     @Operation(summary = "部署方案包：校验签名后部署包里的全部资产")
-    public ApiResponse<SolutionService.PackageDeployment> deploy(HttpServletRequest request, @PathVariable String id, @RequestBody DeployBody body) {
+    public ApiResponse<SolutionService.PackageDeployment> deploy(
+            HttpServletRequest request, @PathVariable String id, @RequestBody DeployBody body) {
         Scope s = admin(scope(request, null));
-        if (body == null || body.environment() == null) throw new ApiException(400, "BAD_REQUEST", "请求参数不合法：需要 environment");
-        return ApiResponse.success(call(() -> solutions.deploy(s.tenantId(), s.user().id(), id, body.environment())));
+        if (body == null || body.environment() == null)
+            throw new ApiException(400, "BAD_REQUEST", "请求参数不合法：需要 environment");
+        return ApiResponse.success(
+                call(() -> solutions.deploy(s.tenantId(), s.user().id(), id, body.environment())));
     }
 
     public record SolutionRollbackBody(String solution, String environment) {}
 
     @PostMapping("/hub/solutions/rollback")
     @Operation(summary = "方案回滚到上一个方案包")
-    public ApiResponse<SolutionService.PackageDeployment> rollback(HttpServletRequest request, @RequestBody SolutionRollbackBody body) {
+    public ApiResponse<SolutionService.PackageDeployment> rollback(
+            HttpServletRequest request, @RequestBody SolutionRollbackBody body) {
         Scope s = admin(scope(request, null));
-        if (body == null || body.solution() == null || body.environment() == null) throw new ApiException(400, "BAD_REQUEST", "请求参数不合法：需要 solution 和 environment");
-        return ApiResponse.success(call(() -> solutions.rollback(s.tenantId(), s.user().id(), body.solution(), body.environment())));
+        if (body == null || body.solution() == null || body.environment() == null)
+            throw new ApiException(400, "BAD_REQUEST", "请求参数不合法：需要 solution 和 environment");
+        return ApiResponse.success(
+                call(() -> solutions.rollback(s.tenantId(), s.user().id(), body.solution(), body.environment())));
     }
 
     // ── 评测 ──
@@ -335,13 +371,18 @@ public class HubController {
     @GetMapping("/hub/evals/suites")
     @Operation(summary = "本租户可见的已发布评测集，可按冒烟集、完整集过滤")
     public ApiResponse<List<Map<String, Object>>> suites(
-            HttpServletRequest request, @RequestParam(required = false) String tier, @RequestParam(required = false) String tenant) {
+            HttpServletRequest request,
+            @RequestParam(required = false) String tier,
+            @RequestParam(required = false) String tenant) {
         Scope s = scope(request, tenant);
         return ApiResponse.success(evals.suites(s.tenantId(), tier).stream()
                 .map(e -> Map.<String, Object>of(
                         "ref", e.metadata().namespace() + "/" + e.metadata().name(),
                         "version", e.metadata().version(),
-                        "name", e.metadata().displayName() == null ? e.metadata().name() : e.metadata().displayName(),
+                        "name",
+                                e.metadata().displayName() == null
+                                        ? e.metadata().name()
+                                        : e.metadata().displayName(),
                         "target", e.spec().target(),
                         "tier", e.spec().tier(),
                         "minPassRate", e.spec().minPassRate(),

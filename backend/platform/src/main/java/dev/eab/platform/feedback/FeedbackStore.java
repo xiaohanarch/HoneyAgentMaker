@@ -55,7 +55,18 @@ public final class FeedbackStore {
         String id = "fb-" + UUID.randomUUID().toString().substring(0, 8);
         jdbc.sql("INSERT INTO feedback (id, tenant_id, user_id, run_id, trace_id, agent, utterance, reason, candidate,"
                         + " decided_by, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)")
-                .params(id, tenantId, userId, runId, traceId, agent, utterance, reason, candidate, decidedBy, IsoTime.now(clock))
+                .params(
+                        id,
+                        tenantId,
+                        userId,
+                        runId,
+                        traceId,
+                        agent,
+                        utterance,
+                        reason,
+                        candidate,
+                        decidedBy,
+                        IsoTime.now(clock))
                 .update();
         return get(tenantId, id).orElseThrow();
     }
@@ -96,7 +107,8 @@ public final class FeedbackStore {
     }
 
     /** 只能审核还在待审的反馈；返回是否改到了 */
-    public boolean review(String tenantId, String id, String status, String reviewer, String note, String packRef, String candidate) {
+    public boolean review(
+            String tenantId, String id, String status, String reviewer, String note, String packRef, String candidate) {
         return jdbc.sql("UPDATE feedback SET status = ?, reviewer = ?, review_note = ?, pack_ref = ?, candidate = ?,"
                                 + " reviewed_at = ? WHERE id = ? AND tenant_id = ? AND status = 'pending'")
                         .params(status, reviewer, note, packRef, candidate, IsoTime.now(clock), id, tenantId)
