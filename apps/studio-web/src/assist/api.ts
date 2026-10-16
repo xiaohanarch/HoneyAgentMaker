@@ -12,13 +12,15 @@ export interface RunEvent {
 interface ApiEnvelope<T> {
   success: boolean
   data: T | null
-  error: { code: string; message: string } | null
+  error: { code: string; message: string; details?: unknown } | null
 }
 
 export class ApiError extends Error {
   constructor(
     readonly code: string,
     message: string,
+    /** 平台在 error.details 里附带的信息，例如门禁结果、检查问题 */
+    readonly details?: unknown,
   ) {
     super(message)
     this.name = 'ApiError'
@@ -34,7 +36,9 @@ function headers(token: string | undefined, accept: string): HeadersInit {
 async function failure(response: Response): Promise<ApiError> {
   try {
     const body = (await response.json()) as ApiEnvelope<unknown>
-    if (body.error !== null) return new ApiError(body.error.code, body.error.message)
+    if (body.error !== null) {
+      return new ApiError(body.error.code, body.error.message, body.error.details)
+    }
   } catch {
     // 响应体不是 JSON 时退回到 HTTP 状态
   }
@@ -47,32 +51,32 @@ export async function getJson<T>(path: string, token: string | undefined): Promi
   return ((await response.json()) as ApiEnvelope<T>).data as T
 }
 
-export async function postJson<T>(
+async function sendJson<T>(
+  method: 'POST' | 'PUT' | 'DELETE',
   path: string,
   token: string | undefined,
   body: unknown,
 ): Promise<T> {
   const response = await fetch(`/api${path}`, {
-    method: 'POST',
+    method,
     headers: headers(token, 'application/json'),
-    body: JSON.stringify(body ?? {}),
+    body: method === 'DELETE' ? undefined : JSON.stringify(body ?? {}),
   })
   if (!response.ok) throw await failure(response)
-  return ((await response.json()) as ApiEnvelope<T>).data as T
+  const text = await response.text()
+  return (text === '' ? undefined : (JSON.parse(text) as ApiEnvelope<T>).data) as T
 }
 
-export async function putJson<T>(
-  path: string,
-  token: string | undefined,
-  body: unknown,
-): Promise<T> {
-  const response = await fetch(`/api${path}`, {
-    method: 'PUT',
-    headers: headers(token, 'application/json'),
-    body: JSON.stringify(body ?? {}),
-  })
-  if (!response.ok) throw await failure(response)
-  return ((await response.json()) as ApiEnvelope<T>).data as T
+export function postJson<T>(path: string, token: string | undefined, body: unknown): Promise<T> {
+  return sendJson<T>('POST', path, token, body)
+}
+
+export function putJson<T>(path: string, token: string | undefined, body: unknown): Promise<T> {
+  return sendJson<T>('PUT', path, token, body)
+}
+
+export function deleteJson<T>(path: string, token: string | undefined): Promise<T> {
+  return sendJson<T>('DELETE', path, token, undefined)
 }
 
 /** 把一段 SSE 文本块解析成事件；只取 data 行，事件名已在 JSON 的 type 里 */
