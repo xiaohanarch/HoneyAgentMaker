@@ -41,8 +41,8 @@ test('故事 B：扩展标品 Agent，评测后发布，王芳在统一入口用
   await save(studio)
 
   await tab(studio, '工具')
-  await studio.getByLabel('tools').fill('tenant.t001.tools/notify-im')
-  await studio.getByLabel('tools').press('Enter')
+  await studio.locator('input[aria-label="tools"]').fill('tenant.t001.tools/notify-im')
+  await studio.locator('input[aria-label="tools"]').press('Enter')
   await save(studio)
 
   await tab(studio, '钩子')
@@ -61,10 +61,10 @@ test('故事 B：扩展标品 Agent，评测后发布，王芳在统一入口用
   // 有效定义：标品指令锁住，租户追加的指令高亮并标来源
   await tab(studio, '有效定义')
   const segments = studio.getByTestId('effective-segments')
-  await expect(segments.locator('[data-tone="locked"]').first()).toContainText(
-    '标品指令（不可见，运行时注入）',
-    WAIT,
-  )
+  // 锁住的片段里有平台安全规则和标品指令，都只显示占位
+  await expect(
+    segments.locator('[data-tone="locked"]').filter({ hasText: '标品指令（不可见，运行时注入）' }),
+  ).not.toHaveCount(0, WAIT)
   await expect(segments.locator('[data-tone="tenant"]').first()).toContainText('50 万元')
   await expect(segments).not.toContainText('你是交易异常解析专家')
 
@@ -83,11 +83,13 @@ test('故事 B：扩展标品 Agent，评测后发布，王芳在统一入口用
   await assistant.getByLabel('输入问题').fill('本月有哪些高风险交易异常')
   await assistant.getByLabel('输入问题').press('Enter')
   const result = assistant.getByTestId('result-card')
+  // 扩展加了两个确认点：发 IM 通知前、结果钩子创建跟进任务前。确认后按钮在运行恢复期间是禁用的，只点可用的按钮
+  const confirm = assistant.getByRole('button', { name: '确认执行', disabled: false })
   for (let i = 0; i < 5; i++) {
-    const confirm = assistant.getByRole('button', { name: '确认执行' })
-    await expect(confirm.or(result)).toBeVisible(WAIT)
-    if (await result.isVisible()) break
+    await expect(confirm.or(result).first()).toBeVisible(WAIT)
+    if ((await result.count()) > 0) break
     await confirm.first().click()
+    await expect(confirm).toHaveCount(0, WAIT)
   }
   await expect(result).toContainText('责任部门', WAIT)
 })
@@ -101,7 +103,7 @@ test('工具中心与技能编辑器：查看工具引用，新建技能并单�
 
   const name = `e2e-skill-${Date.now().toString(36)}`
   await page.getByLabel('技能名').fill(name)
-  await page.getByLabel('显示名').fill('端到端测试技能')
+  await page.getByLabel('显示名', { exact: true }).fill('端到端测试技能')
   await page.getByRole('button', { name: '新建技能' }).click()
   await page.waitForURL(/studio\/skills\//, WAIT)
   await expect(page.getByTestId('skill-graph')).toBeVisible()

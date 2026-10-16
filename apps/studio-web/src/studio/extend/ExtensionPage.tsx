@@ -76,6 +76,8 @@ function Editor({
     String((view.asset?.spec as { target?: string } | undefined)?.target ?? ''),
   )
   const [tab, setTab] = useState<Tab>('instructions')
+  // 刚保存过的页：保存后草稿刷新，编辑区重新挂载，用它把“已保存”的提示带过去
+  const [savedSection, setSavedSection] = useState<string | null>(null)
   const vendor = useQuery({
     queryKey: ['studio', 'vendor-agent', target],
     queryFn: () => api.vendorAgent(target),
@@ -110,7 +112,10 @@ function Editor({
             <button
               key={t.key}
               type="button"
-              onClick={() => setTab(t.key)}
+              onClick={() => {
+                setTab(t.key)
+                setSavedSection(null)
+              }}
               title={t.disabled === true ? '标品没有声明这个扩展点' : undefined}
               className={cn(
                 '-mb-px border-b-2 px-3 py-2 text-sm',
@@ -142,7 +147,13 @@ function Editor({
                   initial={values}
                   point={point}
                   suggestions={suggestions}
-                  onSave={(value) => api.applySection(id, section.key, value).then(changed)}
+                  justSaved={savedSection === section.key}
+                  onSave={(value) =>
+                    api
+                      .applySection(id, section.key, value)
+                      .then(changed)
+                      .then(() => setSavedSection(section.key))
+                  }
                 />
               )}
             </>

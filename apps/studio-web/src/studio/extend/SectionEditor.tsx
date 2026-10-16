@@ -215,16 +215,20 @@ export function SectionEditor({
   point,
   suggestions,
   onSave,
+  justSaved = false,
 }: {
   section: SectionKey
   initial: SectionValues
   point: ExtensionPoint
   suggestions: { tools: string[]; skills: string[]; knowledge: string[]; hooks: string[] }
   onSave: (value: Record<string, unknown>) => Promise<void>
+  /** 保存后草稿刷新会让这一页重新挂载，父组件记下刚保存的页，提示才不会丢 */
+  justSaved?: boolean
 }): ReactNode {
   const [values, setValues] = useState(initial)
   const [state, setState] = useState<{ busy: boolean; error?: string; saved?: boolean }>({
     busy: false,
+    saved: justSaved,
   })
   const patch = (p: Partial<SectionValues>): void => {
     setValues((v) => ({ ...v, ...p }))
