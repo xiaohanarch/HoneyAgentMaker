@@ -35,6 +35,19 @@ final class Segments {
      */
     static PackResolution resolveSemanticPacks(
             AgentAsset agent, List<AgentExtensionAsset> extensions, AssetResolver resolver, List<Status> statuses) {
+        return resolveSemanticPacks(agent, extensions, resolver, statuses, List.of());
+    }
+
+    /**
+     * packExtensions：租户层的语义包扩展。挂载的语义包被某个扩展的 spec.extends 指向时，把扩展接在后面，
+     * 它的 agent_instructions 和规则随之生效，来源是租户的语义包。
+     */
+    static PackResolution resolveSemanticPacks(
+            AgentAsset agent,
+            List<AgentExtensionAsset> extensions,
+            AssetResolver resolver,
+            List<Status> statuses,
+            List<SemanticPackAsset> packExtensions) {
         List<SemanticPackAsset> packs = new ArrayList<>();
         List<AssemblyIssue> issues = new ArrayList<>();
         Set<String> seen = new HashSet<>();
@@ -65,6 +78,14 @@ final class Segments {
         for (var ext : extensions) {
             if (ext.spec().knowledge() == null) continue;
             for (String ref : ext.spec().knowledge().add()) visitor.visit(ref, ext, 0, true);
+        }
+        for (var ext : packExtensions) {
+            if (ext.spec().extendsRef() == null || !AssetRef.isValid(ext.spec().extendsRef())) continue;
+            var base = AssetRef.parse(ext.spec().extendsRef());
+            boolean mounted = packs.stream()
+                    .anyMatch(p -> p.metadata().namespace().equals(base.namespace())
+                            && p.metadata().name().equals(base.name()));
+            if (mounted && seen.add(AssetRef.key(ext.metadata().namespace(), ext.metadata().name()))) packs.add(ext);
         }
         return new PackResolution(packs, issues);
     }

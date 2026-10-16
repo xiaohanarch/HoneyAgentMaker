@@ -298,7 +298,7 @@ public final class AgentRuntime {
                     tools.inputSchema(tool)));
         }
         var semantic = tools.semanticService(definition);
-        ConstraintGuard constraints = ConstraintGuard.of(definition, semantic.rules());
+        ConstraintGuard constraints = ConstraintGuard.ofSourced(definition, semantic.sourcedRules());
         // 运行可能锁定了版本（例如 prod 部署的 ns/name@1.0.0），交给模型网关的身份不带版本，剧本按 Agent 匹配
         String agentId =
                 ctx.agent().contains("@") ? ctx.agent().substring(0, ctx.agent().indexOf('@')) : ctx.agent();

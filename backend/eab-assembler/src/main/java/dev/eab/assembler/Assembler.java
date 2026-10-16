@@ -30,18 +30,34 @@ public final class Assembler {
      * @param platformRules 平台安全规则，排在最前，不可覆盖
      * @param statuses 参与解析的资产状态，默认只用已发布版本；私有环境测试时可以带上草稿
      */
+    /**
+     * @param packExtensions 租户层的语义包扩展（spec.extends 指向某个语义包）。Agent 挂载了被扩展的语义包时自动叠加，
+     *     经验回流审核通过的规则写在这里，所有相关 Agent 下次运行即生效（ADR 0013）
+     */
     public record Input(
             String agent,
             String tenantId,
             List<AgentExtensionAsset> extensions,
             List<PlatformRuleSetAsset> platformRules,
             AssetResolver resolver,
-            List<Status> statuses) {
+            List<Status> statuses,
+            List<Asset.SemanticPackAsset> packExtensions) {
 
         public Input {
             extensions = extensions == null ? List.of() : List.copyOf(extensions);
             platformRules = platformRules == null ? List.of() : List.copyOf(platformRules);
             statuses = statuses == null ? AssetResolver.PUBLISHED : List.copyOf(statuses);
+            packExtensions = packExtensions == null ? List.of() : List.copyOf(packExtensions);
+        }
+
+        public Input(
+                String agent,
+                String tenantId,
+                List<AgentExtensionAsset> extensions,
+                List<PlatformRuleSetAsset> platformRules,
+                AssetResolver resolver,
+                List<Status> statuses) {
+            this(agent, tenantId, extensions, platformRules, resolver, statuses, null);
         }
     }
 
@@ -120,7 +136,8 @@ public final class Assembler {
             }
         }
 
-        var packs = Segments.resolveSemanticPacks(agent, extensions, input.resolver(), input.statuses());
+        var packs = Segments.resolveSemanticPacks(
+                agent, extensions, input.resolver(), input.statuses(), input.packExtensions());
         var segments = Segments.build(input.platformRules(), agent, packs.packs(), extensions);
         var tools = Capabilities.buildTools(
                 agent, extensions, !packs.packs().isEmpty(), input.resolver(), input.statuses());
