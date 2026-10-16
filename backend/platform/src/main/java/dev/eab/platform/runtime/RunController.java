@@ -87,14 +87,18 @@ public class RunController {
 
     private static boolean wantsJson(HttpServletRequest request) {
         String accept = request.getHeader("Accept");
-        return accept != null && accept.contains(MediaType.APPLICATION_JSON_VALUE) && !accept.contains("text/event-stream");
+        return accept != null
+                && accept.contains(MediaType.APPLICATION_JSON_VALUE)
+                && !accept.contains("text/event-stream");
     }
 
     @PostMapping("/runs")
     @Operation(summary = "发起一次 Agent 运行，SSE 推送运行事件")
     public Object start(HttpServletRequest request, @RequestBody RunBody body) {
         Principal principal = tenantUser(request);
-        if (body == null || body.agent() == null || !AGENT_REF.matcher(body.agent()).matches()) {
+        if (body == null
+                || body.agent() == null
+                || !AGENT_REF.matcher(body.agent()).matches()) {
             throw new ApiException(400, "BAD_REQUEST", "请求参数不合法：agent 写作 namespace/name");
         }
         if (body.message() == null || body.message().isBlank() || body.message().length() > MAX_MESSAGE) {
@@ -102,7 +106,12 @@ public class RunController {
         }
         limiter.check("run:" + principal.user().id());
         var start = new RuntimeService.StartRequest(
-                principal.user(), principal.token(), body.agent(), body.message().strip(), body.sessionId(), null);
+                principal.user(),
+                principal.token(),
+                body.agent(),
+                body.message().strip(),
+                body.sessionId(),
+                null);
         return respond(request, sink -> runtime.start(start, sink));
     }
 
@@ -113,15 +122,19 @@ public class RunController {
         if (body == null || body.approved() == null) {
             throw new ApiException(400, "BAD_REQUEST", "请求参数不合法：approved 必须是 true 或 false");
         }
-        RunRecord run = runtime.runs().get(id).filter(r -> r.userId().equals(principal.user().id()))
+        RunRecord run = runtime.runs()
+                .get(id)
+                .filter(r -> r.userId().equals(principal.user().id()))
                 .orElseThrow(() -> new ApiException(404, "NOT_FOUND", "运行 " + id + " 不存在"));
         if (!run.status().equals("suspended")) {
             throw new ApiException(409, "NOT_SUSPENDED", "运行 " + id + " 当前状态为 " + run.status() + "，不在等待确认");
         }
-        return respond(request, sink -> runtime.confirm(id, principal.user(), principal.token(), body.approved(), sink));
+        return respond(
+                request, sink -> runtime.confirm(id, principal.user(), principal.token(), body.approved(), sink));
     }
 
-    private Object respond(HttpServletRequest request, Function<dev.eab.runtime.RunEvents.Sink, RuntimeService.RunOutcome> work) {
+    private Object respond(
+            HttpServletRequest request, Function<dev.eab.runtime.RunEvents.Sink, RuntimeService.RunOutcome> work) {
         if (wantsJson(request)) {
             List<RunEvent> events = new CopyOnWriteArrayList<>();
             var outcome = work.apply(events::add);
@@ -142,7 +155,9 @@ public class RunController {
 
     private static void send(SseEmitter emitter, RunEvent event) {
         try {
-            emitter.send(SseEmitter.event().name(event.type()).data(Json.MAPPER.writeValueAsString(event), MediaType.APPLICATION_JSON));
+            emitter.send(SseEmitter.event()
+                    .name(event.type())
+                    .data(Json.MAPPER.writeValueAsString(event), MediaType.APPLICATION_JSON));
         } catch (IOException e) {
             // 浏览器断开后运行照常完成，结果和追踪仍可以通过 GET /runs/{id}、GET /traces/{traceId} 查看
         }
@@ -151,15 +166,24 @@ public class RunController {
     private static RunView view(RuntimeService.RunOutcome outcome, List<RunEvent> events) {
         var r = outcome.result();
         return new RunView(
-                outcome.runId(), outcome.traceId(), outcome.sessionId(), r.status(), r.text(), r.output(), r.pending(),
-                r.error(), events);
+                outcome.runId(),
+                outcome.traceId(),
+                outcome.sessionId(),
+                r.status(),
+                r.text(),
+                r.output(),
+                r.pending(),
+                r.error(),
+                events);
     }
 
     @GetMapping("/runs/{id}")
     @Operation(summary = "查看运行状态与结果")
     public ApiResponse<Map<String, Object>> get(HttpServletRequest request, @PathVariable String id) {
         Principal principal = principals.require(request);
-        RunRecord run = runtime.runs().get(id).filter(r -> canSeeRun(principal, r))
+        RunRecord run = runtime.runs()
+                .get(id)
+                .filter(r -> canSeeRun(principal, r))
                 .orElseThrow(() -> new ApiException(404, "NOT_FOUND", "运行 " + id + " 不存在"));
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("runId", run.id());
@@ -180,8 +204,10 @@ public class RunController {
         return switch (principal.viewer()) {
             case Viewer.Platform p -> true;
             case Viewer.Vendor v -> false;
-            case Viewer.Tenant t -> t.tenantId().equals(run.tenantId())
-                    && (run.userId().equals(principal.user().id()) || principal.user().roles().contains("tenant-admin"));
+            case Viewer.Tenant t ->
+                t.tenantId().equals(run.tenantId())
+                        && (run.userId().equals(principal.user().id())
+                                || principal.user().roles().contains("tenant-admin"));
         };
     }
 
@@ -189,7 +215,9 @@ public class RunController {
     @Operation(summary = "读取追踪，按查看者裁剪（租户视角看不到标品指令与平台规则原文）")
     public ApiResponse<Map<String, Object>> trace(HttpServletRequest request, @PathVariable String traceId) {
         Principal principal = principals.require(request);
-        RunRecord run = runtime.runs().byTrace(traceId).filter(r -> canSeeRun(principal, r))
+        RunRecord run = runtime.runs()
+                .byTrace(traceId)
+                .filter(r -> canSeeRun(principal, r))
                 .orElseThrow(() -> new ApiException(404, "NOT_FOUND", "追踪 " + traceId + " 不存在"));
         List<SpanRecord> spans = runtime.traces().list(traceId);
         if (!TraceView.canView(principal.viewer(), spans)) {
@@ -208,30 +236,40 @@ public class RunController {
     public ApiResponse<List<RuntimeStores.MemoryStore.MemoryItem>> memory(
             HttpServletRequest request, @RequestParam(required = false) String agent) {
         Principal principal = tenantUser(request);
-        return ApiResponse.success(runtime.memory().list(principal.user().tenantId(), principal.user().id(), agent));
+        return ApiResponse.success(runtime.memory()
+                .list(principal.user().tenantId(), principal.user().id(), agent));
     }
 
     public record MemoryBody(String agent, String text) {}
 
     @PostMapping("/memory")
     @Operation(summary = "为某个 Agent 记住一条偏好或确认过的事实")
-    public ApiResponse<RuntimeStores.MemoryStore.MemoryItem> remember(HttpServletRequest request, @RequestBody MemoryBody body) {
+    public ApiResponse<RuntimeStores.MemoryStore.MemoryItem> remember(
+            HttpServletRequest request, @RequestBody MemoryBody body) {
         Principal principal = tenantUser(request);
-        if (body == null || body.agent() == null || !AGENT_REF.matcher(body.agent()).matches()) {
+        if (body == null
+                || body.agent() == null
+                || !AGENT_REF.matcher(body.agent()).matches()) {
             throw new ApiException(400, "BAD_REQUEST", "请求参数不合法：agent 写作 namespace/name");
         }
         if (body.text() == null || body.text().isBlank() || body.text().length() > 500) {
             throw new ApiException(400, "BAD_REQUEST", "请求参数不合法：text 不能为空，最长 500 字");
         }
-        return ApiResponse.success(
-                runtime.memory().add(principal.user().tenantId(), principal.user().id(), body.agent(), body.text().strip()));
+        return ApiResponse.success(runtime.memory()
+                .add(
+                        principal.user().tenantId(),
+                        principal.user().id(),
+                        body.agent(),
+                        body.text().strip()));
     }
 
     @DeleteMapping("/memory")
     @Operation(summary = "清除本人的长期记忆，可按 Agent 清除")
-    public ApiResponse<Map<String, Object>> forget(HttpServletRequest request, @RequestParam(required = false) String agent) {
+    public ApiResponse<Map<String, Object>> forget(
+            HttpServletRequest request, @RequestParam(required = false) String agent) {
         Principal principal = tenantUser(request);
-        int removed = runtime.memory().clear(principal.user().tenantId(), principal.user().id(), agent);
+        int removed = runtime.memory()
+                .clear(principal.user().tenantId(), principal.user().id(), agent);
         return ApiResponse.success(Map.of("removed", removed));
     }
 
@@ -251,6 +289,7 @@ public class RunController {
     @Operation(summary = "模拟 IM 渠道里本租户的消息")
     public ApiResponse<List<RuntimeStores.ImChannel.ImMessage>> imMessages(HttpServletRequest request) {
         Principal principal = tenantUser(request);
-        return ApiResponse.success(new ArrayList<>(runtime.im().list(principal.user().tenantId(), 50)));
+        return ApiResponse.success(
+                new ArrayList<>(runtime.im().list(principal.user().tenantId(), 50)));
     }
 }

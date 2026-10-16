@@ -33,7 +33,8 @@ final class KnowledgeDocuments implements Ports.Documents {
 
     @Override
     public List<Map<String, Object>> search(String knowledgeSource, String query, int limit) {
-        KnowledgeSourceAsset source = resolver.resolveOfKind(knowledgeSource, KnowledgeSourceAsset.class, AssetResolver.PUBLISHED)
+        KnowledgeSourceAsset source = resolver.resolveOfKind(
+                        knowledgeSource, KnowledgeSourceAsset.class, AssetResolver.PUBLISHED)
                 .orElseThrow(() -> new IllegalStateException("找不到知识源 " + knowledgeSource));
         List<Bm25.Passage> passages = new ArrayList<>();
         for (var document : source.spec().documents()) {

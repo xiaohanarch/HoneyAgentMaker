@@ -187,7 +187,7 @@ class AgentRuntimeTest {
         @DisplayName("内置计算器用 CEL 精确计算")
         void calculator() {
             var rt = new TestRuntime(SCRIPTS);
-            assertThat(rt.run(ANALYST, "算一下逾期率").result().text()).isEqualTo("逾期率 25.0%");
+            assertThat(rt.run(ANALYST, "算一下逾期率").result().text()).isEqualTo("逾期率 25%");
         }
 
         @Test

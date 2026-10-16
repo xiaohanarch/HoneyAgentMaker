@@ -33,9 +33,10 @@ public final class RuntimeStores {
             Optional<SpanRecord> existing = get(span.traceId(), span.spanId());
             SpanRecord merged = SpanRecord.merge(existing.orElse(null), span);
             if (merged == null) return;
-            jdbc.sql("INSERT OR REPLACE INTO trace_spans (trace_id, span_id, parent_span_id, name, kind, start_time, end_time,"
-                            + " status, status_message, attributes, prompt_segments, tenant_id)"
-                            + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+            jdbc.sql(
+                            "INSERT OR REPLACE INTO trace_spans (trace_id, span_id, parent_span_id, name, kind, start_time, end_time,"
+                                    + " status, status_message, attributes, prompt_segments, tenant_id)"
+                                    + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
                     .params(
                             merged.traceId(),
                             merged.spanId(),
@@ -47,7 +48,9 @@ public final class RuntimeStores {
                             merged.status().name(),
                             merged.statusMessage(),
                             Json.MAPPER.writeValueAsString(merged.attributes()),
-                            merged.promptSegments() == null ? null : Json.MAPPER.writeValueAsString(merged.promptSegments()),
+                            merged.promptSegments() == null
+                                    ? null
+                                    : Json.MAPPER.writeValueAsString(merged.promptSegments()),
                             merged.tenantId())
                     .update();
         }
@@ -120,12 +123,24 @@ public final class RuntimeStores {
         }
 
         public void insert(RunRecord run) {
-            jdbc.sql("INSERT INTO runs (id, trace_id, session_id, tenant_id, user_id, agent, mode, delegation_id, utterance,"
-                            + " status, journal, result, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+            jdbc.sql(
+                            "INSERT INTO runs (id, trace_id, session_id, tenant_id, user_id, agent, mode, delegation_id, utterance,"
+                                    + " status, journal, result, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
                     .params(
-                            run.id(), run.traceId(), run.sessionId(), run.tenantId(), run.userId(), run.agent(), run.mode(),
-                            run.delegationId(), run.utterance(), run.status(), run.journal(), run.result(),
-                            run.createdAt(), run.updatedAt())
+                            run.id(),
+                            run.traceId(),
+                            run.sessionId(),
+                            run.tenantId(),
+                            run.userId(),
+                            run.agent(),
+                            run.mode(),
+                            run.delegationId(),
+                            run.utterance(),
+                            run.status(),
+                            run.journal(),
+                            run.result(),
+                            run.createdAt(),
+                            run.updatedAt())
                     .update();
         }
 
@@ -190,8 +205,8 @@ public final class RuntimeStores {
         }
 
         public List<MemoryItem> list(String tenantId, String userId, String agent) {
-            String sql = "SELECT * FROM memories WHERE tenant_id = ? AND user_id = ?" + (agent == null ? "" : " AND agent = ?")
-                    + " ORDER BY id";
+            String sql = "SELECT * FROM memories WHERE tenant_id = ? AND user_id = ?"
+                    + (agent == null ? "" : " AND agent = ?") + " ORDER BY id";
             List<Object> params = new ArrayList<>(List.of(tenantId, userId));
             if (agent != null) params.add(agent);
             return jdbc.sql(sql)
@@ -203,8 +218,9 @@ public final class RuntimeStores {
 
         public MemoryItem add(String tenantId, String userId, String agent, String text) {
             String at = IsoTime.now(clock);
-            long id = jdbc.sql("INSERT INTO memories (tenant_id, user_id, agent, text, created_at) VALUES (?, ?, ?, ?, ?)"
-                            + " RETURNING id")
+            long id = jdbc.sql(
+                            "INSERT INTO memories (tenant_id, user_id, agent, text, created_at) VALUES (?, ?, ?, ?, ?)"
+                                    + " RETURNING id")
                     .params(tenantId, userId, agent, text, at)
                     .query(Long.class)
                     .single();
@@ -213,7 +229,8 @@ public final class RuntimeStores {
 
         /** 只清除本人的记忆；agent 为空时清除本人在全部 Agent 上的记忆 */
         public int clear(String tenantId, String userId, String agent) {
-            String sql = "DELETE FROM memories WHERE tenant_id = ? AND user_id = ?" + (agent == null ? "" : " AND agent = ?");
+            String sql = "DELETE FROM memories WHERE tenant_id = ? AND user_id = ?"
+                    + (agent == null ? "" : " AND agent = ?");
             List<Object> params = new ArrayList<>(List.of(tenantId, userId));
             if (agent != null) params.add(agent);
             return jdbc.sql(sql).params(params).update();
@@ -232,7 +249,8 @@ public final class RuntimeStores {
         }
 
         @Override
-        public void appendSession(String sessionId, String tenantId, String userId, String agent, String utterance, String reply) {
+        public void appendSession(
+                String sessionId, String tenantId, String userId, String agent, String utterance, String reply) {
             jdbc.sql("INSERT INTO session_messages (session_id, tenant_id, user_id, agent, utterance, reply, at)"
                             + " VALUES (?, ?, ?, ?, ?, ?, ?)")
                     .params(sessionId, tenantId, userId, agent, utterance, reply, IsoTime.now(clock))
@@ -251,11 +269,20 @@ public final class RuntimeStores {
         }
 
         public record Alert(
-                long id, String at, String tenantId, String userId, String agent, String runId, String type, String severity,
-                String message, Map<String, Object> detail) {}
+                long id,
+                String at,
+                String tenantId,
+                String userId,
+                String agent,
+                String runId,
+                String type,
+                String severity,
+                String message,
+                Map<String, Object> detail) {}
 
         @Override
-        public void raise(RunContext context, String type, String severity, String message, Map<String, Object> detail) {
+        public void raise(
+                RunContext context, String type, String severity, String message, Map<String, Object> detail) {
             jdbc.sql("INSERT INTO risk_alerts (at, tenant_id, user_id, agent, run_id, type, severity, message, detail)"
                             + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
                     .params(
@@ -322,7 +349,8 @@ public final class RuntimeStores {
             this.clock = clock;
         }
 
-        public record ImMessage(long id, String at, String tenantId, String channel, String recipient, String message, String runId) {}
+        public record ImMessage(
+                long id, String at, String tenantId, String channel, String recipient, String message, String runId) {}
 
         @Override
         public void notify(RunContext context, String channel, String message) {
@@ -330,7 +358,8 @@ public final class RuntimeStores {
         }
 
         public void post(String tenantId, String channel, String recipient, String message, String runId) {
-            jdbc.sql("INSERT INTO im_messages (at, tenant_id, channel, recipient, message, run_id) VALUES (?, ?, ?, ?, ?, ?)")
+            jdbc.sql(
+                            "INSERT INTO im_messages (at, tenant_id, channel, recipient, message, run_id) VALUES (?, ?, ?, ?, ?, ?)")
                     .params(IsoTime.now(clock), tenantId, channel, recipient, message, runId)
                     .update();
         }

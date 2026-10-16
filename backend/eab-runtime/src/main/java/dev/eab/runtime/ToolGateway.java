@@ -391,6 +391,8 @@ public final class ToolGateway {
             // 用 CEL 计算算术表达式：没有变量、没有函数副作用，不存在执行任意代码的风险
             // CEL 不允许整数与小数直接运算，整数一律写成小数
             Object value = Conditions.evaluate(text.replaceAll("(?<![\\d.])(\\d+)(?![\\d.])", "$1.0"), Map.of());
+            // 整数结果按整数输出：2144500 而不是 2144500.0
+            if (value instanceof Double d && d == Math.rint(d) && Math.abs(d) < 1e15) value = d.longValue();
             return ToolOutcome.success(Map.of("expression", text, "value", value));
         } catch (RuntimeException e) {
             return ToolOutcome.failure("BAD_EXPRESSION", "表达式无法计算：" + e.getMessage());
@@ -419,7 +421,7 @@ public final class ToolGateway {
                     ToolOutcome.success(deps.http()
                             .call(
                                     exec.ctx(),
-                                        source.spec().connection(),
+                                    source.spec().connection(),
                                     definition.operation().method(),
                                     definition.operation().path(),
                                     args));

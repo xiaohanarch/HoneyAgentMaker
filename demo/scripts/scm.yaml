@@ -37,5 +37,10 @@ scripts:
       - thought: 为 {{vars.material}} 创建补货跟进任务，写入前需要你确认
         calls:
           - tool: create-followup-task
-            args: { title: '{{vars.material}} 补货跟进', assignee: 采购部, relatedObject: '{{vars.material}}' }
+            args:
+              {
+                title: '{{vars.material}} 补货跟进',
+                assignee: 采购部,
+                relatedObject: '{{vars.material}}',
+              }
       - reply: '{{#tools.create_followup_task.item}}已创建跟进任务 {{id}}：“{{title}}”，指派给 {{assignee}}。{{/tools.create_followup_task.item}}{{#tools.create_followup_task.error}}没有创建跟进任务：{{reason}}{{/tools.create_followup_task.error}}'

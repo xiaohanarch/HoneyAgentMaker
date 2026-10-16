@@ -17,6 +17,7 @@ const COMMANDS = {
   'assets:assemble': [['platform', 'dev.eab.platform.cli.AssembleAgent']],
   'data:backup': [['platform', 'dev.eab.platform.cli.BackupData']],
   'tools:import-bo': [['platform', 'dev.eab.platform.cli.ImportBoTools']],
+  'agent:run': [['eab-cli', 'dev.eab.cli.AgentRun']],
   'seed:reset': [
     ['demo-erp', 'dev.eab.erp.cli.ResetErp'],
     ['platform', 'dev.eab.platform.cli.ResetDemo'],
@@ -74,7 +75,12 @@ function main() {
           'org.springframework.boot.loader.launch.PropertiesLauncher',
           ...args,
         ],
-        { cwd: ROOT, stdio: 'inherit' },
+        // Windows 上 Java 用 ANSI 代码页解码命令行参数，中文会变成乱码；参数同时经环境变量（UTF-16）传一份
+        {
+          cwd: ROOT,
+          stdio: 'inherit',
+          env: { ...process.env, EAB_CLI_ARGS: JSON.stringify(args) },
+        },
       )
     } catch (error) {
       if (typeof error.status === 'number') return error.status

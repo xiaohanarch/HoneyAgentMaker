@@ -38,7 +38,8 @@ public final class AgentScope {
             if (!tool.type().equals("skill")) continue;
             // 有效定义里的来源带精确版本（namespace/name@1.1.0），可以直接作为版本范围解析
             resolver.resolveOfKind(tool.source(), SkillAsset.class, statuses)
-                    .ifPresent(skill -> collectSteps(skill.spec().steps(), resolver, statuses, ops, new LinkedHashSet<>()));
+                    .ifPresent(skill ->
+                            collectSteps(skill.spec().steps(), resolver, statuses, ops, new LinkedHashSet<>()));
         }
         // 钩子里的工作流和技能以同一个 Agent 身份运行，它们调用的 BO 操作同样要进入 Agent 令牌
         for (var hook : definition.hooks()) {
@@ -56,7 +57,11 @@ public final class AgentScope {
 
     /** 步骤里直接调用的 BO 工具，以及嵌套技能里的；visited 防止技能互相引用时死循环 */
     private static void collectSteps(
-            List<StepSpecs.Step> steps, AssetResolver resolver, List<Status> statuses, Set<String> ops, Set<String> visited) {
+            List<StepSpecs.Step> steps,
+            AssetResolver resolver,
+            List<Status> statuses,
+            Set<String> ops,
+            Set<String> visited) {
         for (var step : StepSpecs.flatten(steps)) {
             if (step.type().equals("tool")
                     && step.tool() != null

@@ -67,7 +67,8 @@ public final class Bm25 {
     }
 
     public static List<Hit> search(List<Passage> passages, String query, int limit) {
-        List<List<String>> docs = passages.stream().map(p -> terms(p.title() + " " + p.text())).toList();
+        List<List<String>> docs =
+                passages.stream().map(p -> terms(p.title() + " " + p.text())).toList();
         double avg = docs.stream().mapToInt(List::size).average().orElse(1);
         Map<String, Integer> df = new HashMap<>();
         for (List<String> doc : docs) {

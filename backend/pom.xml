@@ -32,6 +32,7 @@
     <module>eab-runtime</module>
     <module>platform</module>
     <module>demo-erp</module>
+    <module>eab-cli</module>
   </modules>
 
   <properties>

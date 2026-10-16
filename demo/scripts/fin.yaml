@@ -9,7 +9,10 @@ scripts:
     steps:
       - thought: 取出本月严重程度为高和严重的交易异常
         calls:
-          - { tool: transaction_anomaly_list, args: { severity: 'high,critical', period: '{{month}}', limit: 20 } }
+          - {
+              tool: transaction_anomaly_list,
+              args: { severity: 'high,critical', period: '{{month}}', limit: 20 },
+            }
       - thought: 计算涉及金额合计
         calls:
           - tool: calculator
@@ -55,4 +58,4 @@ scripts:
           passed: "=size(tools.period_close_checklist.items.filter(c, c.status == 'passed'))"
           failedCount: "=size(tools.period_close_checklist.items.filter(c, c.status == 'failed'))"
           notStarted: "=size(tools.period_close_checklist.items.filter(c, c.status == 'not_started'))"
-          blockingItems: "=tools.period_close_checklist.items.filter(c, c.status == 'failed')"
+          blockingItems: "=tools.period_close_checklist.items.filter(c, c.status == 'failed').map(c, {'name': c.name, 'owner': c.owner, 'blocker': c.blocker})"

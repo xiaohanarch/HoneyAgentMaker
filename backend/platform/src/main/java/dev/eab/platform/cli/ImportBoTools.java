@@ -54,19 +54,32 @@ public final class ImportBoTools {
                 List<String> required = new ArrayList<>();
                 for (JsonNode parameter : op.path("parameters")) {
                     ObjectNode property = ((ObjectNode) parameter.path("schema")).deepCopy();
-                    if (parameter.has("description")) property.put("description", parameter.path("description").asString());
+                    if (parameter.has("description"))
+                        property.put(
+                                "description", parameter.path("description").asString());
                     properties.set(parameter.path("name").asString(), property);
-                    if (parameter.path("required").asBoolean(false)) required.add(parameter.path("name").asString());
+                    if (parameter.path("required").asBoolean(false))
+                        required.add(parameter.path("name").asString());
                 }
-                JsonNode body = op.path("requestBody").path("content").path("application/json").path("schema");
-                for (var field : body.path("properties").properties()) properties.set(field.getKey(), field.getValue().deepCopy());
+                JsonNode body = op.path("requestBody")
+                        .path("content")
+                        .path("application/json")
+                        .path("schema");
+                for (var field : body.path("properties").properties())
+                    properties.set(field.getKey(), field.getValue().deepCopy());
                 for (JsonNode r : body.path("required")) required.add(r.asString());
                 if (!required.isEmpty()) {
                     ArrayNode list = schema.putArray("required");
                     required.forEach(list::add);
                 }
-                tools.put(name, new Generated(
-                        name, method.getKey().toUpperCase(), path.getKey(), op.path("x-write-level").asString(), schema));
+                tools.put(
+                        name,
+                        new Generated(
+                                name,
+                                method.getKey().toUpperCase(),
+                                path.getKey(),
+                                op.path("x-write-level").asString(),
+                                schema));
             }
         }
         return tools;
@@ -134,15 +147,19 @@ public final class ImportBoTools {
             out.add(line);
             if (line.strip().startsWith("operation:") && current != null && generated.containsKey(current)) {
                 String indent = line.substring(0, line.indexOf("operation:"));
-                out.add(indent + "inputSchema: " + Json.MAPPER.writeValueAsString(generated.get(current).inputSchema()));
+                out.add(indent + "inputSchema: "
+                        + Json.MAPPER.writeValueAsString(generated.get(current).inputSchema()));
             }
         }
         return String.join("\n", out);
     }
 
     static JsonNode fetch(String url) throws IOException, InterruptedException {
-        var request = HttpRequest.newBuilder(URI.create(url).resolve("/bo/v1/openapi.json")).GET().build();
-        var response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        var request = HttpRequest.newBuilder(URI.create(url).resolve("/bo/v1/openapi.json"))
+                .GET()
+                .build();
+        var response =
+                HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         if (response.statusCode() != 200) throw new IOException("读取 OpenAPI 失败：HTTP " + response.statusCode());
         return Json.MAPPER.readTree(response.body());
     }

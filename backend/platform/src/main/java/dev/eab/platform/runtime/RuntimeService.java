@@ -8,6 +8,7 @@ import dev.eab.platform.PlatformServices;
 import dev.eab.platform.identity.AgentScope;
 import dev.eab.platform.identity.DelegatedClient;
 import dev.eab.platform.policy.PolicyController;
+import dev.eab.platform.registry.AssetRepository.AssetFilter;
 import dev.eab.platform.registry.EffectiveAssembly;
 import dev.eab.platform.registry.ScopedResolver;
 import dev.eab.platform.runtime.RuntimeStores.AlertStore;
@@ -19,16 +20,24 @@ import dev.eab.platform.runtime.RuntimeStores.RunStore;
 import dev.eab.policy.PolicyEngine;
 import dev.eab.policy.PolicyEngine.Decision;
 import dev.eab.runtime.AgentRuntime;
+import dev.eab.runtime.Exec;
 import dev.eab.runtime.Journal;
 import dev.eab.runtime.Ports;
 import dev.eab.runtime.RunContext;
 import dev.eab.runtime.RunEvents;
 import dev.eab.runtime.RuntimeDeps;
+import dev.eab.runtime.ToolGateway;
 import dev.eab.runtime.model.ModelGateway;
+import dev.eab.runtime.semantic.SemanticService;
 import dev.eab.spec.AssetResolver;
+import dev.eab.spec.BuiltinTools;
 import dev.eab.spec.Json;
+import dev.eab.spec.Layers;
 import dev.eab.spec.Viewer;
+import dev.eab.spec.model.AgentSpec;
+import dev.eab.spec.model.Asset.ToolSourceAsset;
 import dev.eab.tracing.Otlp;
+import dev.eab.tracing.SpanRecord;
 import dev.eab.tracing.Tracer;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -37,6 +46,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -69,7 +79,8 @@ public final class RuntimeService {
     private final AlertStore alerts;
     private final ImChannel im;
     private final McpConnections mcp;
-    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+    private final HttpClient http =
+            HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
     private final Map<String, Object> locks = new ConcurrentHashMap<>();
 
     public RuntimeService(PlatformServices services, Settings settings) {
@@ -130,8 +141,20 @@ public final class RuntimeService {
         String now = IsoTime.now(services.clock());
         Journal journal = new Journal();
         runs.insert(new RunRecord(
-                runId, traceId, sessionId, request.user().tenantId(), request.user().id(), request.agent(), mode,
-                request.delegationId(), request.message(), "running", Journal.toJson(journal.state()), null, now, now));
+                runId,
+                traceId,
+                sessionId,
+                request.user().tenantId(),
+                request.user().id(),
+                request.agent(),
+                mode,
+                request.delegationId(),
+                request.message(),
+                "running",
+                Journal.toJson(journal.state()),
+                null,
+                now,
+                now));
         return execute(runs.get(runId).orElseThrow(), request.userToken(), journal, sink);
     }
 
@@ -185,7 +208,9 @@ public final class RuntimeService {
     }
 
     static RunContext.User runUser(DemoUser user) {
-        String tenantName = DemoDirectory.findTenant(user.tenantId()).map(DemoDirectory.Tenant::name).orElse(user.tenantId());
+        String tenantName = DemoDirectory.findTenant(user.tenantId())
+                .map(DemoDirectory.Tenant::name)
+                .orElse(user.tenantId());
         return new RunContext.User(
                 user.id(),
                 user.name(),
@@ -222,7 +247,9 @@ public final class RuntimeService {
         var outcome = EffectiveAssembly.assemble(
                 services.registry(), Viewer.tenant(tenantId), EffectiveAssembly.Request.of(agent, tenantId));
         if (outcome instanceof EffectiveAssembly.Outcome.Ok ok) return ok.definition();
-        String issues = String.join("；", outcome.issues().stream().map(i -> i.code() + " " + i.message()).toList());
+        String issues = String.join(
+                "；",
+                outcome.issues().stream().map(i -> i.code() + " " + i.message()).toList());
         throw new IllegalStateException("组装 " + agent + " 失败：" + issues);
     }
 
@@ -232,7 +259,10 @@ public final class RuntimeService {
         int at = ref.indexOf('@');
         return services.identity()
                 .issueAgentToken(
-                        ref.substring(0, at), ref.substring(at + 1), tenantId, AgentScope.declaredBoOperations(definition, resolver));
+                        ref.substring(0, at),
+                        ref.substring(at + 1),
+                        tenantId,
+                        AgentScope.declaredBoOperations(definition, resolver));
     }
 
     private Ports.BoResponse callBo(Ports.BoCall call) {
@@ -241,7 +271,13 @@ public final class RuntimeService {
                 ? DelegatedClient.Subject.delegation(call.subject().delegationId())
                 : DelegatedClient.Subject.user(call.subject().userToken());
         var response = client.callBoApi(new DelegatedClient.BoCall(
-                subject, call.agentToken(), call.operation(), call.method(), call.path(), call.query(), call.body(),
+                subject,
+                call.agentToken(),
+                call.operation(),
+                call.method(),
+                call.path(),
+                call.query(),
+                call.body(),
                 call.idempotencyKey()));
         return new Ports.BoResponse(response.status(), Json.MAPPER.convertValue(response.body(), Object.class));
     }
@@ -251,7 +287,11 @@ public final class RuntimeService {
         return new Ports.Policy() {
             @Override
             public Decision evaluate(String checkpoint, Map<String, Object> facts, RunContext context, String target) {
-                Decision decision = PolicyEngine.evaluate(services.policyRules(), checkpoint, facts, services.clock().instant());
+                Decision decision = PolicyEngine.evaluate(
+                        services.policyRules(),
+                        checkpoint,
+                        facts,
+                        services.clock().instant());
                 PolicyController.recordDecision(
                         services.audit(),
                         decision,
@@ -273,13 +313,18 @@ public final class RuntimeService {
 
             @Override
             public List<String> delegationScope(String delegationId) {
-                return services.delegations().get(delegationId).map(d -> d.scope()).orElse(List.of());
+                return services.delegations()
+                        .get(delegationId)
+                        .map(d -> d.scope())
+                        .orElse(List.of());
             }
         };
     }
 
     private static String agentLabel(RunContext context) {
-        return context.definition() == null ? context.agent() : context.definition().provenance().agent();
+        return context.definition() == null
+                ? context.agent()
+                : context.definition().provenance().agent();
     }
 
     /** http 类工具来源：IM_WEBHOOK 连到模拟 IM 渠道，其他别名按部署配置的地址调用 */
@@ -336,6 +381,138 @@ public final class RuntimeService {
             Thread.currentThread().interrupt();
             return Optional.empty();
         }
+    }
+
+    // ── 平台对外的 MCP 端点 ─────────────────────────────
+
+    static final String MCP_AGENT = "platform/mcp-endpoint";
+    static final String MCP_VERSION = "1.0.0";
+    static final String BO_SOURCE = "vendor.erp.tools/demo-erp-bo";
+
+    /**
+     * MCP 端点暴露的一个工具。
+     *
+     * @param mcpName MCP 客户端看到的名字，语义查询工具名里的点换成下划线
+     * @param type api 或 semantic
+     */
+    public record McpTool(
+            String name, String mcpName, String type, String source, String description, String inputSchema) {}
+
+    /** 只读的 BO 操作（写级别 L0）和语义查询工具；BO 工具来源取已发布的最新版本 */
+    public List<McpTool> mcpTools() {
+        AssetResolver resolver = services.registry().resolverFor(new Viewer.Platform());
+        List<McpTool> tools = new ArrayList<>();
+        resolver.resolveOfKind(BO_SOURCE, ToolSourceAsset.class, AssetResolver.PUBLISHED)
+                .ifPresent(source -> {
+                    String ref = BO_SOURCE + "@" + source.metadata().version();
+                    for (var tool : source.spec().tools()) {
+                        if (!"L0".equals(tool.writeLevel())) continue;
+                        String schema = tool.inputSchema() == null
+                                ? "{\"type\":\"object\"}"
+                                : Json.MAPPER.writeValueAsString(tool.inputSchema());
+                        tools.add(new McpTool(tool.name(), tool.name(), "api", ref, tool.description(), schema));
+                    }
+                });
+        for (var tool : BuiltinTools.SEMANTIC) {
+            tools.add(new McpTool(
+                    tool.name(),
+                    tool.name().replace('.', '_'),
+                    "semantic",
+                    "platform/semantic",
+                    tool.description(),
+                    SemanticService.TOOL_SCHEMAS.get(tool.name())));
+        }
+        return tools;
+    }
+
+    /** MCP 端点的有效定义：只读工具，挂上全部已发布的标品语义包 */
+    private EffectiveDefinition mcpDefinition() {
+        List<EffectiveDefinition.EffectiveTool> tools = mcpTools().stream()
+                .map(t -> new EffectiveDefinition.EffectiveTool(
+                        t.name(), t.type(), Layers.Layer.platform, t.source(), t.description(), "L0", "query"))
+                .toList();
+        List<String> packs = services
+                .registry()
+                .latestPublished(new AssetFilter("SemanticPack", null, null, null, null), new Viewer.Platform())
+                .assets()
+                .stream()
+                .map(a -> a.metadata().namespace() + "/" + a.metadata().name() + "@"
+                        + a.metadata().version())
+                .toList();
+        return new EffectiveDefinition(
+                MCP_AGENT,
+                "平台 MCP 端点",
+                "对外提供只读的 ERP 工具",
+                List.of(),
+                tools,
+                List.of(),
+                List.of(),
+                new EffectiveDefinition.EffectiveModel("fast", null, Layers.Layer.platform),
+                packs,
+                new AgentSpec.WritePolicy("L0"),
+                null,
+                null,
+                null,
+                new EffectiveDefinition.Provenance(
+                        "agent:" + MCP_AGENT, null, MCP_AGENT + "@" + MCP_VERSION, null, List.of(), List.of(), packs));
+    }
+
+    /**
+     * MCP 端点上的一次工具调用：以 agent:platform/mcp-endpoint 的身份经工具网关执行，鉴权点 3 与审计照常，
+     * 并记一次运行，追踪可以在治理中心查看。
+     */
+    public ToolGateway.ToolOutcome callAsMcp(DemoUser user, String userToken, String tool, Map<String, Object> args) {
+        String tenantId = user.tenantId();
+        RuntimeDeps deps = depsFor(tenantId);
+        EffectiveDefinition definition = mcpDefinition();
+        List<String> readOps = definition.tools().stream()
+                .filter(t -> t.type().equals("api"))
+                .map(EffectiveDefinition.EffectiveTool::name)
+                .toList();
+        String agentToken = services.identity().issueAgentToken(MCP_AGENT, MCP_VERSION, tenantId, readOps);
+        String runId = "run-" + UUID.randomUUID();
+        String traceId = Tracer.newTraceId();
+        String now = IsoTime.now(services.clock());
+        Journal journal = new Journal();
+        Tracer tracer = new Tracer(traceId, traces, tenantId, services.clock());
+        var root = tracer.start("MCP 调用 · " + tool, SpanRecord.SpanKind.run, null, "run", Map.of());
+        root.set("eab.agent", MCP_AGENT).set("eab.user.id", user.id()).set("eab.tenant.id", tenantId);
+        RunContext ctx = new RunContext(
+                runId,
+                "mcp-" + runId,
+                runUser(user),
+                "on-behalf",
+                null,
+                new RunContext.Subject(userToken, null),
+                MCP_AGENT,
+                definition,
+                agentToken,
+                0);
+        ToolGateway.ToolOutcome outcome;
+        try {
+            Exec exec = new Exec(ctx, journal, event -> {}, root, "run", false);
+            outcome = new AgentRuntime(deps).tools().callTool(exec, "mcp", tool, args);
+            root.end();
+        } catch (Exception e) {
+            root.fail(e.getMessage());
+            outcome = ToolGateway.ToolOutcome.failure("TOOL_FAILED", e.getMessage());
+        }
+        runs.insert(new RunRecord(
+                runId,
+                traceId,
+                ctx.sessionId(),
+                tenantId,
+                user.id(),
+                MCP_AGENT,
+                "on-behalf",
+                null,
+                "MCP 调用 " + tool,
+                "completed",
+                Journal.toJson(journal.state()),
+                Json.MAPPER.writeValueAsString(outcome),
+                now,
+                now));
+        return outcome;
     }
 
     /** 运行结束时导出到 OTLP/HTTP 采集端，失败只记日志，不影响运行结果 */

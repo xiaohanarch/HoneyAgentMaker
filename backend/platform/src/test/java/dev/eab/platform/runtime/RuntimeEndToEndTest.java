@@ -88,9 +88,11 @@ class RuntimeEndToEndTest {
                 .header("authorization", "Bearer " + token)
                 .header("accept", "application/json")
                 .header("content-type", "application/json")
-                .method(method, body == null
-                        ? HttpRequest.BodyPublishers.noBody()
-                        : HttpRequest.BodyPublishers.ofString(Json.MAPPER.writeValueAsString(body)));
+                .method(
+                        method,
+                        body == null
+                                ? HttpRequest.BodyPublishers.noBody()
+                                : HttpRequest.BodyPublishers.ofString(Json.MAPPER.writeValueAsString(body)));
         var response = http.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         return Json.MAPPER.readTree(response.body());
     }
@@ -113,15 +115,19 @@ class RuntimeEndToEndTest {
         JsonNode run = run("zhangmin", "vendor.pur/supplier-performance-analyst", "百润精密最近表现怎么样");
         assertThat(run.path("status").asString()).as(run.toString()).isEqualTo("completed");
         String text = run.path("text").asString();
-        assertThat(text).contains("百润精密", "PO-2026-0117", "120 天", "PUR-R-007", "采购组织：华东").doesNotContain("未经核实");
+        assertThat(text)
+                .contains("百润精密", "PO-2026-0117", "120 天", "PUR-R-007", "采购组织：华东")
+                .doesNotContain("未经核实");
         assertThat(run.path("output").path("risks").toString()).contains("PO-2026-0117 逾期 120 天");
         assertThat(run.path("output").path("maxOverdueDays").asInt()).isGreaterThanOrEqualTo(120);
         List<String> types = new ArrayList<>();
         run.path("events").forEach(e -> types.add(e.path("type").asString()));
         assertThat(types).contains("run_started", "step", "tool_call", "tool_result", "text_delta", "final");
 
-        JsonNode trace = call("GET", "/traces/" + run.path("traceId").asString(), login("zhangmin"), null).path("data");
-        assertThat(kinds(trace)).contains("run", "assemble", "model", "pipeline", "policy", "tool", "skill", "guard", "memory");
+        JsonNode trace = call("GET", "/traces/" + run.path("traceId").asString(), login("zhangmin"), null)
+                .path("data");
+        assertThat(kinds(trace))
+                .contains("run", "assemble", "model", "pipeline", "policy", "tool", "skill", "guard", "memory");
         String json = trace.toString();
         assertThat(json).contains("标品指令（不可见，运行时注入）").doesNotContain("你是供应商绩效分析专家");
 
@@ -170,18 +176,23 @@ class RuntimeEndToEndTest {
                         .asString())
                 .isEqualTo("NOT_FOUND");
 
-        JsonNode done = call("POST", "/runs/" + runId + "/confirmation", login("sunkg"), Map.of("approved", true)).path("data");
+        JsonNode done = call("POST", "/runs/" + runId + "/confirmation", login("sunkg"), Map.of("approved", true))
+                .path("data");
         assertThat(done.path("status").asString()).isEqualTo("completed");
         assertThat(done.path("text").asString()).startsWith("已创建跟进任务 TASK-");
         assertThat(services.audit().list(AuditFilter.all().withAction("bo.access")))
                 .anyMatch(e -> "followup_task_create".equals(e.tool()) && "allow".equals(e.decision()));
-        JsonNode trace = call("GET", "/traces/" + done.path("traceId").asString(), login("sunkg"), null).path("data");
+        JsonNode trace = call("GET", "/traces/" + done.path("traceId").asString(), login("sunkg"), null)
+                .path("data");
         assertThat(trace.toString()).doesNotContain("\"status\":\"suspended\"");
         assertThat(kinds(trace)).contains("confirmation");
 
         JsonNode second = run("sunkg", "vendor.scm/inventory-risk-analyst", "为 M-0008 创建补货跟进任务");
         JsonNode rejected = call(
-                        "POST", "/runs/" + second.path("runId").asString() + "/confirmation", login("sunkg"), Map.of("approved", false))
+                        "POST",
+                        "/runs/" + second.path("runId").asString() + "/confirmation",
+                        login("sunkg"),
+                        Map.of("approved", false))
                 .path("data");
         assertThat(rejected.path("text").asString()).startsWith("没有创建跟进任务：用户拒绝");
     }
@@ -191,8 +202,16 @@ class RuntimeEndToEndTest {
     void traceAccess() throws Exception {
         JsonNode run = run("zhangmin", "vendor.pur/supplier-performance-analyst", "百润精密最近表现怎么样");
         String path = "/traces/" + run.path("traceId").asString();
-        assertThat(call("GET", path, login("zhouting"), null).path("error").path("code").asString()).isEqualTo("NOT_FOUND");
-        assertThat(call("GET", path, login("vendordev"), null).path("error").path("code").asString()).isEqualTo("NOT_FOUND");
+        assertThat(call("GET", path, login("zhouting"), null)
+                        .path("error")
+                        .path("code")
+                        .asString())
+                .isEqualTo("NOT_FOUND");
+        assertThat(call("GET", path, login("vendordev"), null)
+                        .path("error")
+                        .path("code")
+                        .asString())
+                .isEqualTo("NOT_FOUND");
         assertThat(call("GET", path, login("platformops"), null).toString()).contains("你是供应商绩效分析专家");
         assertThat(Fixtures.VENDOR_ANOMALY_INSTRUCTIONS).isNotBlank();
     }
@@ -202,18 +221,84 @@ class RuntimeEndToEndTest {
     void memoryAndValidation() throws Exception {
         String token = login("wangfang");
         call("POST", "/memory", token, Map.of("agent", "vendor.fin/period-close-checker", "text", "汇报时先说结论"));
-        assertThat(call("GET", "/memory?agent=vendor.fin/period-close-checker", token, null).path("data").size()).isEqualTo(1);
+        assertThat(call("GET", "/memory?agent=vendor.fin/period-close-checker", token, null)
+                        .path("data")
+                        .size())
+                .isEqualTo(1);
         JsonNode run = run("wangfang", "vendor.fin/period-close-checker", "本期资产核算的结账检查还有哪些没通过");
         JsonNode trace = call("GET", "/traces/" + run.path("traceId").asString(), token, null);
         assertThat(trace.toString()).contains("汇报时先说结论");
-        assertThat(call("DELETE", "/memory", token, null).path("data").path("removed").asInt()).isEqualTo(1);
+        assertThat(call("DELETE", "/memory", token, null)
+                        .path("data")
+                        .path("removed")
+                        .asInt())
+                .isEqualTo(1);
 
-        assertThat(call("POST", "/runs", token, Map.of("agent", "bad", "message", "x")).path("error").path("code").asString())
+        assertThat(call("POST", "/runs", token, Map.of("agent", "bad", "message", "x"))
+                        .path("error")
+                        .path("code")
+                        .asString())
                 .isEqualTo("BAD_REQUEST");
         assertThat(call("POST", "/runs", login("vendordev"), Map.of("agent", "vendor.pur/x", "message", "x"))
                         .path("error")
                         .path("code")
                         .asString())
                 .isEqualTo("FORBIDDEN");
+    }
+
+    io.modelcontextprotocol.client.McpSyncClient mcpClient(String token) {
+        var request = HttpRequest.newBuilder();
+        if (token != null) request.header("Authorization", "Bearer " + token);
+        var transport = io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTransport.builder(platformUrl)
+                .endpoint("/mcp")
+                .requestBuilder(request)
+                .build();
+        var client = io.modelcontextprotocol.client.McpClient.sync(transport).build();
+        client.initialize();
+        return client;
+    }
+
+    @Test
+    @DisplayName("平台 MCP 端点：只暴露只读工具；以用户身份调用，数据按该用户的权限过滤，并留下审计；没有令牌时拒绝")
+    void mcpEndpoint() throws Exception {
+        var client = mcpClient(login("zhangmin"));
+        try {
+            var names = client.listTools().tools().stream()
+                    .map(io.modelcontextprotocol.spec.McpSchema.Tool::name)
+                    .toList();
+            assertThat(names)
+                    .contains("purchase_order_list", "supplier_list", "semantic_get_metric")
+                    .doesNotContain("purchase_order_change_delivery_date", "followup_task_create");
+            var result = client.callTool(new io.modelcontextprotocol.spec.McpSchema.CallToolRequest(
+                    "purchase_order_list", Map.of("overdueDaysGt", 30)));
+            assertThat(result.isError()).isFalse();
+            String text = ((io.modelcontextprotocol.spec.McpSchema.TextContent)
+                            result.content().getFirst())
+                    .text();
+            assertThat(text).contains("采购组织：华东").doesNotContain("华南");
+            var metric = client.callTool(new io.modelcontextprotocol.spec.McpSchema.CallToolRequest(
+                    "semantic_get_metric", Map.of("name", "overdue_days")));
+            assertThat(((io.modelcontextprotocol.spec.McpSchema.TextContent)
+                                    metric.content().getFirst())
+                            .text())
+                    .contains("overdue_days");
+        } finally {
+            client.closeGracefully();
+        }
+        assertThat(services.audit().list(AuditFilter.all().withAction("bo.access")))
+                .anyMatch(e -> e.agent() != null && e.agent().startsWith("platform/mcp-endpoint"));
+
+        // 没有令牌：调用被拒绝（平台的 MCP 客户端也能连上 SDK 起的服务端，并把错误如实带回）
+        var anonymous = mcpClient(null);
+        try {
+            var denied = anonymous.callTool(
+                    new io.modelcontextprotocol.spec.McpSchema.CallToolRequest("supplier_list", Map.of()));
+            assertThat(denied.isError()).isTrue();
+        } finally {
+            anonymous.closeGracefully();
+        }
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> McpConnections.callUrl(platformUrl + "/mcp", "supplier_list", Map.of()))
+                .hasMessageContaining("返回错误");
     }
 }

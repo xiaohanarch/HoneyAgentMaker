@@ -13,7 +13,10 @@ scripts:
           - { tool: supplier-lookup, args: { supplierName: '{{vars.supplier}}' } }
       - thought: 统计 {{vars.supplier}} 的逾期订单和交付记录
         calls:
-          - { tool: purchase_order_list, args: { supplierName: '{{vars.supplier}}', status: open, overdueDaysGt: 0 } }
+          - {
+              tool: purchase_order_list,
+              args: { supplierName: '{{vars.supplier}}', status: open, overdueDaysGt: 0 },
+            }
           - { tool: delivery_list, args: { supplierName: '{{vars.supplier}}', limit: 50 } }
       - thought: 查看最近一次询价的报价情况
         calls:
@@ -35,7 +38,7 @@ scripts:
           supplier: '{{vars.supplier}}'
           overallRating: risk
           maxOverdueDays: '=size(tools.purchase_order_list.items) > 0 ? tools.purchase_order_list.items[0].overdueDays : 0'
-          longOverdue: '=tools.purchase_order_list.items.filter(p, p.overdueDays > 90)'
+          longOverdue: "=tools.purchase_order_list.items.filter(p, p.overdueDays > 90).map(p, {'id': p.id, 'overdueDays': p.overdueDays, 'nextPlannedDate': p.nextPlannedDate})"
           longOverdueCount: '=size(tools.purchase_order_list.items.filter(p, p.overdueDays > 90))'
           lateDeliveries: '=size(tools.delivery_list.items.filter(d, d.actualDate != null && d.actualDate > d.plannedDate))'
           risks: "=tools.purchase_order_list.items.filter(p, p.overdueDays > 90).map(p, p.id + ' 逾期 ' + string(p.overdueDays) + ' 天')"

@@ -31,6 +31,7 @@
     "data:backup": "node scripts/java-cli.mjs data:backup",
     "seed:reset": "node scripts/java-cli.mjs seed:reset",
     "tools:import-bo": "node scripts/java-cli.mjs tools:import-bo",
+    "agent:run": "node scripts/java-cli.mjs agent:run",
     "test:java": "node scripts/mvnw.mjs -q -B verify"
   },
   "devDependencies": {

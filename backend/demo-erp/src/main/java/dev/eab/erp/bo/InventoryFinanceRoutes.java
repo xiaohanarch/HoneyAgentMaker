@@ -109,9 +109,11 @@ public final class InventoryFinanceRoutes {
                             .filter(b -> equalsIfSet(b.get("materialId"), in.query("materialId"))
                                     && equalsIfSet(b.get("slowMoving"), in.query("slowMoving"))
                                     && (!Boolean.TRUE.equals(below) || (boolean) b.get("belowSafetyStock")))
-                            .sorted(Boolean.TRUE.equals(below)
-                                    ? Comparator.comparingDouble(InventoryFinanceRoutes::shortageRatio).reversed()
-                                    : (x, y) -> 0)
+                            .sorted(
+                                    Boolean.TRUE.equals(below)
+                                            ? Comparator.comparingDouble(InventoryFinanceRoutes::shortageRatio)
+                                                    .reversed()
+                                            : (x, y) -> 0)
                             .limit(in.limit())
                             .toList();
                     return Outcome.ok(

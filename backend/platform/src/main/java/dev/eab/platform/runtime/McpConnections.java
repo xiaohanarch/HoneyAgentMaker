@@ -35,8 +35,11 @@ final class McpConnections implements Ports.Mcp {
         URI uri = URI.create(url);
         String base = uri.getScheme() + "://" + uri.getAuthority();
         String endpoint = uri.getPath() == null || uri.getPath().isBlank() ? "/mcp" : uri.getPath();
-        var transport = HttpClientStreamableHttpTransport.builder(base).endpoint(endpoint).build();
-        McpSyncClient client = McpClient.sync(transport).requestTimeout(Duration.ofSeconds(30)).build();
+        var transport = HttpClientStreamableHttpTransport.builder(base)
+                .endpoint(endpoint)
+                .build();
+        McpSyncClient client =
+                McpClient.sync(transport).requestTimeout(Duration.ofSeconds(30)).build();
         try {
             client.initialize();
             McpSchema.CallToolResult result = client.callTool(new McpSchema.CallToolRequest(tool, arguments));

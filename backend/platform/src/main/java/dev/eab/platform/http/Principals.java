@@ -43,7 +43,11 @@ public final class Principals {
 
     /** 失败时抛 401 */
     public Principal require(HttpServletRequest request) {
-        String header = request.getHeader("Authorization");
+        return verify(request.getHeader("Authorization"));
+    }
+
+    /** 校验 Authorization 头里的用户令牌，失败时抛 401；MCP 端点等不经过 HttpServletRequest 的入口也用它 */
+    public Principal verify(String header) {
         if (header == null || !header.startsWith("Bearer ")) {
             throw new ApiException(401, "UNAUTHENTICATED", "缺少 Authorization: Bearer <用户令牌>");
         }

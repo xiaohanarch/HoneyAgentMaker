@@ -48,7 +48,13 @@ spec:
       actions: { type: list }
   routing:
     description: 识别库存缺货与呆滞风险，分析根因并给出处置建议
-    examples: [哪些物料低于安全库存, 为 M-0007 创建补货跟进任务, 本月呆滞库存有多少, 百润精密交付逾期会影响哪些物料]
+    examples:
+      [
+        哪些物料低于安全库存,
+        为 M-0007 创建补货跟进任务,
+        本月呆滞库存有多少,
+        百润精密交付逾期会影响哪些物料,
+      ]
   extensionPoints:
     - type: instructions.append
       description: 追加本企业的库存管理口径

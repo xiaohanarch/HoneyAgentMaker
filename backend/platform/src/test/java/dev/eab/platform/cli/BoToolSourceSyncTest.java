@@ -36,11 +36,15 @@ class BoToolSourceSyncTest {
     void inSync() throws Exception {
         var out = new ByteArrayOutputStream();
         boolean write = Boolean.getBoolean("eab.updateBoTools");
-        int code = ImportBoTools.run(openApi(), RepoPaths.assets(), write, new PrintStream(out, true, StandardCharsets.UTF_8));
+        int code = ImportBoTools.run(
+                openApi(), RepoPaths.assets(), write, new PrintStream(out, true, StandardCharsets.UTF_8));
         assertThat(code).as(out.toString(StandardCharsets.UTF_8)).isZero();
-        var asset = (ToolSourceAsset) AssetParser.parseYaml(Files.readString(RepoPaths.assets().resolve(ImportBoTools.ASSET)))
-                .asset();
-        assertThat(ImportBoTools.compare(asset, ImportBoTools.fromOpenApi(openApi())).clean()).isTrue();
+        var asset = (ToolSourceAsset)
+                AssetParser.parseYaml(Files.readString(RepoPaths.assets().resolve(ImportBoTools.ASSET)))
+                        .asset();
+        assertThat(ImportBoTools.compare(asset, ImportBoTools.fromOpenApi(openApi()))
+                        .clean())
+                .isTrue();
     }
 
     @Test
@@ -53,7 +57,12 @@ class BoToolSourceSyncTest {
         assertThat(change.inputSchema().path("properties").has("poId")).isTrue();
         assertThat(change.inputSchema().path("properties").has("newDate")).isTrue();
         assertThat(change.inputSchema().path("required").toString()).contains("poId", "newDate", "reason");
-        assertThat(tools.get("supplier_list").inputSchema().path("properties").path("limit").path("maximum").asInt())
+        assertThat(tools.get("supplier_list")
+                        .inputSchema()
+                        .path("properties")
+                        .path("limit")
+                        .path("maximum")
+                        .asInt())
                 .isEqualTo(200);
     }
 
@@ -65,6 +74,7 @@ class BoToolSourceSyncTest {
                 + "      inputSchema: {\"type\":\"object\"}\n";
         String rewritten = ImportBoTools.rewrite(yaml, ImportBoTools.fromOpenApi(openApi()));
         assertThat(rewritten).contains("version: 1.2.0", "# ── 采购", "人工写的描述", "\"maximum\":200");
-        assertThat(rewritten.lines().filter(l -> l.strip().startsWith("inputSchema:"))).hasSize(1);
+        assertThat(rewritten.lines().filter(l -> l.strip().startsWith("inputSchema:")))
+                .hasSize(1);
     }
 }
