@@ -1,0 +1,51 @@
+# 故事 D、F 的演示剧本（格式见 README.md）。回复里的单号、天数、金额都来自本次运行的工具结果。
+scripts:
+  - id: story-d-overdue-suppliers
+    description: 故事 D：张敏和李强问同一个问题，结果按各自的采购组织过滤，回复注明可见范围
+    agent: vendor.pur/supplier-performance-analyst
+    match:
+      all: [逾期超过]
+      any: [供应商]
+      pattern: '(?<days>\d+)\s*天'
+    vars: { days: '30' }
+    steps:
+      - thought: 查出逾期超过 {{vars.days}} 天、还没交付完的采购订单
+        calls:
+          - { tool: purchase_order_list, args: { overdueDaysGt: '=int(vars.days)', limit: 200 } }
+      - reply: |
+          逾期超过 {{vars.days}} 天的订单共 {{tools.purchase_order_list.total}} 张，涉及的供应商和订单如下：
+          {{#tools.purchase_order_list.items}}
+          - {{supplierName}}：{{id}}，逾期 {{overdueDays}} 天（{{purchasingOrgName}}）
+          {{/tools.purchase_order_list.items}}
+
+          已按你的数据权限过滤，可见范围：{{tools.purchase_order_list.scopeLabel}}。
+        output:
+          days: '=int(vars.days)'
+          orderCount: '=tools.purchase_order_list.total'
+
+  - id: story-d-approve-own-change
+    description: 故事 D：张敏让采购订单处理 Agent 审批自己提交的交期变更单，被职责分离（SoD）拒绝
+    agent: vendor.pur/purchase-order-clerk
+    match:
+      all: [审批]
+      pattern: '(?<change>DC-\d{4}-\d{4})'
+    steps:
+      - thought: 提交交期变更单 {{vars.change}} 的审批
+        calls:
+          - { tool: purchase_order_change_approve, args: { changeId: '{{vars.change}}' } }
+      - reply: '{{#tools.purchase_order_change_approve.item}}交期变更单 {{id}} 已审批通过。{{/tools.purchase_order_change_approve.item}}{{#tools.purchase_order_change_approve.error}}没有审批交期变更单 {{vars.change}}：{{reason}}。按职责分离要求，提交人不能审批自己提交的单据，请转给有审批权限的其他同事。{{/tools.purchase_order_change_approve.error}}'
+
+  - id: story-f-feedback-cross-period
+    description: 故事 F：王芳指出跨期冲销不算异常，生成一条带检查条件的候选规则（经验回流）
+    agent: platform/feedback
+    match: { all: [跨期冲销] }
+    steps:
+      - reply: 已生成候选规则
+        output:
+          kind: rule
+          description: 跨期冲销不计为交易异常
+          severity: warn
+          remedy: 上月计提、本月冲销的跨期冲销凭证属于正常的期末调整，不计为交易异常，结论里单独说明并排除
+          checkTool: transaction_anomaly_list
+          checkWhen: "has(output.items) && output.items.exists(a, a.anomalyType == 'reversal')"
+          reason: 用户指出跨期冲销是正常的期末调整；异常清单里 anomalyType 为 reversal 的记录就是这类凭证，可以按它判断规则是否适用

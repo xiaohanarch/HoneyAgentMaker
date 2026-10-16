@@ -8,7 +8,8 @@ import java.time.Clock;
 import java.util.List;
 
 /**
- * pnpm seed:reset 的平台部分：清空审计、业务事件、委托、租户设置和运行期数据（运行、追踪、记忆、告警），并重新预置演示委托。
+ * pnpm seed:reset 的平台部分：清空审计、业务事件、委托、租户设置和运行期数据（运行、追踪、记忆、告警），撤回演示中写入的资产
+ * （模拟的标品升级、经验回流的租户语义包扩展、生成的方案），并重新预置演示委托。
  * 资产与密钥保留（标品资产仍然有效，签名不变）。服务运行中也可以执行。DemoERP 部分见 demo-erp 的 ResetErp。
  */
 public final class ResetDemo {
@@ -31,12 +32,29 @@ public final class ResetDemo {
             "notifications",
             "studio_drafts",
             "deployments",
-            "eval_runs");
+            "eval_runs",
+            "feedback",
+            "upgrade_regressions",
+            "package_deployments",
+            "solution_packages",
+            "run_metrics",
+            "business_metrics");
+
+    /**
+     * 演示过程中写进注册中心、重新演示前要撤回的资产：模拟的标品升级（故事 F）、经验回流写入的租户语义包扩展、
+     * 治理中心生成的方案。其他资产保留。
+     */
+    static final List<String> DEMO_ASSETS = List.of(
+            "DELETE FROM assets WHERE namespace = 'vendor.fin' AND name = 'transaction-anomaly-analyst' AND version = '1.3.0'",
+            "DELETE FROM assets WHERE namespace LIKE 'tenant.%.semantic'",
+            "DELETE FROM assets WHERE namespace LIKE 'tenant.%.solutions'");
 
     public static void reset(Path dataDir, Clock clock) {
         try (PlatformDb db = PlatformDb.open(dataDir.resolve("platform.db").toString())) {
-            db.inTransaction(() -> TABLES.forEach(
-                    table -> db.jdbc().sql("DELETE FROM " + table).update()));
+            db.inTransaction(() -> {
+                TABLES.forEach(table -> db.jdbc().sql("DELETE FROM " + table).update());
+                DEMO_ASSETS.forEach(sql -> db.jdbc().sql(sql).update());
+            });
             PlatformServices.ensureDemoDefaults(new DelegationStore(db.jdbc(), clock), clock);
         }
     }

@@ -206,6 +206,23 @@ public final class RuntimeStores {
                     .toList();
         }
 
+        /** 审计反查用：同一租户、用户、Agent，在给定时间前后窗口内创建的最近一次运行 */
+        public Optional<RunRecord> near(String tenantId, String userId, String agent, String at, Duration window) {
+            if (userId == null || at == null) return Optional.empty();
+            java.time.Instant t;
+            try {
+                t = java.time.Instant.parse(at);
+            } catch (RuntimeException e) {
+                return Optional.empty();
+            }
+            return jdbc.sql("SELECT id FROM runs WHERE tenant_id = ? AND user_id = ? AND (agent = ? OR agent LIKE ?)"
+                            + " AND created_at >= ? AND created_at <= ? ORDER BY created_at DESC LIMIT 1")
+                    .params(tenantId, userId, agent, agent + "@%", t.minus(window).toString(), t.plus(window).toString())
+                    .query(String.class)
+                    .optional()
+                    .flatMap(this::get);
+        }
+
         /** 按追踪编号找运行，读取追踪时据此判断权限 */
         public Optional<RunRecord> byTrace(String traceId) {
             return jdbc.sql("SELECT id FROM runs WHERE trace_id = ? LIMIT 1")
