@@ -30,6 +30,7 @@
     <module>eab-policy</module>
     <module>eab-tracing</module>
     <module>eab-runtime</module>
+    <module>eab-a2a</module>
     <module>platform</module>
     <module>demo-erp</module>
     <module>eab-cli</module>
@@ -47,6 +48,9 @@
     <cel.version>0.14.0</cel.version>
     <nimbus-jose-jwt.version>10.10</nimbus-jose-jwt.version>
     <tink.version>1.23.0</tink.version>
+    <a2a.version>1.4.0.Final</a2a.version>
+    <!-- A2A Java SDK 1.4.0 依赖 gson 2.14，覆盖 Spring Boot 管理的版本 -->
+    <gson.version>2.14.0</gson.version>
   </properties>
 
   <dependencyManagement>
@@ -55,6 +59,13 @@
         <groupId>org.springframework.ai</groupId>
         <artifactId>spring-ai-bom</artifactId>
         <version>${spring-ai.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.a2aproject.sdk</groupId>
+        <artifactId>a2a-java-sdk-bom</artifactId>
+        <version>${a2a.version}</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
