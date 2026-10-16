@@ -32,7 +32,7 @@ scripts:
           anomalyCount: '=tools.transaction_anomaly_list.total'
           totalAmount: '=tools.calculator.value'
           currency: '{{tools.transaction_anomaly_list.items.0.currency}}'
-          findings: "=tools.transaction_anomaly_list.items.map(a, {'id': a.id, 'type': a.anomalyType, 'amount': a.amount, 'status': '疑似'})"
+          findings: "=tools.transaction_anomaly_list.items.map(a, {'id': a.id, 'type': a.anomalyType, 'severity': a.severity, 'amount': a.amount, 'status': '疑似'})"
 
   - id: fin-period-close
     description: 王芳问本期资产核算结账检查：取检查项 → 按状态分组 → 列出未通过项与责任人

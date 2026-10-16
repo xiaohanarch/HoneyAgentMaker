@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// pnpm 命令到 Java 命令行工具的映射：assets:validate、assets:assemble、seed:reset、data:backup、tools:import-bo、agent:run。
+// pnpm 命令到 Java 命令行工具的映射：assets:validate、assets:assemble、seed:reset、data:backup、tools:import-bo、agent:run、eval:smoke、data:simulate。
 //   node scripts/java-cli.mjs assets:validate
 // jar 比 backend/ 下的源码旧时先用 Maven Wrapper 打包，再用 Spring Boot 的 PropertiesLauncher 运行指定的主类。
 import { execFileSync } from 'node:child_process'
@@ -18,6 +18,8 @@ const COMMANDS = {
   'data:backup': [['platform', 'dev.eab.platform.cli.BackupData']],
   'tools:import-bo': [['platform', 'dev.eab.platform.cli.ImportBoTools']],
   'agent:run': [['eab-cli', 'dev.eab.cli.AgentRun']],
+  'eval:smoke': [['eab-cli', 'dev.eab.cli.EvalSmoke']],
+  'data:simulate': [['platform', 'dev.eab.platform.cli.SimulateHistory']],
   'seed:reset': [
     ['demo-erp', 'dev.eab.erp.cli.ResetErp'],
     ['platform', 'dev.eab.platform.cli.ResetDemo'],

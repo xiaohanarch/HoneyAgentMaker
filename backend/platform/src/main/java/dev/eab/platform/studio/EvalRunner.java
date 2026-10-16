@@ -1,29 +1,17 @@
 package dev.eab.platform.studio;
 
-import dev.eab.assembler.Conditions;
+import dev.eab.eval.Assertions;
 import dev.eab.runtime.RunEvents.RunEvent;
-import dev.eab.spec.Json;
-import dev.eab.spec.model.LifecycleSpecs.Assertion;
 import dev.eab.spec.model.LifecycleSpecs.EvalCase;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.messages.SystemMessage;
-import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.chat.prompt.Prompt;
-import org.springframework.ai.model.tool.ToolCallingChatOptions;
 
 /**
- * 评测断言（主提示词 10.8 节）。一个用例的运行结果（事件、回复、结构化结果）逐条核对断言：调用了某工具、没有调用某工具、
- * 结果包含、结果不包含、数值区间、不变量（CEL），以及模型裁判。脚本化模型下裁判是确定性的：评分标准里出现的规则编号和
- * 引号里的要点都要在回复里出现。
+ * 评测断言的平台入口（P5 的公开接口，P6 等调用方依赖它）。断言、裁判的实现在评测引擎 eab-eval（P8，ADR 0013），
+ * 这里只做类型转换和委托，接口保持不变。
  */
 public final class EvalRunner {
 
@@ -32,15 +20,24 @@ public final class EvalRunner {
 
         /** 本次运行调用过的工具（含子 Agent、技能内部的调用） */
         public Set<String> calledTools() {
-            Set<String> tools = new LinkedHashSet<>();
-            for (RunEvent e : events) {
-                if (e.type().equals("tool_call") && e.data().get("tool") instanceof String t) tools.add(t);
-            }
-            return tools;
+            return new LinkedHashSet<>(engine().calledTools());
+        }
+
+        Assertions.CaseRun engine() {
+            return new Assertions.CaseRun(text, output, events, status, error);
         }
     }
 
-    public record AssertionResult(String type, String description, boolean passed, String detail) {}
+    public record AssertionResult(String type, String description, boolean passed, String detail) {
+
+        static AssertionResult of(Assertions.AssertionResult r) {
+            return new AssertionResult(r.type(), r.description(), r.passed(), r.detail());
+        }
+
+        Assertions.AssertionResult engine() {
+            return new Assertions.AssertionResult(type, description, passed, detail);
+        }
+    }
 
     public record CaseResult(
             String id,
@@ -50,136 +47,51 @@ public final class EvalRunner {
             List<AssertionResult> assertions,
             String text,
             String runId,
-            String traceId) {}
+            String traceId) {
+
+        static CaseResult of(Assertions.CaseResult r) {
+            return new CaseResult(
+                    r.id(),
+                    r.user(),
+                    r.question(),
+                    r.passed(),
+                    r.assertions().stream().map(AssertionResult::of).toList(),
+                    r.text(),
+                    r.runId(),
+                    r.traceId());
+        }
+    }
 
     /** 裁判：脚本化模型下确定性，配置了真实模型时用 judge 档位的模型 */
     public interface Judge {
         AssertionResult judge(String rubric, String description, String text);
+
+        /** 转成评测引擎的裁判 */
+        default Assertions.Judge engine() {
+            return (rubric, description, text) ->
+                    judge(rubric, description, text).engine();
+        }
+
+        static Judge of(Assertions.Judge judge) {
+            return (rubric, description, text) -> AssertionResult.of(judge.judge(rubric, description, text));
+        }
     }
 
-    static final Pattern RULE_ID = Pattern.compile("[A-Z]{2,5}-R-\\d{3}");
-    static final Pattern QUOTED = Pattern.compile("[「“\"]([^」”\"]{2,30})[」”\"]");
-
     /** 确定性裁判 */
-    public static final Judge DETERMINISTIC = (rubric, description, text) -> {
-        List<String> points = new ArrayList<>();
-        Matcher rules = RULE_ID.matcher(rubric);
-        while (rules.find()) points.add(rules.group());
-        Matcher quoted = QUOTED.matcher(rubric);
-        while (quoted.find()) points.add(quoted.group(1));
-        if (points.isEmpty()) {
-            return new AssertionResult("judge", description, true, "确定性裁判：评分标准里没有可核对的规则编号或要点，按通过处理");
-        }
-        List<String> missing = points.stream().filter(p -> !text.contains(p)).toList();
-        return new AssertionResult(
-                "judge",
-                description,
-                missing.isEmpty(),
-                missing.isEmpty()
-                        ? "确定性裁判：回复包含 " + String.join("、", points)
-                        : "确定性裁判：回复缺少 " + String.join("、", missing));
-    };
+    public static final Judge DETERMINISTIC = Judge.of(Assertions.DETERMINISTIC);
 
     /** 模型裁判；模型调用失败时判为不通过并写明原因，不静默通过 */
     public static Judge model(ChatModel model, String modelName) {
-        return (rubric, description, text) -> {
-            String system = "你是评测裁判。根据评分标准判断回答是否合格，只输出一个 JSON 对象：{\"pass\": true 或 false, \"reason\": \"一句话理由\"}";
-            String user = "评分标准：" + rubric + "\n回答：" + text;
-            try {
-                String reply = ChatClient.create(model)
-                        .prompt(new Prompt(List.of(new SystemMessage(system), new UserMessage(user))))
-                        .options(ToolCallingChatOptions.builder()
-                                .model(modelName)
-                                .temperature(0.0))
-                        .call()
-                        .content();
-                Map<String, Object> parsed = StudioRecommender.parse(reply);
-                if (parsed == null || !(parsed.get("pass") instanceof Boolean pass)) {
-                    return new AssertionResult("judge", description, false, "模型裁判的输出无法解析");
-                }
-                return new AssertionResult("judge", description, pass, "模型裁判：" + parsed.getOrDefault("reason", ""));
-            } catch (RuntimeException e) {
-                return new AssertionResult("judge", description, false, "模型裁判调用失败：" + e.getMessage());
-            }
-        };
+        return Judge.of(Assertions.model(model, modelName));
     }
 
     private EvalRunner() {}
 
     public static CaseResult check(EvalCase evalCase, CaseRun run, String runId, String traceId, Judge judge) {
-        List<AssertionResult> results = new ArrayList<>();
-        if (!"completed".equals(run.status())) {
-            results.add(new AssertionResult(
-                    "run", "运行完成", false, "运行状态 " + run.status() + (run.error() == null ? "" : "：" + run.error())));
-        } else {
-            for (Assertion a : evalCase.assertions()) results.add(assertOne(a, run, judge));
-        }
-        boolean passed = results.stream().allMatch(AssertionResult::passed);
-        return new CaseResult(
-                evalCase.id(), evalCase.user(), evalCase.question(), passed, results, run.text(), runId, traceId);
-    }
-
-    static AssertionResult assertOne(Assertion a, CaseRun run, Judge judge) {
-        String text = run.text() == null ? "" : run.text();
-        String description = a.description() == null ? a.type() : a.description();
-        return switch (a.type()) {
-            case "calledTool" -> {
-                boolean called = run.calledTools().contains(a.tool());
-                yield new AssertionResult(
-                        a.type(), description, called, called ? "调用了 " + a.tool() : "没有调用 " + a.tool());
-            }
-            case "notCalledTool" -> {
-                boolean called = run.calledTools().contains(a.tool());
-                yield new AssertionResult(
-                        a.type(), description, !called, called ? "调用了 " + a.tool() : "没有调用 " + a.tool());
-            }
-            case "contains" ->
-                new AssertionResult(
-                        a.type(),
-                        description,
-                        text.contains(a.text()),
-                        (text.contains(a.text()) ? "包含" : "不包含") + "「" + a.text() + "」");
-            case "notContains" ->
-                new AssertionResult(
-                        a.type(),
-                        description,
-                        !text.contains(a.text()),
-                        (text.contains(a.text()) ? "包含" : "不包含") + "「" + a.text() + "」");
-            case "numberRange" -> numberRange(a, run.output(), description);
-            case "invariant" -> invariant(a, run, description);
-            case "judge" -> judge.judge(a.rubric(), description, text);
-            default -> new AssertionResult(a.type(), description, false, "不支持的断言类型");
-        };
-    }
-
-    static AssertionResult numberRange(Assertion a, Map<String, Object> output, String description) {
-        Object value = output;
-        for (String part : a.path().split("\\.")) {
-            value = value instanceof Map<?, ?> m ? m.get(part) : null;
-        }
-        if (!(value instanceof Number n)) {
-            return new AssertionResult(a.type(), description, false, "结构化结果里没有数值 " + a.path());
-        }
-        double v = n.doubleValue();
-        boolean ok = (a.min() == null || v >= a.min()) && (a.max() == null || v <= a.max());
-        return new AssertionResult(a.type(), description, ok, a.path() + " = " + v);
-    }
-
-    /** 不变量的变量：output（结构化结果）、text（回复）、tools（调用过的工具名） */
-    static AssertionResult invariant(Assertion a, CaseRun run, String description) {
-        Map<String, Object> vars = new LinkedHashMap<>();
-        vars.put("output", run.output() == null ? Map.of() : run.output());
-        vars.put("text", run.text() == null ? "" : run.text());
-        vars.put("tools", new ArrayList<>(run.calledTools()));
-        try {
-            boolean ok = Conditions.test(a.expression(), vars);
-            return new AssertionResult(a.type(), description, ok, a.expression() + " = " + ok);
-        } catch (RuntimeException e) {
-            return new AssertionResult(a.type(), description, false, "不变量求值失败：" + e.getMessage());
-        }
+        return CaseResult.of(Assertions.check(evalCase, run.engine(), runId, traceId, judge.engine()));
     }
 
     public static String toJson(List<CaseResult> results) {
-        return Json.MAPPER.writeValueAsString(results);
+        return dev.eab.spec.Json.MAPPER.writeValueAsString(results);
     }
 }

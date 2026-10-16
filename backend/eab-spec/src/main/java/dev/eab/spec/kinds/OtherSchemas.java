@@ -316,7 +316,12 @@ public final class OtherSchemas {
                         .withDefault("visibility", enumOf("public", "internal"), JSON.stringNode("internal"))
                         .withDefault("tier", enumOf("smoke", "full"), JSON.stringNode("full"))
                         .withDefault("minPassRate", number().min(0).max(1), JSON.numberNode(1))
-                        .field("cases", array(evalCase).min(1)));
+                        .withDefault("cases", array(evalCase), JSON.arrayNode())
+                        .optional("scenarios", string().min(1))
+                        .superRefine((v, ctx) -> {
+                            boolean noCases = !v.has("cases") || v.get("cases").isEmpty();
+                            if (noCases && !v.has("scenarios")) ctx.addIssue("cases", "评测集至少要有一个用例或一段场景（scenarios）");
+                        }));
     }
 
     public static Schema devRequest() {

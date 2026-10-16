@@ -25,9 +25,15 @@ public final class LifecycleSpecs {
      *
      * @param visibility internal 的评测集对其他层不可见（主提示词 5.2 节）
      * @param tier smoke 冒烟集全部用例须 3 分钟内完成
+     * @param scenarios Given/When/Then 风格的对话测试（P8，ADR 0013），可以和 cases 同时写
      */
     public record EvalSuiteSpec(
-            String target, String visibility, String tier, double minPassRate, List<EvalCase> cases) {}
+            String target,
+            String visibility,
+            String tier,
+            double minPassRate,
+            List<EvalCase> cases,
+            String scenarios) {}
 
     public record DevRequestContext(String assistant, List<String> semanticObjects, List<String> rules) {}
 
