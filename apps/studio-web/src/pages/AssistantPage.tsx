@@ -23,6 +23,7 @@ import {
   ToolCards,
 } from '../assist/cards'
 import { NotificationArea } from '../assist/NotificationArea'
+import { ConclusionFeedback } from '../hub/ConclusionFeedback'
 import { RoutingPanel, TracePanel } from '../assist/panels'
 import { awaitingConfirmation, viewOf, type Turn } from '../assist/turn'
 import { useConversation } from '../assist/use-conversation'
@@ -112,6 +113,11 @@ function TurnItem({
             dataScope={dataScope}
             tools={view.tools}
             unverified={view.final?.unverified ?? []}
+            footer={
+              view.runId !== undefined && turn.status !== 'streaming' ? (
+                <ConclusionFeedback runId={view.runId} />
+              ) : undefined
+            }
           />
         )}
         {turn.status === 'streaming' && (

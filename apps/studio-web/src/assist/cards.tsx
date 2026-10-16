@@ -247,10 +247,18 @@ interface ResultCardProps {
   dataScope: string
   tools: readonly ToolStep[]
   unverified: readonly string[]
+  /** 卡片底部的附加操作，例如“结论有误” */
+  footer?: ReactNode
 }
 
 /** Agent 的结果卡片：回答正文，下面列出数据范围和依据（调用过的数据来源） */
-export function ResultCard({ text, dataScope, tools, unverified }: ResultCardProps): ReactNode {
+export function ResultCard({
+  text,
+  dataScope,
+  tools,
+  unverified,
+  footer,
+}: ResultCardProps): ReactNode {
   const sources = tools.filter((t) => t.ok === true)
   return (
     <div className="space-y-2.5" data-testid="result-card">
@@ -274,6 +282,7 @@ export function ResultCard({ text, dataScope, tools, unverified }: ResultCardPro
       {unverified.length > 0 && (
         <p className="text-[11px] text-pending">未核实的数字：{unverified.join('、')}</p>
       )}
+      {footer}
     </div>
   )
 }
