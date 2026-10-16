@@ -75,7 +75,7 @@ public final class Ports {
 
     /** http 类工具来源（例如 IM 通知机器人），connection 是连接别名，地址由部署时绑定 */
     public interface Http {
-        Object call(String connection, String method, String path, Map<String, Object> body);
+        Object call(RunContext context, String connection, String method, String path, Map<String, Object> body);
     }
 
     /** 通知步骤与 IM 渠道 */

@@ -55,7 +55,7 @@ public final class SkillEngine {
                 .orElse(null);
         if (skill == null) return ToolOutcome.failure("SKILL_NOT_FOUND", "找不到技能 " + ref);
         exec.span().set("eab.skill.ref", ref);
-        return runSteps(exec, skill.spec().steps(), input);
+        return runSteps(exec, skill.spec().steps(), withDefaults(skill.spec().inputSchema(), input));
     }
 
     /** 执行工作流（钩子、事件触发），input 的各字段在表达式里可以直接引用，例如 result.severity */
@@ -65,6 +65,19 @@ public final class SkillEngine {
                 .orElse(null);
         if (workflow == null) return ToolOutcome.failure("WORKFLOW_NOT_FOUND", "找不到工作流 " + ref);
         return runSteps(exec, workflow.spec().steps(), input);
+    }
+
+    /** 入参 schema 里声明了 default 的字段，调用方没传时补上（例如 rfq-lookup 的 latestOnly 默认为 true） */
+    static Map<String, Object> withDefaults(JsonNode schema, Map<String, Object> input) {
+        Map<String, Object> filled = new LinkedHashMap<>(input);
+        if (schema == null) return filled;
+        for (var property : schema.path("properties").properties()) {
+            JsonNode value = property.getValue().get("default");
+            if (value != null && !filled.containsKey(property.getKey())) {
+                filled.put(property.getKey(), JSON.convertValue(value, Object.class));
+            }
+        }
+        return filled;
     }
 
     private ToolOutcome runSteps(Exec exec, List<Step> steps, Map<String, Object> input) {

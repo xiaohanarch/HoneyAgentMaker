@@ -85,7 +85,7 @@ final class TestRuntime {
                     }
                 },
                 (connection, tool, args) -> Map.of("mcp", tool),
-                (connection, method, path, body) -> Map.of("sent", true),
+                (context, connection, method, path, body) -> Map.of("sent", true),
                 (context, channel, message) -> notifications.add(channel + ":" + message),
                 (source, query, limit) -> List.of(),
                 new Ports.Memory() {

@@ -1,6 +1,13 @@
 package dev.eab.platform;
 
+import dev.eab.common.IsoTime;
 import dev.eab.platform.audit.AuditStore;
+import dev.eab.platform.runtime.RuntimeService;
+import dev.eab.runtime.RuntimeDeps;
+import dev.eab.runtime.model.GatewayConfig;
+import dev.eab.runtime.model.ModelGateway;
+import dev.eab.runtime.model.ModelProviders;
+import dev.eab.runtime.model.Scripts;
 import dev.eab.platform.http.Principals;
 import dev.eab.platform.identity.ClientRegistry;
 import dev.eab.platform.identity.IdentityKeys;
@@ -71,6 +78,26 @@ public class PlatformConfig {
     @Bean
     public Principals principals(PlatformServices services) {
         return services.principals();
+    }
+
+    /**
+     * 运行服务：模型网关按环境变量选择提供方（默认脚本化模型，读 demo/scripts 下的剧本）；选了真实提供方却缺少 Key 时启动即失败，
+     * 不会静默退回脚本化模型。
+     */
+    @Bean
+    public RuntimeService runtimeService(PlatformServices services, PlatformProperties props) {
+        GatewayConfig config = GatewayConfig.fromEnv(System.getenv());
+        var scripts = Scripts.loadDirectory(props.resolvedScriptsDir());
+        var model = ModelProviders.create(config, scripts, () -> IsoTime.date(services.clock().instant()));
+        LOG.info("模型网关：{}，剧本 {} 条", config, scripts.size());
+        return new RuntimeService(
+                services,
+                new RuntimeService.Settings(
+                        props.demoErpUrl(),
+                        new ModelGateway(model, config),
+                        props.otlpEndpoint(),
+                        props.resolvedConnections(),
+                        RuntimeDeps.DEFAULT_MAX_TURNS));
     }
 
     /** 启动时把平台规则和标品资产签名入库；同版本同内容时跳过 */

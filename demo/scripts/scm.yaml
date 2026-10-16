@@ -1,0 +1,41 @@
+# 供应链（库存）域的演示剧本（格式见 README.md）
+scripts:
+  - id: scm-below-safety-stock
+    description: 孙库管问哪些物料低于安全库存：库存余额 → 在途订单 → 区分已有补货与需要补货
+    agent: vendor.scm/inventory-risk-analyst
+    match:
+      any: [低于安全库存, 缺货]
+    steps:
+      - thought: 找出可用库存低于安全库存的物料
+        calls:
+          - { tool: inventory_balance_list, args: { belowSafetyStock: true, limit: 8 } }
+      - thought: 查看相关物料的在途补货订单
+        calls:
+          - { tool: purchase_order_list, args: { status: open, limit: 50 } }
+      - reply: |
+          缺口最大的 {{tools.inventory_balance_list.total}} 条低于安全库存的记录（按缺口比例排序）：
+          {{#tools.inventory_balance_list.items}}
+          - {{materialId}} {{materialName}}（{{warehouseName}}）：可用 {{quantity}} {{unit}}，安全库存 {{safetyStock}} {{unit}}
+          {{/tools.inventory_balance_list.items}}
+
+          在途补货：目前有 {{tools.purchase_order_list.total}} 张未完成的采购订单，其中逾期最长的 {{tools.purchase_order_list.items.0.id}}（{{tools.purchase_order_list.items.0.supplierName}}）已逾期 {{tools.purchase_order_list.items.0.overdueDays}} 天，会推迟补货。
+          建议：缺口最大的物料优先确认在途订单的交期，没有在途补货的物料由采购部发起补货；需要时可以让我创建补货跟进任务。
+        output:
+          riskLevel: high
+          shortageItems: "=tools.inventory_balance_list.items.map(b, {'materialId': b.materialId, 'quantity': b.quantity, 'safetyStock': b.safetyStock})"
+          slowMovingItems: '=[]'
+          actions: "=['确认在途订单交期', '对没有在途补货的物料发起补货']"
+
+  - id: scm-create-followup
+    description: 为物料创建补货跟进任务：调用创建跟进任务技能，触发 L2 确认，演示挂起与恢复
+    agent: vendor.scm/inventory-risk-analyst
+    match:
+      all: [跟进任务]
+      pattern: '(?<material>M-\d{4})'
+    vars: { material: M-0007 }
+    steps:
+      - thought: 为 {{vars.material}} 创建补货跟进任务，写入前需要你确认
+        calls:
+          - tool: create-followup-task
+            args: { title: '{{vars.material}} 补货跟进', assignee: 采购部, relatedObject: '{{vars.material}}' }
+      - reply: '{{#tools.create_followup_task.item}}已创建跟进任务 {{id}}：“{{title}}”，指派给 {{assignee}}。{{/tools.create_followup_task.item}}{{#tools.create_followup_task.error}}没有创建跟进任务：{{reason}}{{/tools.create_followup_task.error}}'

@@ -30,6 +30,7 @@
     "spec:json-schema": "node scripts/mvnw.mjs -q -B -pl eab-spec -am test -Dtest=JsonSchemaExportTest -Dsurefire.failIfNoSpecifiedTests=false -Deab.updateSchemas=true",
     "data:backup": "node scripts/java-cli.mjs data:backup",
     "seed:reset": "node scripts/java-cli.mjs seed:reset",
+    "tools:import-bo": "node scripts/java-cli.mjs tools:import-bo",
     "test:java": "node scripts/mvnw.mjs -q -B verify"
   },
   "devDependencies": {

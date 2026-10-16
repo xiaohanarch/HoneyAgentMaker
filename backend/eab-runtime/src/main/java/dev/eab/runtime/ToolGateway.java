@@ -418,7 +418,8 @@ public final class ToolGateway {
                 case "http" ->
                     ToolOutcome.success(deps.http()
                             .call(
-                                    source.spec().connection(),
+                                    exec.ctx(),
+                                        source.spec().connection(),
                                     definition.operation().method(),
                                     definition.operation().path(),
                                     args));

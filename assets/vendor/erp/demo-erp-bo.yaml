@@ -3,7 +3,7 @@ kind: ToolSource
 metadata:
   name: demo-erp-bo
   namespace: vendor.erp.tools
-  version: 1.1.0
+  version: 1.2.0
   displayName: DemoERP 业务对象 API
   description: 面向业务对象的 BO API，按用户与 Agent 的双重身份授权并做数据权限过滤。P3 起改为从 OpenAPI 自动生成。
   owner: platform-team
@@ -18,81 +18,97 @@ spec:
       writeLevel: L0
       category: query
       operation: { method: GET, path: /bo/v1/suppliers }
+      inputSchema: {"type":"object","properties":{"name":{"type":"string","description":"供应商名称，模糊匹配，例如 百润"},"rating":{"type":"string","enum":["A","B","C"]},"limit":{"type":"integer","minimum":1,"maximum":200,"default":50,"description":"最多返回条数"}}}
     - name: supplier_get
       description: 查询单个供应商的主数据、评级与合同条款
       writeLevel: L0
       category: query
       operation: { method: GET, path: '/bo/v1/suppliers/{supplierId}' }
+      inputSchema: {"type":"object","properties":{"supplierId":{"type":"string","description":"供应商编号，例如 S-0001"}},"required":["supplierId"]}
     - name: rfq_list
       description: 查询询价单及其报价行，可按供应商、时间范围筛选
       writeLevel: L0
       category: query
       operation: { method: GET, path: /bo/v1/rfqs }
+      inputSchema: {"type":"object","properties":{"supplierId":{"type":"string"},"supplierName":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":200,"default":50,"description":"最多返回条数"}}}
     - name: purchase_order_list
       description: 查询采购订单与订单行，可按供应商、状态、逾期天数筛选
       writeLevel: L0
       category: query
       operation: { method: GET, path: /bo/v1/purchase-orders }
+      inputSchema: {"type":"object","properties":{"supplierId":{"type":"string"},"supplierName":{"type":"string"},"status":{"type":"string","enum":["open","partially_delivered","delivered"]},"overdueDaysGt":{"type":"integer","minimum":0,"description":"只返回逾期天数大于该值的订单"},"limit":{"type":"integer","minimum":1,"maximum":200,"default":50,"description":"最多返回条数"}}}
     - name: purchase_order_change_delivery_date
       description: 修改采购订单的计划交期，生成一张交期变更单，需用户确认后写入
       writeLevel: L2
       category: write
       operation: { method: POST, path: '/bo/v1/purchase-orders/{poId}/delivery-date-changes' }
+      inputSchema: {"type":"object","properties":{"poId":{"type":"string","description":"采购订单号，例如 PO-2026-0117"},"newDate":{"type":"string","pattern":"^\\d{4}-\\d{2}-\\d{2}$","description":"新的计划交期"},"reason":{"type":"string","minLength":1,"description":"变更原因"}},"required":["poId","newDate","reason"]}
     - name: purchase_order_change_approve
       description: 审批一张交期变更单；提交人不能审批自己提交的变更单（职责分离）
       writeLevel: L2
       category: write
       operation: { method: POST, path: '/bo/v1/delivery-date-changes/{changeId}/approve' }
+      inputSchema: {"type":"object","properties":{"changeId":{"type":"string","description":"交期变更单号，例如 DC-2026-0001"}},"required":["changeId"]}
     - name: delivery_list
       description: 查询交付记录，包含计划交付日期、实际交付日期与逾期天数
       writeLevel: L0
       category: query
       operation: { method: GET, path: /bo/v1/deliveries }
+      inputSchema: {"type":"object","properties":{"poId":{"type":"string"},"supplierName":{"type":"string"},"from":{"type":"string","pattern":"^\\d{4}-\\d{2}-\\d{2}$"},"to":{"type":"string","pattern":"^\\d{4}-\\d{2}-\\d{2}$"},"limit":{"type":"integer","minimum":1,"maximum":200,"default":50,"description":"最多返回条数"}}}
     # ── 库存 ────────────────────────────────────────────
     - name: material_list
       description: 查询物料主数据与安全库存设置
       writeLevel: L0
       category: query
       operation: { method: GET, path: /bo/v1/materials }
+      inputSchema: {"type":"object","properties":{"name":{"type":"string"},"id":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":200,"default":50,"description":"最多返回条数"}}}
     - name: inventory_balance_list
       description: 查询各仓库的库存余额、库龄与呆滞标识
       writeLevel: L0
       category: query
       operation: { method: GET, path: /bo/v1/inventory-balances }
+      inputSchema: {"type":"object","properties":{"materialId":{"type":"string"},"slowMoving":{"type":"string","enum":["none","watch","slow"]},"belowSafetyStock":{"type":"boolean","enum":["true","false"]},"limit":{"type":"integer","minimum":1,"maximum":200,"default":50,"description":"最多返回条数"}}}
     - name: stock_movement_list
       description: 查询出入库流水
       writeLevel: L0
       category: query
       operation: { method: GET, path: /bo/v1/stock-movements }
+      inputSchema: {"type":"object","properties":{"materialId":{"type":"string"},"limit":{"type":"integer","minimum":1,"maximum":200,"default":50,"description":"最多返回条数"}}}
     # ── 财务 ────────────────────────────────────────────
     - name: ap_invoice_list
       description: 查询应付发票及其与订单、入库的匹配状态
       writeLevel: L0
       category: query
       operation: { method: GET, path: /bo/v1/ap-invoices }
+      inputSchema: {"type":"object","properties":{"invoiceNo":{"type":"string"},"supplierName":{"type":"string"},"matchStatus":{"type":"string","enum":["matched","price_diff","qty_diff","unmatched"]},"limit":{"type":"integer","minimum":1,"maximum":200,"default":50,"description":"最多返回条数"}}}
     - name: payment_plan_list
       description: 查询付款计划
       writeLevel: L0
       category: query
       operation: { method: GET, path: /bo/v1/payment-plans }
+      inputSchema: {"type":"object","properties":{"status":{"type":"string","enum":["planned","paid","on_hold"]},"limit":{"type":"integer","minimum":1,"maximum":200,"default":50,"description":"最多返回条数"}}}
     - name: transaction_anomaly_list
       description: 查询交易异常记录，可按严重程度、期间、公司主体筛选
       writeLevel: L0
       category: query
       operation: { method: GET, path: /bo/v1/transaction-anomalies }
+      inputSchema: {"type":"object","properties":{"severity":{"type":"string","description":"逗号分隔，例如 high,critical"},"period":{"type":"string","pattern":"^\\d{4}-\\d{2}$"},"status":{"type":"string","enum":["open","closed"]},"limit":{"type":"integer","minimum":1,"maximum":200,"default":50,"description":"最多返回条数"}}}
     - name: transaction_anomaly_get
       description: 查询单条交易异常的明细与关联凭证
       writeLevel: L0
       category: query
       operation: { method: GET, path: '/bo/v1/transaction-anomalies/{anomalyId}' }
+      inputSchema: {"type":"object","properties":{"anomalyId":{"type":"string","description":"异常编号，例如 ANO-2026-0003"}},"required":["anomalyId"]}
     - name: period_close_checklist
       description: 查询会计期间的结账检查项及其状态
       writeLevel: L0
       category: query
       operation: { method: GET, path: '/bo/v1/accounting-periods/{periodId}/close-checks' }
+      inputSchema: {"type":"object","properties":{"periodId":{"type":"string","pattern":"^\\d{4}-\\d{2}$|^current$","description":"会计期间 YYYY-MM，或 current"},"product":{"type":"string","default":"asset-accounting"}},"required":["periodId"]}
     # ── 通用 ────────────────────────────────────────────
     - name: followup_task_create
       description: 创建一条跟进任务并指派给负责人
       writeLevel: L2
       category: write
       operation: { method: POST, path: /bo/v1/followup-tasks }
+      inputSchema: {"type":"object","properties":{"title":{"type":"string","minLength":1},"assignee":{"type":"string","minLength":1,"description":"负责人或责任部门"},"relatedObject":{"type":"string","description":"关联的单据编号"},"dueDate":{"type":"string","pattern":"^\\d{4}-\\d{2}-\\d{2}$"}},"required":["title","assignee"]}

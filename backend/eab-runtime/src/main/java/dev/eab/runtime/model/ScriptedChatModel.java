@@ -87,6 +87,7 @@ public final class ScriptedChatModel implements ChatModel {
         view.put("tools", tools);
         view.put("user", Map.of("id", userId));
         view.put("today", today);
+        view.put("month", today.length() >= 7 ? today.substring(0, 7) : today);
         return view;
     }
 
@@ -138,8 +139,10 @@ public final class ScriptedChatModel implements ChatModel {
             String thought = step.thought() == null ? "" : Scripts.render(step.thought(), view);
             return response(thought, calls, null, scriptId, inputText);
         }
-        String text = Scripts.render(step.reply(), view).strip();
+        // 先求结构化结果，回复模板可以引用它（例如用 CEL 过滤出的未通过检查项）
         Map<String, Object> output = step.output() == null ? null : Scripts.resolveRecord(step.output(), view);
+        if (output != null) view.put("output", output);
+        String text = Scripts.render(step.reply(), view).strip();
         return response(text, List.of(), output, scriptId, inputText);
     }
 

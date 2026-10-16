@@ -1,0 +1,58 @@
+# 财务域的演示剧本（格式见 README.md）
+scripts:
+  - id: fin-anomaly-high-risk
+    description: 王芳问本月高风险交易异常：取清单 → 计算金额合计 → 分类给出结论，结构化结果供租户扩展的钩子使用
+    agent: vendor.fin/transaction-anomaly-analyst
+    match:
+      all: [异常]
+      any: [高风险, 严重, 本月]
+    steps:
+      - thought: 取出本月严重程度为高和严重的交易异常
+        calls:
+          - { tool: transaction_anomaly_list, args: { severity: 'high,critical', period: '{{month}}', limit: 20 } }
+      - thought: 计算涉及金额合计
+        calls:
+          - tool: calculator
+            args:
+              expression: '{{#tools.transaction_anomaly_list.items}}{{amount}}{{^-last}} + {{/-last}}{{/tools.transaction_anomaly_list.items}}'
+      - reply: |
+          本月（{{month}}）共有 {{tools.transaction_anomaly_list.total}} 条高风险或严重的交易异常，涉及金额合计 {{tools.calculator.value}} {{tools.transaction_anomaly_list.items.0.currency}}。
+
+          {{#tools.transaction_anomaly_list.items}}
+          - {{id}}（{{companyName}}）：{{anomalyType}}，严重程度 {{severity}}，金额 {{amount}} {{currency}}。{{description}}
+          {{/tools.transaction_anomaly_list.items}}
+
+          结论分两类：重复付款、拆分发票需要逐笔核对明细后确认，目前列为“疑似”，还缺付款凭证与审批记录；建议由应付会计核对后提交财务经理。本 Agent 不执行付款、冲销等操作。
+          数据范围：{{tools.transaction_anomaly_list.scopeLabel}}。
+        output:
+          severity: "=tools.transaction_anomaly_list.items.exists(a, a.severity == 'critical') ? 'critical' : 'high'"
+          anomalyCount: '=tools.transaction_anomaly_list.total'
+          totalAmount: '=tools.calculator.value'
+          currency: '{{tools.transaction_anomaly_list.items.0.currency}}'
+          findings: "=tools.transaction_anomaly_list.items.map(a, {'id': a.id, 'type': a.anomalyType, 'amount': a.amount, 'status': '疑似'})"
+
+  - id: fin-period-close
+    description: 王芳问本期资产核算结账检查：取检查项 → 按状态分组 → 列出未通过项与责任人
+    agent: vendor.fin/period-close-checker
+    match:
+      all: [结账]
+    steps:
+      - thought: 取出当前会计期间资产核算的结账检查项
+        calls:
+          - { tool: period_close_checklist, args: { periodId: current } }
+      - reply: |
+          {{output.period}} 期间资产核算结账检查：共 {{tools.period_close_checklist.total}} 项，已通过 {{output.passed}} 项，未通过 {{output.failedCount}} 项，未开始 {{output.notStarted}} 项。结账就绪率 {{tools.period_close_checklist.readinessRate}}%（口径：已通过项数 / 检查项总数）。
+
+          未通过的检查项：
+          {{#output.blockingItems}}
+          - {{name}}：{{blocker}}，责任人 {{owner}}
+          {{/output.blockingItems}}
+
+          建议先处理未通过项，再推进未开始的检查。数据范围：{{tools.period_close_checklist.scopeLabel}}。
+        output:
+          period: "=size(tools.period_close_checklist.periods) > 0 ? tools.period_close_checklist.periods[0].id : ''"
+          readinessRate: '=tools.period_close_checklist.readinessRate'
+          passed: "=size(tools.period_close_checklist.items.filter(c, c.status == 'passed'))"
+          failedCount: "=size(tools.period_close_checklist.items.filter(c, c.status == 'failed'))"
+          notStarted: "=size(tools.period_close_checklist.items.filter(c, c.status == 'not_started'))"
+          blockingItems: "=tools.period_close_checklist.items.filter(c, c.status == 'failed')"

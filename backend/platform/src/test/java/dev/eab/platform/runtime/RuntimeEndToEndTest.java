@@ -1,0 +1,219 @@
+package dev.eab.platform.runtime;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import dev.eab.erp.DemoErpApplication;
+import dev.eab.platform.PlatformApplication;
+import dev.eab.platform.PlatformServices;
+import dev.eab.platform.audit.AuditStore.AuditFilter;
+import dev.eab.spec.Json;
+import dev.eab.spec.testing.Fixtures;
+import java.net.ServerSocket;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
+import org.springframework.boot.builder.SpringApplicationBuilder;
+import org.springframework.context.ConfigurableApplicationContext;
+import tools.jackson.databind.JsonNode;
+
+/**
+ * P3 验收的端到端测试：平台加载仓库里的全部标品资产（签名入库），DemoERP 灌入种子数据，两者经真实端口互通；
+ * 用脚本化模型经 /runs 接口跑通四个标品 Agent，核对追踪、确认流程、审计与租户视角的裁剪。
+ */
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+class RuntimeEndToEndTest {
+
+    static final String SECRET = "runtime-e2e-secret";
+
+    ConfigurableApplicationContext platform;
+    ConfigurableApplicationContext erp;
+    PlatformServices services;
+    String platformUrl;
+    final HttpClient http = HttpClient.newHttpClient();
+
+    static int freePort() throws Exception {
+        try (ServerSocket socket = new ServerSocket(0)) {
+            return socket.getLocalPort();
+        }
+    }
+
+    @BeforeAll
+    void start() throws Exception {
+        int erpPort = freePort();
+        platform = new SpringApplicationBuilder(PlatformApplication.class)
+                .run(
+                        "--server.port=0",
+                        "--server.address=127.0.0.1",
+                        "--eab.db-path=:memory:",
+                        "--eab.ephemeral-keys=true",
+                        "--eab.seed-assets=true",
+                        "--eab.demo-mode=true",
+                        "--eab.internal-secret=" + SECRET,
+                        "--eab.demo-erp-url=http://127.0.0.1:" + erpPort);
+        services = platform.getBean(PlatformServices.class);
+        platformUrl = "http://127.0.0.1:" + platform.getEnvironment().getProperty("local.server.port");
+        erp = new SpringApplicationBuilder(DemoErpApplication.class)
+                .run(
+                        "--server.port=" + erpPort,
+                        "--server.address=127.0.0.1",
+                        "--eab.db-path=:memory:",
+                        "--eab.seed-data=true",
+                        "--eab.platform-url=" + platformUrl,
+                        "--eab.internal-secret=" + SECRET,
+                        "--eab.delegation-cache-millis=0");
+    }
+
+    @AfterAll
+    void stop() {
+        if (erp != null) erp.close();
+        if (platform != null) platform.close();
+    }
+
+    String login(String user) {
+        return services.identity().login(user).token();
+    }
+
+    JsonNode call(String method, String path, String token, Object body) throws Exception {
+        var builder = HttpRequest.newBuilder(URI.create(platformUrl + path))
+                .header("authorization", "Bearer " + token)
+                .header("accept", "application/json")
+                .header("content-type", "application/json")
+                .method(method, body == null
+                        ? HttpRequest.BodyPublishers.noBody()
+                        : HttpRequest.BodyPublishers.ofString(Json.MAPPER.writeValueAsString(body)));
+        var response = http.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        return Json.MAPPER.readTree(response.body());
+    }
+
+    JsonNode run(String user, String agent, String message) throws Exception {
+        JsonNode body = call("POST", "/runs", login(user), Map.of("agent", agent, "message", message));
+        assertThat(body.path("success").asBoolean()).as(body.toString()).isTrue();
+        return body.path("data");
+    }
+
+    static List<String> kinds(JsonNode trace) {
+        List<String> kinds = new ArrayList<>();
+        trace.path("spans").forEach(s -> kinds.add(s.path("kind").asString()));
+        return kinds;
+    }
+
+    @Test
+    @DisplayName("供应商绩效分析：回复基于真实数据，指出逾期 120 天的订单并按 PUR-R-007 提示；追踪有各类 span，租户视角看不到标品指令")
+    void supplierPerformance() throws Exception {
+        JsonNode run = run("zhangmin", "vendor.pur/supplier-performance-analyst", "百润精密最近表现怎么样");
+        assertThat(run.path("status").asString()).as(run.toString()).isEqualTo("completed");
+        String text = run.path("text").asString();
+        assertThat(text).contains("百润精密", "PO-2026-0117", "120 天", "PUR-R-007", "采购组织：华东").doesNotContain("未经核实");
+        assertThat(run.path("output").path("risks").toString()).contains("PO-2026-0117 逾期 120 天");
+        assertThat(run.path("output").path("maxOverdueDays").asInt()).isGreaterThanOrEqualTo(120);
+        List<String> types = new ArrayList<>();
+        run.path("events").forEach(e -> types.add(e.path("type").asString()));
+        assertThat(types).contains("run_started", "step", "tool_call", "tool_result", "text_delta", "final");
+
+        JsonNode trace = call("GET", "/traces/" + run.path("traceId").asString(), login("zhangmin"), null).path("data");
+        assertThat(kinds(trace)).contains("run", "assemble", "model", "pipeline", "policy", "tool", "skill", "guard", "memory");
+        String json = trace.toString();
+        assertThat(json).contains("标品指令（不可见，运行时注入）").doesNotContain("你是供应商绩效分析专家");
+
+        assertThat(services.audit().list(AuditFilter.all().withAction("policy.tool")))
+                .anyMatch(e -> "supplier-lookup".equals(e.tool()) && "allow".equals(e.decision()));
+        assertThat(services.audit().list(AuditFilter.all().withAction("bo.access")))
+                .anyMatch(e -> "rfq_list".equals(e.tool()) && "zhangmin".equals(e.userId()));
+    }
+
+    @Test
+    @DisplayName("交易异常解析：结构化结果带 severity、anomalyCount、totalAmount，金额合计由计算器算出")
+    void transactionAnomalies() throws Exception {
+        JsonNode run = run("wangfang", "vendor.fin/transaction-anomaly-analyst", "本月有哪些高风险交易异常");
+        assertThat(run.path("status").asString()).as(run.toString()).isEqualTo("completed");
+        JsonNode output = run.path("output");
+        assertThat(output.path("severity").asString()).isIn("high", "critical");
+        assertThat(output.path("anomalyCount").asInt()).isGreaterThanOrEqualTo(2);
+        assertThat(output.path("totalAmount").asDouble()).isGreaterThan(500_000);
+        assertThat(run.path("text").asString()).contains("ANO-").contains("公司主体：星海制造本部");
+    }
+
+    @Test
+    @DisplayName("结账检查：列出 3 个未通过项和就绪率 50%")
+    void periodClose() throws Exception {
+        JsonNode run = run("wangfang", "vendor.fin/period-close-checker", "本期资产核算的结账检查还有哪些没通过");
+        assertThat(run.path("status").asString()).as(run.toString()).isEqualTo("completed");
+        assertThat(run.path("output").path("failedCount").asInt()).isEqualTo(3);
+        assertThat(run.path("text").asString()).contains("结账就绪率 50");
+    }
+
+    @Test
+    @DisplayName("库存经营分析：低于安全库存的物料里有 M-0007；创建跟进任务需要确认，确认后写入并可审计，拒绝时不写入")
+    void inventoryAndConfirmation() throws Exception {
+        JsonNode shortage = run("sunkg", "vendor.scm/inventory-risk-analyst", "哪些物料低于安全库存");
+        assertThat(shortage.path("status").asString()).isEqualTo("completed");
+        assertThat(shortage.path("text").asString()).as(shortage.toString()).contains("M-0007");
+
+        JsonNode suspended = run("sunkg", "vendor.scm/inventory-risk-analyst", "为 M-0007 创建补货跟进任务");
+        assertThat(suspended.path("status").asString()).isEqualTo("suspended");
+        assertThat(suspended.path("pending").path("title").asString()).contains("create-followup-task");
+        String runId = suspended.path("runId").asString();
+        // 别人不能替他确认
+        assertThat(call("POST", "/runs/" + runId + "/confirmation", login("zhangmin"), Map.of("approved", true))
+                        .path("error")
+                        .path("code")
+                        .asString())
+                .isEqualTo("NOT_FOUND");
+
+        JsonNode done = call("POST", "/runs/" + runId + "/confirmation", login("sunkg"), Map.of("approved", true)).path("data");
+        assertThat(done.path("status").asString()).isEqualTo("completed");
+        assertThat(done.path("text").asString()).startsWith("已创建跟进任务 TASK-");
+        assertThat(services.audit().list(AuditFilter.all().withAction("bo.access")))
+                .anyMatch(e -> "followup_task_create".equals(e.tool()) && "allow".equals(e.decision()));
+        JsonNode trace = call("GET", "/traces/" + done.path("traceId").asString(), login("sunkg"), null).path("data");
+        assertThat(trace.toString()).doesNotContain("\"status\":\"suspended\"");
+        assertThat(kinds(trace)).contains("confirmation");
+
+        JsonNode second = run("sunkg", "vendor.scm/inventory-risk-analyst", "为 M-0008 创建补货跟进任务");
+        JsonNode rejected = call(
+                        "POST", "/runs/" + second.path("runId").asString() + "/confirmation", login("sunkg"), Map.of("approved", false))
+                .path("data");
+        assertThat(rejected.path("text").asString()).startsWith("没有创建跟进任务：用户拒绝");
+    }
+
+    @Test
+    @DisplayName("追踪按查看者限定：别的租户、厂商看不到；平台运维能看到标品指令原文")
+    void traceAccess() throws Exception {
+        JsonNode run = run("zhangmin", "vendor.pur/supplier-performance-analyst", "百润精密最近表现怎么样");
+        String path = "/traces/" + run.path("traceId").asString();
+        assertThat(call("GET", path, login("zhouting"), null).path("error").path("code").asString()).isEqualTo("NOT_FOUND");
+        assertThat(call("GET", path, login("vendordev"), null).path("error").path("code").asString()).isEqualTo("NOT_FOUND");
+        assertThat(call("GET", path, login("platformops"), null).toString()).contains("你是供应商绩效分析专家");
+        assertThat(Fixtures.VENDOR_ANOMALY_INSTRUCTIONS).isNotBlank();
+    }
+
+    @Test
+    @DisplayName("记忆：长期记忆注入后出现在追踪的提示词片段里，可以查看和清除；参数不合法时 400")
+    void memoryAndValidation() throws Exception {
+        String token = login("wangfang");
+        call("POST", "/memory", token, Map.of("agent", "vendor.fin/period-close-checker", "text", "汇报时先说结论"));
+        assertThat(call("GET", "/memory?agent=vendor.fin/period-close-checker", token, null).path("data").size()).isEqualTo(1);
+        JsonNode run = run("wangfang", "vendor.fin/period-close-checker", "本期资产核算的结账检查还有哪些没通过");
+        JsonNode trace = call("GET", "/traces/" + run.path("traceId").asString(), token, null);
+        assertThat(trace.toString()).contains("汇报时先说结论");
+        assertThat(call("DELETE", "/memory", token, null).path("data").path("removed").asInt()).isEqualTo(1);
+
+        assertThat(call("POST", "/runs", token, Map.of("agent", "bad", "message", "x")).path("error").path("code").asString())
+                .isEqualTo("BAD_REQUEST");
+        assertThat(call("POST", "/runs", login("vendordev"), Map.of("agent", "vendor.pur/x", "message", "x"))
+                        .path("error")
+                        .path("code")
+                        .asString())
+                .isEqualTo("FORBIDDEN");
+    }
+}

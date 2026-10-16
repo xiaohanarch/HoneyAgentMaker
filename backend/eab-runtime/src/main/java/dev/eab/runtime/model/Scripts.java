@@ -166,8 +166,9 @@ public final class Scripts {
         return toolName.replaceAll("[^A-Za-z0-9_]", "_");
     }
 
+    /** 缺少的变量和 null 都渲染为空字符串：工具结果为空列表或报错时，模板不会因为取不到 items.0 而失败 */
     private static final Mustache.Compiler MUSTACHE =
-            Mustache.compiler().escapeHTML(false).defaultValue("").nullValue("");
+            Mustache.compiler().escapeHTML(false).defaultValue("");
 
     public static String render(String template, Map<String, Object> view) {
         return MUSTACHE.compile(template).execute(view);
