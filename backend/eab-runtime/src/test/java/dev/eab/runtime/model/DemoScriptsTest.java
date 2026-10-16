@@ -57,4 +57,24 @@ class DemoScriptsTest {
                     .isNotNull();
         }
     }
+
+    @Test
+    @DisplayName("带工具条件的剧本只在这些工具可用时匹配，并且优先于不带条件的剧本（故事 B：扩展增加了 notify_im）")
+    void toolConditions() {
+        String agent = "vendor.fin/transaction-anomaly-analyst";
+        String question = "本月有哪些高风险交易异常";
+        assertThat(Scripts.match(SCRIPTS, agent, "wangfang", question, java.util.Set.of("transaction_anomaly_list"))
+                        .script()
+                        .id())
+                .isEqualTo("fin-anomaly-high-risk");
+        assertThat(Scripts.match(
+                                SCRIPTS,
+                                agent,
+                                "wangfang",
+                                question,
+                                java.util.Set.of("transaction_anomaly_list", "notify_im"))
+                        .script()
+                        .id())
+                .isEqualTo("story-b-anomaly-extended");
+    }
 }

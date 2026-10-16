@@ -8,6 +8,10 @@ import { ImChannelPage } from './pages/ImChannelPage'
 import { NewAgentPage } from './pages/NewAgentPage'
 import { StudioPage } from './pages/StudioPage'
 import { AppShell } from './shell/AppShell'
+import { ExtensionPage } from './studio/extend/ExtensionPage'
+import { VendorAgentsPage } from './studio/extend/VendorAgentsPage'
+import { SkillEditorPage } from './studio/skills/SkillEditorPage'
+import { ToolCenterPage } from './studio/tools/ToolCenterPage'
 
 const router = createBrowserRouter([
   {
@@ -21,6 +25,10 @@ const router = createBrowserRouter([
       { path: 'studio/agents/new', element: <NewAgentPage /> },
       { path: 'studio/drafts/:id', element: <DraftPage /> },
       { path: 'studio/drafts/:id/:step', element: <DraftPage /> },
+      { path: 'studio/vendor-agents', element: <VendorAgentsPage /> },
+      { path: 'studio/extensions/:id', element: <ExtensionPage /> },
+      { path: 'studio/tools', element: <ToolCenterPage /> },
+      { path: 'studio/skills/:id', element: <SkillEditorPage /> },
       { path: 'hub', element: <HubPage /> },
       { path: '*', element: <Navigate to="/assistant" replace /> },
     ],
