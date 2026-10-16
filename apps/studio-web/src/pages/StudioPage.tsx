@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Link } from 'react-router'
 import { Blocks, Cable, Globe, Sparkles, Workflow } from 'lucide-react'
 import { SOURCE_STYLES, SourceBadge, cn, type AssetSource } from '@eab/ui'
 import { useIdentity } from '../identity/identity-context'
@@ -12,6 +13,8 @@ interface Entry {
   description: string
   source: AssetSource
   phase: string
+  /** 已经可用的入口 */
+  to?: string
 }
 
 /** Studio 首页的入口卡片（主提示词 10.1 节）。 */
@@ -29,6 +32,7 @@ const ENTRIES: readonly Entry[] = [
     description: '输入 Agent Card 地址，把其他框架写的 Agent 经 A2A 接进来',
     source: 'external',
     phase: 'P7',
+    to: '/studio/external/new',
   },
   {
     icon: Workflow,
@@ -90,7 +94,7 @@ export function StudioPage(): ReactNode {
           <IntentForm disabled={!canBuild || token === undefined} />
         </article>
 
-        {ENTRIES.map(({ icon: Icon, title, description, source, phase }) => (
+        {ENTRIES.map(({ icon: Icon, title, description, source, phase, to }) => (
           <article
             key={title}
             className={cn(
@@ -106,8 +110,16 @@ export function StudioPage(): ReactNode {
               </span>
             </div>
             <p className="mt-2 text-xs leading-relaxed text-ink-muted">{description}</p>
-            <div className="mt-3">
+            <div className="mt-3 flex items-center justify-between">
               <SourceBadge source={source} />
+              {to !== undefined && canBuild && (
+                <Link
+                  to={to}
+                  className="text-xs font-medium text-ink underline-offset-2 hover:underline"
+                >
+                  开始接入
+                </Link>
+              )}
             </div>
           </article>
         ))}

@@ -59,7 +59,8 @@ public class ExternalAgentController {
     @Operation(summary = "拉取并解读外部 Agent 的 Agent Card，给出接入配置的建议")
     public ApiResponse<Map<String, Object>> inspect(HttpServletRequest request, @RequestBody CardBody body) {
         DemoUser user = developer(request);
-        return ApiResponse.success(external.inspect(user, text(body == null ? null : body.cardUrl(), "cardUrl", MAX_URL)));
+        return ApiResponse.success(
+                external.inspect(user, text(body == null ? null : body.cardUrl(), "cardUrl", MAX_URL)));
     }
 
     @PostMapping("/studio/external/test")
@@ -94,6 +95,16 @@ public class ExternalAgentController {
                         "cardUrl", inbound.endpoint(e) + "/.well-known/agent-card.json"))
                 .toList();
         var remotes = external.remotes(user.tenantId());
-        return ApiResponse.success(Map.of("remotes", remotes, "exposed", exposed));
+        var assistants = services
+                .registry()
+                .latestPublished(
+                        new dev.eab.platform.registry.AssetRepository.AssetFilter("Assistant", null, null, null, null),
+                        Viewer.tenant(user.tenantId()))
+                .assets()
+                .stream()
+                .map(a -> Map.<String, Object>of(
+                        "ref", RemoteAgentGateway.refOf(a), "name", RemoteAgentGateway.displayName(a)))
+                .toList();
+        return ApiResponse.success(Map.of("remotes", remotes, "exposed", exposed, "assistants", assistants));
     }
 }

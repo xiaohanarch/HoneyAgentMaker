@@ -40,8 +40,8 @@ final class BlockingSend {
         if (config != null && Boolean.TRUE.equals(config.returnImmediately())) {
             return handler.onMessageSend(request, context);
         }
-        var publisher =
-                handler.onMessageSendStream(new SendStreamingMessageRequest(request.getId(), request.getParams()), context);
+        var publisher = handler.onMessageSendStream(
+                new SendStreamingMessageRequest(request.getId(), request.getParams()), context);
         AtomicReference<String> taskId = new AtomicReference<>();
         AtomicReference<Message> message = new AtomicReference<>();
         AtomicReference<SendStreamingMessageResponse> failure = new AtomicReference<>();
@@ -106,7 +106,8 @@ final class BlockingSend {
         } catch (ExecutionException | TimeoutException e) {
             return new SendMessageResponse(request.getId(), new InternalError("等待任务完成失败：" + e.getMessage()));
         }
-        if (failure.get() != null) return new SendMessageResponse(request.getId(), failure.get().getError());
+        if (failure.get() != null)
+            return new SendMessageResponse(request.getId(), failure.get().getError());
         if (taskId.get() == null) {
             return message.get() == null
                     ? new SendMessageResponse(request.getId(), new InternalError("Agent 没有返回任务或消息"))

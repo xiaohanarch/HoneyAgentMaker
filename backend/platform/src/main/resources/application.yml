@@ -30,9 +30,9 @@ eab:
   a2a-timeout-seconds: ${EAB_A2A_TIMEOUT_SECONDS:60}
   # 连接别名在本环境的绑定（部署配置，不进资产），优先于租户 Connection 资产的 prod 绑定
   connections:
-    "[SUPPLIER_RISK_AGENT]": ${EAB_SUPPLIER_RISK_URL:http://127.0.0.1:4200}
-    "[FX_RATE_AGENT]": ${EAB_FX_RATE_URL:http://127.0.0.1:4210}
-    "[LOGISTICS_MCP]": ${EAB_LOGISTICS_MCP_URL:http://127.0.0.1:4400/mcp}
+    '[SUPPLIER_RISK_AGENT]': ${EAB_SUPPLIER_RISK_URL:http://127.0.0.1:4200}
+    '[FX_RATE_AGENT]': ${EAB_FX_RATE_URL:http://127.0.0.1:4210}
+    '[LOGISTICS_MCP]': ${EAB_LOGISTICS_MCP_URL:http://127.0.0.1:4400/mcp}
 
 # 所有对外接口的 OpenAPI 描述（主提示词第 14 节），路径与 TS 版相同
 springdoc:

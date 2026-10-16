@@ -64,7 +64,8 @@ public final class ExternalAgentService {
         String origin = uri.getScheme() + "://" + uri.getHost() + (uri.getPort() > 0 ? ":" + uri.getPort() : "");
         String path = uri.getPath() == null ? "" : uri.getPath();
         int wellKnown = path.indexOf("/.well-known/");
-        if (wellKnown >= 0) return new CardLocation(origin, origin + path.substring(0, wellKnown), path.substring(wellKnown));
+        if (wellKnown >= 0)
+            return new CardLocation(origin, origin + path.substring(0, wellKnown), path.substring(wellKnown));
         String base = origin + (path.endsWith("/") ? path.substring(0, path.length() - 1) : path);
         return new CardLocation(origin, base, "/.well-known/agent-card.json");
     }
@@ -93,7 +94,8 @@ public final class ExternalAgentService {
         for (ConnectionAsset c : connections(tenantId)) {
             if (c.spec().bindings() == null) continue;
             boolean same = c.spec().bindings().values().stream()
-                    .anyMatch(b -> b != null && b.url() != null && originOf(b.url()).equals(origin));
+                    .anyMatch(b ->
+                            b != null && b.url() != null && originOf(b.url()).equals(origin));
             if (same) return Optional.of(c.spec().alias());
         }
         return gateway.settings().connections().entrySet().stream()
@@ -105,8 +107,7 @@ public final class ExternalAgentService {
     void checkAllowed(String tenantId, CardLocation location) {
         String host = URI.create(location.origin()).getHost();
         if (LOOPBACK.contains(host) || aliasFor(tenantId, location.origin()).isPresent()) return;
-        throw new ApiException(
-                403, "A2A_HOST_NOT_ALLOWED", "只能接入本机地址或已在连接中心登记过的地址，请先在连接中心登记 " + location.origin());
+        throw new ApiException(403, "A2A_HOST_NOT_ALLOWED", "只能接入本机地址或已在连接中心登记过的地址，请先在连接中心登记 " + location.origin());
     }
 
     private A2aOutbound.CardResult fetch(DemoUser user, CardLocation location) {
@@ -143,7 +144,8 @@ public final class ExternalAgentService {
         suggestion.put("connection", alias);
         suggestion.put("agentCardPath", location.cardPath());
         suggestion.put("routing", Map.of("description", card.description(), "examples", examples, "direct", false));
-        existing.ifPresent(r -> suggestion.put("existing", RemoteAgentGateway.refOf(r) + "@" + r.metadata().version()));
+        existing.ifPresent(r -> suggestion.put(
+                "existing", RemoteAgentGateway.refOf(r) + "@" + r.metadata().version()));
         Map<String, Object> view = new LinkedHashMap<>();
         view.put("card", summary(card));
         view.put("skills", skills);
@@ -162,7 +164,11 @@ public final class ExternalAgentService {
         map.put("pushNotifications", Boolean.TRUE.equals(card.capabilities().pushNotifications()));
         map.put("inputModes", card.defaultInputModes());
         map.put("outputModes", card.defaultOutputModes());
-        map.put("auth", card.securitySchemes() == null ? List.of() : List.copyOf(card.securitySchemes().keySet()));
+        map.put(
+                "auth",
+                card.securitySchemes() == null
+                        ? List.of()
+                        : List.copyOf(card.securitySchemes().keySet()));
         map.put(
                 "interfaces",
                 card.supportedInterfaces().stream()
@@ -178,19 +184,24 @@ public final class ExternalAgentService {
     }
 
     Optional<RemoteAgentAsset> remoteByAlias(String tenantId, String alias) {
-        return services.registry()
-                .latestPublished(new AssetFilter("RemoteAgent", null, "tenant", tenantId, null), Viewer.tenant(tenantId))
+        return services
+                .registry()
+                .latestPublished(
+                        new AssetFilter("RemoteAgent", null, "tenant", tenantId, null), Viewer.tenant(tenantId))
                 .assets()
                 .stream()
-                .filter(a -> a instanceof RemoteAgentAsset r && alias.equals(r.spec().connection()))
+                .filter(a ->
+                        a instanceof RemoteAgentAsset r && alias.equals(r.spec().connection()))
                 .map(a -> (RemoteAgentAsset) a)
                 .findFirst();
     }
 
     /** 本租户已登记的远程 Agent */
     public List<Map<String, Object>> remotes(String tenantId) {
-        return services.registry()
-                .latestPublished(new AssetFilter("RemoteAgent", null, "tenant", tenantId, null), Viewer.tenant(tenantId))
+        return services
+                .registry()
+                .latestPublished(
+                        new AssetFilter("RemoteAgent", null, "tenant", tenantId, null), Viewer.tenant(tenantId))
                 .assets()
                 .stream()
                 .filter(a -> a instanceof RemoteAgentAsset)
@@ -265,7 +276,9 @@ public final class ExternalAgentService {
         checkAllowed(user.tenantId(), location);
         String tenant = user.tenantId();
         List<String> published = new ArrayList<>();
-        if (aliasFor(tenant, location.origin()).filter(request.connection()::equals).isEmpty()
+        if (aliasFor(tenant, location.origin())
+                        .filter(request.connection()::equals)
+                        .isEmpty()
                 && connections(tenant).stream().noneMatch(c -> c.spec().alias().equals(request.connection()))) {
             published.add(write(user, connectionAsset(user, request.connection(), location.baseUrl())));
         }
@@ -278,12 +291,18 @@ public final class ExternalAgentService {
 
     Map<String, Object> remoteAsset(DemoUser user, PublishRequest request, String cardPath) {
         Map<String, Object> routing = new LinkedHashMap<>();
-        Object description = request.routing() == null ? null : request.routing().get("description");
+        Object description =
+                request.routing() == null ? null : request.routing().get("description");
         routing.put(
                 "description",
                 description == null || description.toString().isBlank() ? request.displayName() : description);
-        routing.put("examples", request.routing() == null ? List.of() : request.routing().getOrDefault("examples", List.of()));
-        routing.put("direct", request.routing() != null && Boolean.TRUE.equals(request.routing().get("direct")));
+        routing.put(
+                "examples",
+                request.routing() == null ? List.of() : request.routing().getOrDefault("examples", List.of()));
+        routing.put(
+                "direct",
+                request.routing() != null
+                        && Boolean.TRUE.equals(request.routing().get("direct")));
         Map<String, Object> spec = new LinkedHashMap<>();
         spec.put("connection", request.connection());
         spec.put("agentCardPath", cardPath);
@@ -291,7 +310,13 @@ public final class ExternalAgentService {
         spec.put("routing", routing);
         spec.put("allowedCallers", request.allowedCallers() == null ? List.of() : request.allowedCallers());
         if (request.assistant() != null && !request.assistant().isBlank()) spec.put("assistant", request.assistant());
-        return envelope("RemoteAgent", "tenant." + user.tenantId() + ".remote", request.name(), request.displayName(), user, spec);
+        return envelope(
+                "RemoteAgent",
+                "tenant." + user.tenantId() + ".remote",
+                request.name(),
+                request.displayName(),
+                user,
+                spec);
     }
 
     static Map<String, Object> connectionAsset(DemoUser user, String alias, String url) {

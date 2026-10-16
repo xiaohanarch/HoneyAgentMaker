@@ -92,15 +92,14 @@ class A2aEndToEndTest {
         var builder = HttpRequest.newBuilder(URI.create(platformUrl + path))
                 .method(
                         method,
-                        body == null
-                                ? HttpRequest.BodyPublishers.noBody()
-                                : HttpRequest.BodyPublishers.ofString(body));
+                        body == null ? HttpRequest.BodyPublishers.noBody() : HttpRequest.BodyPublishers.ofString(body));
         headers.forEach(builder::header);
         return http.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
     }
 
     JsonNode call(String method, String path, String user, Object body) throws Exception {
-        Map<String, String> headers = new HashMap<>(Map.of("accept", "application/json", "content-type", "application/json"));
+        Map<String, String> headers =
+                new HashMap<>(Map.of("accept", "application/json", "content-type", "application/json"));
         if (user != null) headers.put("authorization", "Bearer " + login(user));
         var response = send(method, path, headers, body == null ? null : Json.MAPPER.writeValueAsString(body));
         return Json.MAPPER.readTree(response.body());
@@ -117,7 +116,8 @@ class A2aEndToEndTest {
 
     static String finalText(JsonNode assist) {
         for (JsonNode event : assist.path("events")) {
-            if (event.path("type").asString().equals("final")) return event.path("data").path("text").asString();
+            if (event.path("type").asString().equals("final"))
+                return event.path("data").path("text").asString();
         }
         return null;
     }
@@ -163,12 +163,16 @@ class A2aEndToEndTest {
     @DisplayName("多轮：没说供应商时外部 Agent 追问，追问展示给用户；同一会话里回答后带着 contextId、taskId 续接并完成")
     void multiTurnInputRequired() throws Exception {
         JsonNode first = ask("zhangmin", "最近有没有什么风险舆情需要注意", null);
-        assertThat(routing(first).path("target").asString()).as(first.toString()).isEqualTo("tenant.t001.remote/supplier-risk");
+        assertThat(routing(first).path("target").asString())
+                .as(first.toString())
+                .isEqualTo("tenant.t001.remote/supplier-risk");
         assertThat(finalText(first)).contains("需要补充信息", "哪家供应商");
         String session = first.path("sessionId").asString();
 
         JsonNode second = ask("zhangmin", "华远电子", session);
-        assertThat(routing(second).path("decidedBy").asString()).as(second.toString()).isEqualTo("session");
+        assertThat(routing(second).path("decidedBy").asString())
+                .as(second.toString())
+                .isEqualTo("session");
         assertThat(finalText(second)).contains("华远电子：风险等级 高");
     }
 
@@ -204,13 +208,19 @@ class A2aEndToEndTest {
     @DisplayName("入站：采购助手的 Agent Card 在标准路径和旧路径都能取到，未允许外部调用的 Agent 返回 404")
     void inboundCards() throws Exception {
         String base = "/a2a/agents/vendor.pur/procurement-assistant/.well-known/";
-        JsonNode card = Json.MAPPER.readTree(send("GET", base + "agent-card.json", Map.of(), null).body());
+        JsonNode card = Json.MAPPER.readTree(
+                send("GET", base + "agent-card.json", Map.of(), null).body());
         assertThat(card.path("name").asString()).isEqualTo("采购助手");
         assertThat(card.toString()).contains("platformUserToken", "/a2a/agents/vendor.pur/procurement-assistant");
         assertThat(card.toString()).doesNotContain("instructions");
-        JsonNode legacy = Json.MAPPER.readTree(send("GET", base + "agent.json", Map.of(), null).body());
+        JsonNode legacy = Json.MAPPER.readTree(
+                send("GET", base + "agent.json", Map.of(), null).body());
         assertThat(legacy.path("protocolVersion").asString()).isEqualTo("0.3.0");
-        assertThat(send("GET", "/a2a/agents/vendor.pur/purchase-order-clerk/.well-known/agent-card.json", Map.of(), null)
+        assertThat(send(
+                                "GET",
+                                "/a2a/agents/vendor.pur/purchase-order-clerk/.well-known/agent-card.json",
+                                Map.of(),
+                                null)
                         .statusCode())
                 .isEqualTo(404);
     }
@@ -237,14 +247,20 @@ class A2aEndToEndTest {
                 "POST",
                 path,
                 Map.of(
-                        "content-type", "application/json",
-                        "authorization", "Bearer " + login("zhangmin"),
-                        "A2A-Version", "1.0",
-                        A2aInboundController.CALLER_HEADER, "partner-procurement"),
+                        "content-type",
+                        "application/json",
+                        "authorization",
+                        "Bearer " + login("zhangmin"),
+                        "A2A-Version",
+                        "1.0",
+                        A2aInboundController.CALLER_HEADER,
+                        "partner-procurement"),
                 sendMessage("华东区本季度逾期交付率是多少"));
         assertThat(allowed.statusCode()).isEqualTo(200);
         JsonNode task = Json.MAPPER.readTree(allowed.body()).path("result").path("task");
-        assertThat(task.path("status").path("state").asString()).as(allowed.body()).isEqualTo("TASK_STATE_COMPLETED");
+        assertThat(task.path("status").path("state").asString())
+                .as(allowed.body())
+                .isEqualTo("TASK_STATE_COMPLETED");
         assertThat(task.path("artifacts").toString()).contains("逾期");
         assertThat(services.audit().list(AuditFilter.all().withAction("a2a.inbound")))
                 .anyMatch(e -> e.decision().equals("allow")
@@ -254,7 +270,16 @@ class A2aEndToEndTest {
 
     dev.eab.runtime.RunContext context(dev.eab.runtime.RunContext.User user) {
         return new dev.eab.runtime.RunContext(
-                "run-test", "ses-test", user, "on-behalf", null, null, "vendor.pur/procurement-assistant", null, null, 0);
+                "run-test",
+                "ses-test",
+                user,
+                "on-behalf",
+                null,
+                null,
+                "vendor.pur/procurement-assistant",
+                null,
+                null,
+                0);
     }
 
     dev.eab.runtime.RunContext.User zhangmin() {
@@ -305,7 +330,8 @@ class A2aEndToEndTest {
     @DisplayName("入站运行没有调用方身份时拒绝执行")
     void inboundRunnerRequiresPrincipal() {
         var runner = new InboundRunner(
-                new InboundAgents.Exposed("assistant", "vendor.pur/procurement-assistant", "1.1.1", "采购助手", null, java.util.List.of()),
+                new InboundAgents.Exposed(
+                        "assistant", "vendor.pur/procurement-assistant", "1.1.1", "采购助手", null, java.util.List.of()),
                 platform.getBean(dev.eab.platform.assist.AssistService.class),
                 platform.getBean(dev.eab.platform.runtime.RuntimeService.class));
         var reply = runner.run(null, "你好", "a2a-x", null, note -> {});
@@ -318,7 +344,9 @@ class A2aEndToEndTest {
     void studioConnectsExternalAgent() throws Exception {
         String cardUrl = remote.url + "/.well-known/agent-card.json";
         JsonNode inspected = call("POST", "/studio/external/inspect", "chengong", Map.of("cardUrl", cardUrl));
-        assertThat(inspected.path("success").asBoolean()).as(inspected.toString()).isTrue();
+        assertThat(inspected.path("success").asBoolean())
+                .as(inspected.toString())
+                .isTrue();
         JsonNode data = inspected.path("data");
         assertThat(data.path("card").path("name").asString()).isEqualTo("供应商风险舆情 Agent");
         assertThat(data.path("card").path("streaming").asBoolean()).isTrue();
@@ -328,7 +356,9 @@ class A2aEndToEndTest {
 
         JsonNode tested = call(
                 "POST", "/studio/external/test", "chengong", Map.of("cardUrl", cardUrl, "message", "百润精密最近有没有什么风险"));
-        assertThat(tested.path("data").path("state").asString()).as(tested.toString()).isEqualTo("completed");
+        assertThat(tested.path("data").path("state").asString())
+                .as(tested.toString())
+                .isEqualTo("completed");
         assertThat(tested.path("data").path("exchanges").toString()).contains("agent-card.json", "Bearer ***");
 
         Map<String, Object> body = new HashMap<>();
@@ -339,11 +369,17 @@ class A2aEndToEndTest {
         body.put("assistant", "vendor.pur/procurement-assistant");
         body.put("routing", Map.of("description", "查询供应商的外部风险和舆情", "examples", java.util.List.of("百润精密最近有没有什么风险")));
         JsonNode published = call("POST", "/studio/external/publish", "chengong", body);
-        assertThat(published.path("data").path("ref").asString()).as(published.toString())
+        assertThat(published.path("data").path("ref").asString())
+                .as(published.toString())
                 .startsWith("tenant.t001.remote/supplier-risk@");
-        assertThat(call("GET", "/studio/external", "chengong", null).path("data").toString())
+        assertThat(call("GET", "/studio/external", "chengong", null)
+                        .path("data")
+                        .toString())
                 .contains("tenant.t001.remote/supplier-risk", "vendor.pur/procurement-assistant");
-        assertThat(call("GET", "/studio/catalog", "chengong", null).path("data").path("agents").toString())
+        assertThat(call("GET", "/studio/catalog", "chengong", null)
+                        .path("data")
+                        .path("agents")
+                        .toString())
                 .contains("tenant.t001.remote/supplier-risk");
     }
 
@@ -351,10 +387,12 @@ class A2aEndToEndTest {
     @DisplayName("接入外部 Agent：未登记的外部地址拒绝访问，非开发者不能使用")
     void studioExternalGuards() throws Exception {
         JsonNode foreign = call(
-                "POST", "/studio/external/inspect", "chengong", Map.of("cardUrl", "http://10.1.2.3/.well-known/agent-card.json"));
+                "POST",
+                "/studio/external/inspect",
+                "chengong",
+                Map.of("cardUrl", "http://10.1.2.3/.well-known/agent-card.json"));
         assertThat(foreign.path("error").path("code").asString()).isEqualTo("A2A_HOST_NOT_ALLOWED");
-        JsonNode forbidden =
-                call("POST", "/studio/external/inspect", "zhangmin", Map.of("cardUrl", remote.url));
+        JsonNode forbidden = call("POST", "/studio/external/inspect", "zhangmin", Map.of("cardUrl", remote.url));
         assertThat(forbidden.path("error").path("code").asString()).isEqualTo("FORBIDDEN");
     }
 }

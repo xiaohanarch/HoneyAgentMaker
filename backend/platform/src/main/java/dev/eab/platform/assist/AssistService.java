@@ -126,8 +126,7 @@ public final class AssistService {
             Router.Level resumed = new Router.Level(
                     "route",
                     List.of(new Router.Candidate(pending, 1.0, "会话里有等待补充信息的外部 Agent 任务", null)),
-                    new Router.Decision(
-                            pending, 1.0, "继续上一轮：" + pending.displayName() + " 在等待补充信息", "session"),
+                    new Router.Decision(pending, 1.0, "继续上一轮：" + pending.displayName() + " 在等待补充信息", "session"),
                     List.of());
             levels.add(describe(1, resumed));
             return finish(request, sink, levels, resumed, null);

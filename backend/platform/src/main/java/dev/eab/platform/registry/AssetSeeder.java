@@ -48,7 +48,8 @@ public final class AssetSeeder {
                     .sorted()
                     .forEach(t -> {
                         for (String sub : List.of("connections", "remote")) {
-                            if (Files.isDirectory(tenants.resolve(t).resolve(sub))) dirs.add("tenants/" + t + "/" + sub);
+                            if (Files.isDirectory(tenants.resolve(t).resolve(sub)))
+                                dirs.add("tenants/" + t + "/" + sub);
                         }
                     });
         } catch (java.io.IOException e) {

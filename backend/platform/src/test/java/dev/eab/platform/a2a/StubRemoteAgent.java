@@ -96,7 +96,8 @@ final class StubRemoteAgent implements AutoCloseable {
         authorizations.add(authorization == null ? "" : authorization);
         String body = new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
         var response = a2a.handle(
-                body, A2aServer.context("platform", Map.of(), ex.getRequestHeaders().getFirst(A2aServer.VERSION_HEADER)));
+                body,
+                A2aServer.context("platform", Map.of(), ex.getRequestHeaders().getFirst(A2aServer.VERSION_HEADER)));
         if (response instanceof A2aServer.Response.Json json) {
             write(ex, 200, json.body());
             return;

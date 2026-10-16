@@ -36,7 +36,8 @@ class InboundExecutorTest {
     static String send(String text, String taskId, String contextId) {
         String ids = taskId == null ? "" : ",\"taskId\":\"" + taskId + "\",\"contextId\":\"" + contextId + "\"";
         return "{\"jsonrpc\":\"2.0\",\"id\":\"1\",\"method\":\"SendMessage\",\"params\":{\"message\":{\"messageId\":\""
-                + java.util.UUID.randomUUID() + "\",\"role\":\"ROLE_USER\",\"parts\":[{\"text\":\"" + text + "\"}]" + ids
+                + java.util.UUID.randomUUID() + "\",\"role\":\"ROLE_USER\",\"parts\":[{\"text\":\"" + text + "\"}]"
+                + ids
                 + "}}}";
     }
 
@@ -79,11 +80,16 @@ class InboundExecutorTest {
         var context = A2aServer.context("zhangmin", Map.of(), "1.0");
         String first = ((A2aServer.Response.Json) server.handle(send("改交期", null, null), context)).body();
         assertThat(first).contains("TASK_STATE_INPUT_REQUIRED", "需要确认");
-        var task = new com.google.gson.Gson().fromJson(first, com.google.gson.JsonObject.class)
+        var task = new com.google.gson.Gson()
+                .fromJson(first, com.google.gson.JsonObject.class)
                 .getAsJsonObject("result")
                 .getAsJsonObject("task");
         String second = ((A2aServer.Response.Json) server.handle(
-                                send("确认", task.get("id").getAsString(), task.get("contextId").getAsString()), context))
+                        send(
+                                "确认",
+                                task.get("id").getAsString(),
+                                task.get("contextId").getAsString()),
+                        context))
                 .body();
         assertThat(second).contains("TASK_STATE_COMPLETED", "已执行");
         assertThat(pendings).containsExactly("null", "run-9");

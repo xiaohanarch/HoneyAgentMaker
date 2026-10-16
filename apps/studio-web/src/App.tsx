@@ -8,6 +8,7 @@ import { ImChannelPage } from './pages/ImChannelPage'
 import { NewAgentPage } from './pages/NewAgentPage'
 import { StudioPage } from './pages/StudioPage'
 import { AppShell } from './shell/AppShell'
+import { ExternalAgentPage } from './studio/external/ExternalAgentPage'
 
 const router = createBrowserRouter([
   {
@@ -21,6 +22,7 @@ const router = createBrowserRouter([
       { path: 'studio/agents/new', element: <NewAgentPage /> },
       { path: 'studio/drafts/:id', element: <DraftPage /> },
       { path: 'studio/drafts/:id/:step', element: <DraftPage /> },
+      { path: 'studio/external/new', element: <ExternalAgentPage /> },
       { path: 'hub', element: <HubPage /> },
       { path: '*', element: <Navigate to="/assistant" replace /> },
     ],
