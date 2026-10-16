@@ -34,7 +34,14 @@ function userMessage(text: string): Message {
     contextId: '',
     taskId: '',
     role: Role.ROLE_USER,
-    parts: [{ content: { $case: 'text', value: text }, metadata: undefined, filename: '', mediaType: 'text/plain' }],
+    parts: [
+      {
+        content: { $case: 'text', value: text },
+        metadata: undefined,
+        filename: '',
+        mediaType: 'text/plain',
+      },
+    ],
     metadata: undefined,
     extensions: [],
     referenceTaskIds: [],
@@ -70,7 +77,12 @@ export async function callAssistant(options: DemoOptions): Promise<SendMessageRe
     headers.authorization = `Bearer ${await login(options.platformUrl, options.user)}`
   }
   return client.sendMessage(
-    { tenant: '', message: userMessage(options.question), configuration: undefined, metadata: undefined },
+    {
+      tenant: '',
+      message: userMessage(options.question),
+      configuration: undefined,
+      metadata: undefined,
+    },
     { serviceParameters: headers },
   )
 }

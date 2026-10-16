@@ -19,13 +19,24 @@ afterAll(() => {
 })
 
 describe('物流跟踪 MCP Server', () => {
+  it('健康检查', async () => {
+    const response = await fetch(new URL('/health', url))
+    expect(response.status).toBe(200)
+  })
+
   it('用官方客户端列出工具并按订单号查询运单', async () => {
     const client = new Client({ name: 'test', version: '1.0.0' })
     await client.connect(new StreamableHTTPClientTransport(url))
     const tools = await client.listTools()
     expect(tools.tools.map((t) => t.name)).toEqual(['track_shipment'])
-    const result = await client.callTool({ name: 'track_shipment', arguments: { id: 'PO-2026-0117' } })
-    expect(result.structuredContent).toMatchObject({ shipmentId: 'SH-2026-0311', status: 'delayed' })
+    const result = await client.callTool({
+      name: 'track_shipment',
+      arguments: { id: 'PO-2026-0117' },
+    })
+    expect(result.structuredContent).toMatchObject({
+      shipmentId: 'SH-2026-0311',
+      status: 'delayed',
+    })
     const missing = await client.callTool({ name: 'track_shipment', arguments: { id: 'PO-0000' } })
     expect(missing.isError).toBe(true)
     await client.close()

@@ -1,6 +1,11 @@
 import { randomUUID } from 'node:crypto'
 import { Role, TaskState, type Message, type Part } from '@a2a-js/sdk'
-import { AgentEvent, type AgentExecutor, type ExecutionEventBus, type RequestContext } from '@a2a-js/sdk/server'
+import {
+  AgentEvent,
+  type AgentExecutor,
+  type ExecutionEventBus,
+  type RequestContext,
+} from '@a2a-js/sdk/server'
 import { describe, quote } from './rates.js'
 
 const text = (value: string): Part => ({
@@ -51,7 +56,11 @@ export class FxRateExecutor implements AgentExecutor {
       AgentEvent.statusUpdate({
         taskId,
         contextId: '',
-        status: { state: TaskState.TASK_STATE_CANCELED, message: undefined, timestamp: new Date().toISOString() },
+        status: {
+          state: TaskState.TASK_STATE_CANCELED,
+          message: undefined,
+          timestamp: new Date().toISOString(),
+        },
         metadata: undefined,
       }),
     )

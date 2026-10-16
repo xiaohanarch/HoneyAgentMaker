@@ -12,7 +12,9 @@ export function createMcpServer(): McpServer {
     {
       title: '物流跟踪',
       description: '按采购订单号或运单号查询在途运单的状态、预计到达时间和物流节点（演示数据）',
-      inputSchema: { id: z.string().min(1).describe('采购订单号（PO-2026-0117）或运单号（SH-2026-0311）') },
+      inputSchema: {
+        id: z.string().min(1).describe('采购订单号（PO-2026-0117）或运单号（SH-2026-0311）'),
+      },
       annotations: { readOnlyHint: true },
     },
     async ({ id }) => {
@@ -32,6 +34,9 @@ export function createMcpServer(): McpServer {
 export function createApp(): Express {
   const app = express()
   app.use(express.json())
+  app.get('/health', (_req: Request, res: Response) => {
+    res.json({ status: 'ok' })
+  })
   app.post('/mcp', async (req: Request, res: Response) => {
     const server = createMcpServer()
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined })
@@ -43,7 +48,9 @@ export function createApp(): Express {
     await transport.handleRequest(req, res, req.body)
   })
   const notAllowed = (_req: Request, res: Response): void => {
-    res.status(405).json({ jsonrpc: '2.0', error: { code: -32000, message: '无状态模式只接受 POST' }, id: null })
+    res
+      .status(405)
+      .json({ jsonrpc: '2.0', error: { code: -32000, message: '无状态模式只接受 POST' }, id: null })
   }
   app.get('/mcp', notAllowed)
   app.delete('/mcp', notAllowed)

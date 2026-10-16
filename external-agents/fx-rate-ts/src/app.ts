@@ -63,6 +63,9 @@ export function createApp(publicUrl: string, verify: Verifier): Express {
       res.status(401).json({ error: message })
     }
   })
-  app.post('/', jsonRpcHandler({ requestHandler: handler, userBuilder: UserBuilder.noAuthentication }))
+  app.post(
+    '/',
+    jsonRpcHandler({ requestHandler: handler, userBuilder: UserBuilder.noAuthentication }),
+  )
   return app
 }

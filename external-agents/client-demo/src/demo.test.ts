@@ -16,7 +16,14 @@ describe('client-demo 结果解析', () => {
       contextId: 'c',
       status: { state: TaskState.TASK_STATE_COMPLETED, message: undefined, timestamp: undefined },
       artifacts: [
-        { artifactId: 'a', name: '回复', description: '', parts: [part('逾期率 12%')], metadata: undefined, extensions: [] },
+        {
+          artifactId: 'a',
+          name: '回复',
+          description: '',
+          parts: [part('逾期率 12%')],
+          metadata: undefined,
+          extensions: [],
+        },
       ],
       history: [],
       metadata: undefined,

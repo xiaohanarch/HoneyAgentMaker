@@ -37,7 +37,10 @@ afterAll(() => {
 })
 
 function send(text: string, authorization?: string): Promise<Response> {
-  const headers: Record<string, string> = { 'content-type': 'application/json', 'a2a-version': '1.0' }
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+    'a2a-version': '1.0',
+  }
   if (authorization !== undefined) headers.authorization = authorization
   return fetch(`${base}/`, {
     method: 'POST',
@@ -53,14 +56,21 @@ function send(text: string, authorization?: string): Promise<Response> {
 
 describe('汇率查询 Agent', () => {
   it('解析金额和币种对', () => {
-    expect(quote('1000 美元折合多少人民币')).toMatchObject({ from: 'USD', to: 'CNY', converted: 7120 })
+    expect(quote('1000 美元折合多少人民币')).toMatchObject({
+      from: 'USD',
+      to: 'CNY',
+      converted: 7120,
+    })
     expect(quote('欧元兑人民币汇率')).toMatchObject({ from: 'EUR', to: 'CNY', amount: 1 })
     expect(quote('今天天气怎么样')).toBeUndefined()
   })
 
   it('Agent Card 在标准路径和旧路径都公开', async () => {
     for (const path of ['/.well-known/agent-card.json', '/.well-known/agent.json']) {
-      const card = (await (await fetch(`${base}${path}`)).json()) as { name: string; skills: { id: string }[] }
+      const card = (await (await fetch(`${base}${path}`)).json()) as {
+        name: string
+        skills: { id: string }[]
+      }
       expect(card.name).toBe('汇率查询 Agent')
       expect(card.skills[0]?.id).toBe('fx-rate')
     }

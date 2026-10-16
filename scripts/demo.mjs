@@ -4,6 +4,7 @@
 //   pnpm dev         同上；前端由 Vite 热更新，后端改动后重新运行即可
 // 后续阶段新增的服务（外部 Agent、MCP Server）在 SERVICES 里追加即可；
 // optional 为 true 的服务启动失败不会拖垮整个演示环境。
+import { execFileSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { join } from 'node:path'
 import { concurrently } from 'concurrently'
@@ -24,6 +25,75 @@ function javaCommand(module) {
   const java = home === undefined || home === '' ? 'java' : join(home, 'bin', 'java')
   // 显式指定 UTF-8 输出，Windows 中文控制台默认是 GBK，日志里的中文会变成乱码
   return `"${java}" -Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8 -jar "${jarOf(module)}"`
+}
+
+/** uv 可能装在 PATH 上，也可能只作为 Python 模块安装（pip install --user uv）；都没有时返回 undefined */
+function findUv() {
+  for (const candidate of [['uv'], ['python', '-m', 'uv'], ['python3', '-m', 'uv']]) {
+    try {
+      execFileSync(candidate[0], [...candidate.slice(1), '--version'], { stdio: 'ignore' })
+      return candidate.join(' ')
+    } catch {
+      // 换下一个候选
+    }
+  }
+  return undefined
+}
+
+/** 供应商风险舆情 Agent（Python）：先 uv sync 装好依赖；没有 uv 或安装失败时跳过，统一入口对它给出降级说明 */
+function supplierRiskCommand() {
+  const uv = findUv()
+  if (uv === undefined) {
+    console.warn('[demo] 没有找到 uv，跳过供应商风险舆情 Agent；安装方法：pip install --user uv')
+    return undefined
+  }
+  try {
+    execFileSync(uv.split(' ')[0], [...uv.split(' ').slice(1), 'sync', '--frozen', '--quiet'], {
+      cwd: SUPPLIER_RISK_DIR,
+      stdio: 'inherit',
+    })
+  } catch {
+    console.warn('[demo] 供应商风险舆情 Agent 的依赖安装失败，跳过它')
+    return undefined
+  }
+  return `node scripts/optional-service.mjs "cd external-agents/supplier-risk-py && ${uv} run --frozen python -m supplier_risk.app"`
+}
+
+const SUPPLIER_RISK_DIR = join('external-agents', 'supplier-risk-py')
+
+/** 外部 Agent 与 MCP Server（P7）：都是可选服务，启动失败不影响主流程 */
+function externalServices() {
+  const services = []
+  const risk = supplierRiskCommand()
+  if (risk !== undefined) {
+    services.push({
+      name: 'risk-py',
+      color: 'yellow',
+      command: risk,
+      env: { PORT: '4200', PUBLIC_URL: 'http://127.0.0.1:4200', EAB_PLATFORM_URL: PLATFORM_URL },
+      healthUrl: 'http://127.0.0.1:4200/.well-known/agent-card.json',
+      optional: true,
+    })
+  }
+  services.push(
+    {
+      name: 'fx-ts',
+      color: 'blue',
+      command: 'node scripts/optional-service.mjs pnpm --filter @eab/fx-rate-ts run start',
+      env: { PORT: '4210', PUBLIC_URL: 'http://127.0.0.1:4210', EAB_PLATFORM_URL: PLATFORM_URL },
+      healthUrl: 'http://127.0.0.1:4210/.well-known/agent-card.json',
+      optional: true,
+    },
+    {
+      name: 'mcp',
+      color: 'gray',
+      command: 'node scripts/optional-service.mjs pnpm --filter @eab/logistics-mcp run start',
+      env: { PORT: '4400' },
+      healthUrl: 'http://127.0.0.1:4400/health',
+      optional: true,
+    },
+  )
+  return services
 }
 
 /**
@@ -65,6 +135,7 @@ const SERVICES = [
     healthUrl: 'http://127.0.0.1:5173/',
     url: 'http://localhost:5173',
   },
+  ...externalServices(),
 ]
 
 async function isHealthy(url) {
