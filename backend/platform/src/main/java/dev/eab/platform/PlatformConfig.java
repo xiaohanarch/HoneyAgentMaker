@@ -2,6 +2,11 @@ package dev.eab.platform;
 
 import dev.eab.common.IsoTime;
 import dev.eab.platform.assist.AssistService;
+import dev.eab.platform.studio.EvalRunner;
+import dev.eab.platform.studio.StudioRecommender;
+import dev.eab.platform.studio.StudioReleases;
+import dev.eab.platform.studio.StudioService;
+import dev.eab.platform.studio.StudioStores;
 import dev.eab.platform.assist.EventTriggers;
 import dev.eab.platform.assist.NotificationStore;
 import dev.eab.platform.audit.AuditStore;
@@ -116,7 +121,40 @@ public class PlatformConfig {
         Router.Decider decider = gateway.providerName().equals("scripted")
                 ? new Router.ScoreDecider()
                 : new ModelDecider(gateway.chatModel(), gateway.config().modelFor("fast"));
-        return new AssistService(services, runtime, new Router(new Router.Bm25Retriever(), decider));
+        return new AssistService(
+                services, runtime, new Router(new Router.Bm25Retriever(), decider), deploymentStore(services));
+    }
+
+    // ── Studio（ADR 0010） ──
+
+    private StudioStores.DeploymentStore deployments;
+
+    /** 部署表在统一入口和 Studio 之间共用，只建一份 */
+    @Bean
+    public synchronized StudioStores.DeploymentStore deploymentStore(PlatformServices services) {
+        if (deployments == null) deployments = new StudioStores.DeploymentStore(services.db().jdbc(), services.clock());
+        return deployments;
+    }
+
+    @Bean
+    public StudioService studioService(PlatformServices services, RuntimeService runtime) {
+        var gateway = runtime.settings().gateway();
+        boolean scripted = gateway.providerName().equals("scripted");
+        EvalRunner.Judge judge = scripted
+                ? EvalRunner.DETERMINISTIC
+                : EvalRunner.model(gateway.chatModel(), gateway.config().modelFor("judge"));
+        return new StudioService(
+                services,
+                runtime,
+                new StudioStores.DraftStore(services.db().jdbc(), services.clock()),
+                new StudioStores.EvalRunStore(services.db().jdbc(), services.clock()),
+                new StudioRecommender(gateway.chatModel(), gateway.config().modelFor("fast")),
+                judge);
+    }
+
+    @Bean
+    public StudioReleases studioReleases(PlatformServices services, StudioService studio) {
+        return new StudioReleases(services, studio, deploymentStore(services));
     }
 
     @Bean
