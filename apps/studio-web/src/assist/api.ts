@@ -61,6 +61,20 @@ export async function postJson<T>(
   return ((await response.json()) as ApiEnvelope<T>).data as T
 }
 
+export async function putJson<T>(
+  path: string,
+  token: string | undefined,
+  body: unknown,
+): Promise<T> {
+  const response = await fetch(`/api${path}`, {
+    method: 'PUT',
+    headers: headers(token, 'application/json'),
+    body: JSON.stringify(body ?? {}),
+  })
+  if (!response.ok) throw await failure(response)
+  return ((await response.json()) as ApiEnvelope<T>).data as T
+}
+
 /** 把一段 SSE 文本块解析成事件；只取 data 行，事件名已在 JSON 的 type 里 */
 export function parseSseBlock(block: string): RunEvent | undefined {
   const data = block
