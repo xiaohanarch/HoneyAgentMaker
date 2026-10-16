@@ -24,7 +24,9 @@ pnpm data:backup      数据快照：data/backups/eab-data-<时间>.tar.gz，保
 pnpm agent:run vendor.pur/supplier-performance-analyst --user zhangmin "百润精密最近表现怎么样" [--yes]
                       进程内启动平台与 DemoERP 跑一次 Agent，打印流式事件和追踪树，断网可用
 pnpm tools:import-bo  从运行中的 DemoERP 的 OpenAPI 生成 BO 工具入参 schema 并与资产比对；加 --write 写回并升版本
-node scripts/acceptance-p2.mjs … acceptance-p6.mjs   对运行中的 pnpm demo 做阶段验收（只用 HTTP）
+node scripts/acceptance-p2.mjs … acceptance-p7.mjs   对运行中的 pnpm demo 做阶段验收（只用 HTTP）
+pnpm --filter @eab/client-demo run start   模拟外部平台经 A2A 调用平台的采购助手（先演示缺少身份被拒绝）
+cd external-agents/supplier-risk-py && uv sync && uv run pytest -q   Python 外部 Agent 的测试
 ```
 
 资产、数据类命令经 `scripts/java-cli.mjs` 运行 Java 命令行工具（`platform`、`demo-erp` 模块的 `cli` 包）。
@@ -57,6 +59,7 @@ node scripts/acceptance-p2.mjs … acceptance-p6.mjs   对运行中的 pnpm demo
 - Studio（ADR 0010）：草稿在 `studio_drafts` 里以 YAML 为准，测试与评测经 `OverlayResolver` 叠加运行；发布写入注册中心后按 dev → test → prod 晋级，租户 Agent 部署到 prod 才进入统一入口。接口契约在 `docs/studio-api.md`，改接口时同步改它和 `apps/studio-web/src/studio/api.ts`。
 - 租户扩展（ADR 0011）发布即生效，不经环境晋级；发布前标品公开评测集和扩展评测集都要通过，评测时确认点一律拒绝。未审批的租户 MCP Server 不能用于 prod，由 `McpGate` 在 prod 门禁和扩展发布时检查，不在工具网关里检查。
 - 演示剧本可以用 `match.tools` 要求 Agent 挂载了某些工具才匹配（优先于不带工具条件的剧本），故事 B 靠它区分扩展发布前后。
+- A2A（ADR 0012）：`pnpm demo` 同时启动外部样例（4200 供应商风险舆情 Python、4210 汇率 TS、4400 物流 MCP），它们是可选服务，起不来不影响演示；Python 样例需要 uv（`python -m pip install --user uv`），依赖自动安装。远程 Agent 资产放在 `tenant.<租户>.remote`；出站 A2A 调用只走 `RemoteAgentGateway`，每次携带最终用户的短期服务令牌，没有用户身份时拒绝，不退回技术账号；对外暴露要求资产声明 `{type: agent}` 触发器。
 - 语义规则的 `check`（工具名 + CEL）由约束守卫在工具返回后判断，硬约束优先写成可检查的规则，而不是只写在指令里。
 - 平台调用 BO API 只能走 `DelegatedClient.callBoApi`（先令牌交换再调用），不要直接请求 DemoERP，也不要引入集成账号的降级路径。
 - 演示用户、角色、数据范围只在 `backend/eab-directory` 的 `DemoDirectory` 定义。新增 BO 操作时，同步修改 `BO_OPERATIONS`、DemoERP 的 `BoTypes.OPERATIONS` 与路由、`assets/vendor/erp/demo-erp-bo.yaml`（并升版本号），有测试检查它们一致。

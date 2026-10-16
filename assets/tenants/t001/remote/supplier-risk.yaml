@@ -1,0 +1,23 @@
+apiVersion: eab.dev/v1
+kind: RemoteAgent
+metadata:
+  name: supplier-risk
+  namespace: tenant.t001.remote
+  version: 1.0.0
+  displayName: 供应商风险舆情 Agent
+  description: 外部的供应商风险舆情 Agent（Python LangGraph 实现），经 A2A 协议接入，按舆情事件给出风险等级
+  owner: zhaoadmin
+spec:
+  connection: SUPPLIER_RISK_AGENT
+  agentCardPath: /.well-known/agent-card.json
+  auth: { type: platform-service-token }
+  routing:
+    description: 查询供应商的外部风险和舆情：停产、诉讼、处罚、经营异常、负面新闻，给出风险等级
+    examples:
+      [
+        百润精密最近有没有什么风险,
+        查一下华远电子的舆情,
+        恒通物流有没有负面新闻,
+        深度检索东瑞机械的风险舆情,
+      ]
+  assistant: vendor.pur/procurement-assistant

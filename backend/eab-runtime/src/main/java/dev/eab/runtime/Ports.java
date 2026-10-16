@@ -78,6 +78,38 @@ public final class Ports {
         Object call(RunContext context, String connection, String method, String path, Map<String, Object> body);
     }
 
+    /**
+     * 远程 Agent（A2A 出站，主提示词 8.4 节）。平台负责解析连接别名、签发服务令牌（身份透传失败即拒绝）、
+     * 保存多轮的 contextId 与 taskId、超时转异步，并记录请求与响应原文。
+     *
+     * @param remoteRef RemoteAgent 资产，namespace/name@version
+     */
+    public interface RemoteAgents {
+        RemoteResult call(RunContext context, String remoteRef, String message);
+    }
+
+    /**
+     * 远程 Agent 的调用结果。
+     *
+     * @param state completed、input-required、working（已转异步）等；ok 为 false 时是失败原因的编码
+     * @param exchanges 请求与响应原文（令牌只记类型），写进追踪
+     */
+    public record RemoteResult(
+            boolean ok,
+            String state,
+            String text,
+            String taskId,
+            String contextId,
+            String agentName,
+            List<Map<String, Object>> exchanges,
+            String errorCode,
+            String error) {
+
+        public static RemoteResult failure(String code, String message) {
+            return new RemoteResult(false, "failed", null, null, null, null, List.of(), code, message);
+        }
+    }
+
     /** 通知步骤与 IM 渠道 */
     public interface Notifier {
         void notify(RunContext context, String channel, String message);

@@ -1,7 +1,7 @@
 # docker compose up --build（独立安装的旧版 Compose 用 docker-compose up --build）
 # 浏览器打开 http://localhost:5173
 # 端口只绑定在本机回环地址；需要在局域网演示时，只放开 web 的 5173。
-# 后续阶段在这里追加外部 Agent（4200、4300）和第三方 MCP Server（4400）。
+# 外部 Agent（4200 供应商风险舆情、4210 汇率查询）和第三方 MCP Server（4400）在容器网络里按服务名互通，不映射到宿主机。
 
 x-env: &env
   EAB_HOST: 0.0.0.0
@@ -20,6 +20,11 @@ services:
     environment:
       <<: *env
       EAB_PLATFORM_PORT: '4000'
+      # 外部 Agent 的推送回调和连接别名在容器网络里的地址（P7）
+      EAB_PUBLIC_URL: http://platform:4000
+      EAB_SUPPLIER_RISK_URL: http://supplier-risk:4200
+      EAB_FX_RATE_URL: http://fx-rate:4210
+      EAB_LOGISTICS_MCP_URL: http://logistics-mcp:4400/mcp
     ports: ['127.0.0.1:4000:4000']
     healthcheck:
       test:
@@ -58,3 +63,36 @@ services:
     depends_on:
       platform: { condition: service_healthy }
       demo-erp: { condition: service_healthy }
+
+  # 供应商风险舆情 Agent（Python 3.12 + uv + LangGraph）；用 uv 官方镜像，依赖按 uv.lock 安装
+  supplier-risk:
+    image: ghcr.io/astral-sh/uv:python3.12-bookworm-slim
+    init: true
+    working_dir: /app
+    volumes: ['./external-agents/supplier-risk-py:/src:ro']
+    command: sh -c "cp -r /src/. /app && uv sync --frozen && uv run --frozen python -m supplier_risk.app"
+    environment:
+      HOST: 0.0.0.0
+      PORT: '4200'
+      PUBLIC_URL: http://supplier-risk:4200
+      EAB_PLATFORM_URL: http://platform:4000
+
+  # 汇率查询 Agent（A2A 官方 JS SDK，不用 Agent 框架）
+  fx-rate:
+    <<: *app
+    command: pnpm --filter @eab/fx-rate-ts run start
+    environment:
+      <<: *env
+      PORT: '4210'
+      HOST: 0.0.0.0
+      PUBLIC_URL: http://fx-rate:4210
+      EAB_PLATFORM_URL: http://platform:4000
+
+  # 物流跟踪 MCP Server（MCP 官方 TypeScript SDK，Streamable HTTP）
+  logistics-mcp:
+    <<: *app
+    command: pnpm --filter @eab/logistics-mcp run start
+    environment:
+      <<: *env
+      PORT: '4400'
+      HOST: 0.0.0.0

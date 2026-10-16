@@ -139,8 +139,9 @@ class StudioEndToEndTest {
             Map<String, Object> value = Json.MAPPER.convertValue(rec.path("value"), Map.class);
             ok(call("POST", "/studio/drafts/" + draftId + "/apply", "chengong", Map.of("step", step, "value", value)));
             if (step.equals("collaborators")) {
-                assertThat(rec.path("value").path("agents").toString()).contains("connection:SUPPLIER_RISK_AGENT");
-                assertThat(rec.path("candidates").toString()).contains("P7 接入 A2A 后可调用");
+                // 外部的供应商风险舆情 Agent 已登记为远程 Agent 资产，作为可选的协作候选推荐
+                assertThat(rec.path("value").path("agents").toString()).contains("tenant.t001.remote/supplier-risk");
+                assertThat(rec.path("candidates").toString()).doesNotContain("connection:SUPPLIER_RISK_AGENT");
             }
         }
         JsonNode draft = ok(call("GET", "/studio/drafts/" + draftId, "chengong", null));

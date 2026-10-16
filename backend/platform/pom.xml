@@ -40,6 +40,11 @@
       <artifactId>eab-runtime</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <dependency>
+      <groupId>dev.eab</groupId>
+      <artifactId>eab-a2a</artifactId>
+      <version>${project.version}</version>
+    </dependency>
     <!-- 平台对外的 MCP 端点：MCP 官方 Java SDK 的 Spring WebMVC 传输 -->
     <dependency>
       <groupId>org.springframework.ai</groupId>

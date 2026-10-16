@@ -12,6 +12,7 @@ import { ExtensionPage } from './studio/extend/ExtensionPage'
 import { VendorAgentsPage } from './studio/extend/VendorAgentsPage'
 import { SkillEditorPage } from './studio/skills/SkillEditorPage'
 import { ToolCenterPage } from './studio/tools/ToolCenterPage'
+import { ExternalAgentPage } from './studio/external/ExternalAgentPage'
 
 const router = createBrowserRouter([
   {
@@ -29,6 +30,7 @@ const router = createBrowserRouter([
       { path: 'studio/extensions/:id', element: <ExtensionPage /> },
       { path: 'studio/tools', element: <ToolCenterPage /> },
       { path: 'studio/skills/:id', element: <SkillEditorPage /> },
+      { path: 'studio/external/new', element: <ExternalAgentPage /> },
       { path: 'hub', element: <HubPage /> },
       { path: '*', element: <Navigate to="/assistant" replace /> },
     ],

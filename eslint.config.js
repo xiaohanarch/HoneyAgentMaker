@@ -13,6 +13,7 @@ export default tseslint.config(
       'test-results/**',
       'docs/brief/**',
       '**/target/**',
+      '**/.venv/**',
     ],
   },
   js.configs.recommended,

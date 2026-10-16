@@ -31,7 +31,7 @@ public record StudioCatalog(
     public record Process(String code, String name, String description) {}
 
     /**
-     * @param available 远程 Agent 在 P7 接入 A2A 之前不可用，推荐时标注原因
+     * @param available 只有连接别名、还没有登记远程 Agent 资产的外部 Agent 不可用，推荐时标注原因
      */
     public record Item(
             String ref,
@@ -110,6 +110,10 @@ public record StudioCatalog(
         List<Item> knowledge = new ArrayList<>();
         List<Item> skills = new ArrayList<>();
         List<Tool> tools = new ArrayList<>();
+        java.util.Set<String> remoteAliases = new java.util.HashSet<>();
+        for (Asset asset : published) {
+            if (asset instanceof RemoteAgentAsset r) remoteAliases.add(r.spec().connection());
+        }
         for (Asset asset : published) {
             String layer = asset.layer().name();
             switch (asset) {
@@ -132,12 +136,16 @@ public record StudioCatalog(
                     agents.add(new Item(
                             refOf(r),
                             nameOf(r),
-                            r.metadata().description(),
+                            r.spec().routing() != null && r.spec().routing().description() != null
+                                    ? r.spec().routing().description()
+                                    : r.metadata().description(),
                             "external",
                             null,
-                            false,
-                            "远程 Agent 在 P7 接入 A2A 后可调用",
-                            List.of()));
+                            true,
+                            "外部 Agent，经连接别名 " + r.spec().connection() + " 以 A2A 协议调用",
+                            r.spec().routing() == null || r.spec().routing().examples() == null
+                                    ? List.of()
+                                    : r.spec().routing().examples()));
                 case SemanticPackAsset p ->
                     packs.add(new Pack(
                             refOf(p),
@@ -191,8 +199,9 @@ public record StudioCatalog(
                     }
                 }
                 case ConnectionAsset c -> {
-                    // 指向外部 Agent 的连接别名在 P7 才有对应的远程 Agent 资产，先作为不可用的协作候选列出
-                    if ("a2a".equals(c.spec().type())) {
+                    // 指向外部 Agent、但还没有登记远程 Agent 资产的连接别名，作为不可用的协作候选列出，提示先接入
+                    if ("a2a".equals(c.spec().type())
+                            && !remoteAliases.contains(c.spec().alias())) {
                         agents.add(new Item(
                                 "connection:" + c.spec().alias(),
                                 c.spec().alias().equals("SUPPLIER_RISK_AGENT")
@@ -202,7 +211,7 @@ public record StudioCatalog(
                                 "external",
                                 null,
                                 false,
-                                "远程 Agent 在 P7 接入 A2A 后可调用",
+                                "还没有登记远程 Agent，先在 Studio 的“接入外部 Agent”里接入",
                                 List.of("供应商风险", "舆情")));
                     }
                 }

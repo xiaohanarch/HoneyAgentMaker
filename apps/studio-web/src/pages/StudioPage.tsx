@@ -33,6 +33,7 @@ const ENTRIES: readonly Entry[] = [
     description: '输入 Agent Card 地址，把其他框架写的 Agent 经 A2A 接进来',
     source: 'external',
     phase: 'P7',
+    to: '/studio/external/new',
   },
   {
     icon: Workflow,

@@ -364,9 +364,32 @@ public final class ToolGateway {
                 ToolOutcome.success(Map.of(
                         "items",
                         deps.documents().search(tool.source(), String.valueOf(args.getOrDefault("query", "")), 3)));
-            case "remoteAgent" -> ToolOutcome.failure("NOT_IMPLEMENTED", "远程 Agent（A2A）在 P7 接入，当前不可用");
+            case "remoteAgent" -> remoteAgent(exec, tool, args);
             default -> ToolOutcome.failure("UNSUPPORTED_TOOL", "不支持的工具类型 " + tool.type());
         };
+    }
+
+    /** 远程 Agent：经平台的 A2A 网关调用，A2A 请求与响应原文写进 span，对方不可用时给出降级说明 */
+    private ToolOutcome remoteAgent(Exec exec, EffectiveTool tool, Map<String, Object> args) {
+        var span = exec.span("A2A · " + tool.name(), SpanKind.agent, "a2a");
+        String message = String.valueOf(args.getOrDefault("message", ""));
+        Ports.RemoteResult result = deps.remoteAgents().call(exec.ctx(), tool.source(), message);
+        span.set("eab.a2a.remote", tool.source())
+                .set("eab.a2a.state", result.state())
+                .set("eab.a2a.task_id", result.taskId())
+                .set("eab.a2a.context_id", result.contextId())
+                .set("eab.a2a.exchanges", JSON.writeValueAsString(result.exchanges()));
+        if (!result.ok()) {
+            span.fail(result.error());
+            return ToolOutcome.failure(result.errorCode(), result.error());
+        }
+        span.end();
+        Map<String, Object> data = new java.util.LinkedHashMap<>();
+        data.put("agent", result.agentName() == null ? tool.name() : result.agentName());
+        data.put("state", result.state());
+        data.put("text", result.text() == null ? "" : result.text());
+        if (result.taskId() != null) data.put("taskId", result.taskId());
+        return ToolOutcome.success(data);
     }
 
     private ToolOutcome semantic(Exec exec, String name, Map<String, Object> args) {
@@ -540,6 +563,9 @@ public final class ToolGateway {
             case "agent" ->
                 "{\"type\":\"object\",\"required\":[\"message\"],\"properties\":{\"message\":{\"type\":\"string\","
                         + "\"description\":\"交给子 Agent 的任务\"}}}";
+            case "remoteAgent" ->
+                "{\"type\":\"object\",\"required\":[\"message\"],\"properties\":{\"message\":{\"type\":\"string\","
+                        + "\"description\":\"交给外部 Agent 的消息\"}}}";
             case "documents" ->
                 "{\"type\":\"object\",\"required\":[\"query\"],\"properties\":{\"query\":{\"type\":\"string\"}}}";
             default -> fallback;

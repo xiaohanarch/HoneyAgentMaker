@@ -1,0 +1,15 @@
+apiVersion: eab.dev/v1
+kind: Connection
+metadata:
+  name: fx-rate-agent
+  namespace: tenant.t001.connections
+  version: 1.0.0
+  owner: zhaoadmin
+spec:
+  alias: FX_RATE_AGENT
+  type: a2a
+  bindings:
+    private: { url: 'http://127.0.0.1:4210', auth: { type: platform-service-token } }
+    dev: { url: 'http://127.0.0.1:4210', auth: { type: platform-service-token } }
+    test: { url: 'http://127.0.0.1:4210', auth: { type: platform-service-token } }
+    prod: { url: 'http://127.0.0.1:4210', auth: { type: platform-service-token } }

@@ -37,10 +37,10 @@ public final class AssetSeeder {
 
     private record Staged(String file, Asset asset) {}
 
-    /** 租户的基础设施资产：连接、工具来源、工作流，启动时入库，扩展编辑器和连接中心都要用（P6） */
-    static final List<String> TENANT_INFRA = List.of("connections", "tools", "wf");
+    /** 租户的基础设施资产：连接、工具来源、工作流（P6），以及登记的外部 Agent（P7），启动时入库 */
+    static final List<String> TENANT_INFRA = List.of("connections", "tools", "wf", "remote");
 
-    /** 启动时入库的子目录：platform、vendor，以及 tenants/<租户> 下的 connections、tools、wf */
+    /** 启动时入库的子目录：platform、vendor，以及 tenants/<租户> 下的 connections、tools、wf、remote */
     public static List<String> startupDirectories(Path assetsRoot) {
         List<String> dirs = new ArrayList<>(List.of("platform", "vendor"));
         Path tenants = assetsRoot.resolve("tenants");

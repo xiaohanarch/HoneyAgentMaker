@@ -350,12 +350,50 @@ Studio 是开发态的入口，接口见 `docs/studio-api.md`，设计取舍见 
 
 启动时租户的连接、工具来源和工作流随平台入库（`AssetSeeder` 的 `TENANT_INFRA`），扩展和技能由开发者在 Studio 里创建。脚本化模型的剧本可以用 `match.tools` 要求某些工具可用才匹配，故事 B 的剧本要求 `notify_im`，扩展发布前后自动走不同的剧本。
 
+## A2A 双向互通与外部 Agent（P7）
+
+平台既能调用其他框架写的 Agent，也能把自己的 Agent 和岗位助手发布给外部调用，协议是 A2A v1.0（JSON-RPC 传输），兼容 0.3 客户端。设计取舍见 ADR 0012，SDK 版本见 ADR 0002。
+
+### 出站
+
+远程 Agent 登记为 RemoteAgent 资产，只写连接别名、Agent Card 路径、认证方式、路由说明、所属岗位助手和允许的调用方。调用有两条路径：平台里的 Agent 把它声明为 `remoteAgent` 工具，由工具网关经 `Ports.RemoteAgents` 调用；统一入口把问题直接路由给它（能力目录条目类型 `remote`，执行动作类型 `agent-request`），由 `RemoteRuns` 记一次运行。两条路径都进入 `RemoteAgentGateway`：
+
+1. 检查身份：运行没有最终用户时拒绝，写 `a2a.outbound` 审计；调用方不在 `allowedCallers` 里时拒绝。
+2. 解析地址：部署配置的连接绑定优先，其次本租户 Connection 资产的 prod 绑定，都没有时拒绝。
+3. 签发服务令牌：`sub` 为最终用户，`act.sub` 为发起调用的平台 Agent，受众 `eab-a2a`，5 分钟有效。外部 Agent 用平台的 JWKS 校验。
+4. 发送：对方支持流式时流式发送，同步等待 60 秒，超时转为异步并登记推送回调。
+5. 记录：任务的 contextId、taskId、状态写进 `a2a_tasks`；请求与响应原文（令牌脱敏）写进 A2A span。
+
+对方返回 input-required 时，追问作为回复展示给用户，同一会话的下一句话直接交回这个外部 Agent。异步任务的结果经 `POST /a2a/callbacks/{id}` 送达，核对一次性令牌后写进发起用户的通知区。对方停机时回复里给出降级说明，不影响平台其他能力。
+
+### 入站
+
+触发器里声明了“被其他 Agent 调用”的已发布 Agent 和岗位助手，各自是一个 A2A Server：
+
+| 路径 | 说明 |
+|---|---|
+| `GET /a2a/agents/{namespace}/{name}/.well-known/agent-card.json` | 1.0 格式的 Agent Card，声明 bearer 认证 |
+| `GET /a2a/agents/{namespace}/{name}/.well-known/agent.json` | 0.3 格式的 Agent Card |
+| `POST /a2a/agents/{namespace}/{name}` | JSON-RPC 端点，必须带平台签发的用户令牌 |
+
+入站请求在平台里的处理与统一入口相同：岗位助手走第二级路由，Agent 直接运行，四处鉴权都经过。每次调用写 `a2a.inbound` 审计，记录用户和调用方（请求头 `X-A2A-Caller`）；缺少身份时返回 401 并写拒绝审计。`external-agents/client-demo` 模拟外部平台的 Agent 调用采购助手。
+
+### 外部 Agent 样例与 Studio 接入
+
+`external-agents` 下有供应商风险舆情 Agent（Python、LangGraph，4200）、汇率查询 Agent（TypeScript、只用 A2A JS SDK，4210）、物流跟踪 MCP Server（4400）和 client-demo。`pnpm demo` 把前三个作为可选服务启动，Python 依赖由 uv 按锁文件安装。
+
+Studio 的“接入外部 Agent”页面（`/studio/external/new`）读取 Agent Card，展示技能、交互模式和认证方式，做连通性测试并展示请求与响应原文，发布后外部 Agent 进入能力目录，也出现在新建 Agent 向导的协作 Agent 候选里。页面只能访问本机地址或连接中心登记过的地址。
+
+### 代码 Agent
+
+`backend/eab-a2a` 的 `dev.eab.a2a.sdk` 是代码 Agent SDK：实现 `CodeAgent` 接口写业务逻辑，`CodeAgentServer` 以 A2A 对外服务并校验平台服务令牌，`AgentDeclaration` 生成 RemoteAgent 资产登记到平台。代码 Agent 在平台看来就是一个远程 Agent。
+
 ## 技术选型
 
 | 方面 | 选择 | 依据 |
 |---|---|---|
 | 后端框架 | Java 21、Spring Boot 4.1、Spring AI 2.0 | ADR 0006（替代 ADR 0001） |
-| 协议 SDK | MCP Java SDK 2.0.1（经 Spring AI 引入）、A2A Java SDK 1.4.0.Final | ADR 0002、ADR 0006 |
+| 协议 SDK | MCP Java SDK 2.0.1（经 Spring AI 引入）、A2A Java SDK 1.4.0.Final；外部 Agent 样例用 A2A Python SDK 1.2.2、JS SDK 1.3.0、MCP TypeScript SDK 1.32.1 | ADR 0002、ADR 0006、ADR 0012 |
 | 前端 | React 19、Vite 8、Tailwind CSS 4、Radix 原语（shadcn/ui 风格）、TanStack Query、React Router | 主提示词第 14 节 |
 | 测试 | JUnit 5、AssertJ、MockMvc、JaCoCo；前端 Vitest 5；端到端 Playwright | ADR 0006 |
 | TypeScript（前端） | 6.0 | typescript-eslint 8.x 目前支持到 6.0，暂不升级到 7.x |
