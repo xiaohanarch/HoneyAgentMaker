@@ -1,6 +1,6 @@
 # ADR 0006 后端改用 Java、Spring Boot 与 Spring AI
 
-状态：已采纳（2026-10-15），迁移已在 J2 完成，TS 后端已删除。替代 ADR 0001；ADR 0002 中服务端使用的 SDK 改为 Java 版，见下文。
+状态：已采纳（2026-10-15），迁移已在 J2 完成，TS 后端已删除；J3 在 Spring AI 上实现了 Agent 运行时，设计见 ADR 0008。替代 ADR 0001；ADR 0002 中服务端使用的 SDK 改为 Java 版，见下文。
 
 ## 背景
 
@@ -23,7 +23,7 @@
 | JDK | 21（Temurin，主机用 Ubuntu 的 OpenJDK） | 运行环境，启用虚拟线程 |
 | Spring Boot | 4.1.1 | Web、JDBC、测试 |
 | Spring AI | 2.0.1 | 模型调用、工具调用、Advisor 处理管道、MCP 客户端与服务端 |
-| MCP Java SDK | 2.0.1 | 由 Spring AI 的 MCP starter 引入；Spring 相关的传输已移进 Spring AI |
+| MCP Java SDK | 2.0.0（由 spring-ai-mcp 2.0.1 引入）；平台对外端点用 Spring AI 的 mcp-spring-webmvc 2.0.1 | 外部 MCP Server 客户端与平台的 `/mcp` 端点（ADR 0002） |
 | A2A Java SDK | 1.4.0.Final（groupId `org.a2aproject.sdk`） | P7 的 A2A 客户端与服务端 |
 | CEL Java | 0.14.0（`dev.cel:cel`） | 策略规则、钩子与确认条件 |
 | semver4j | 6.0.0 | 版本号与 npm 风格的版本范围 |

@@ -1,0 +1,44 @@
+# 采购域的演示剧本（格式见 README.md）。回复里的单号、天数、金额都来自本次运行的工具结果。
+scripts:
+  - id: pur-supplier-performance
+    description: 张敏问供应商表现：确认供应商 → 交付 → 询价 → 综合评价，并按 PUR-R-007 提示风险
+    agent: vendor.pur/supplier-performance-analyst
+    match:
+      any: [表现, 绩效, 怎么样]
+      pattern: '(?<supplier>百润精密|恒通物流|华远电子|东瑞机械)'
+    vars: { supplier: 百润精密 }
+    steps:
+      - thought: 先确认供应商 {{vars.supplier}} 的主数据和评级
+        calls:
+          - { tool: supplier-lookup, args: { supplierName: '{{vars.supplier}}' } }
+      - thought: 统计 {{vars.supplier}} 的逾期订单和交付记录
+        calls:
+          - {
+              tool: purchase_order_list,
+              args: { supplierName: '{{vars.supplier}}', status: open, overdueDaysGt: 0 },
+            }
+          - { tool: delivery_list, args: { supplierName: '{{vars.supplier}}', limit: 50 } }
+      - thought: 查看最近一次询价的报价情况
+        calls:
+          - { tool: rfq-lookup, args: { supplierName: '{{vars.supplier}}' } }
+      - reply: |
+          {{vars.supplier}}（{{tools.supplier_lookup.suppliers.0.id}}，{{tools.supplier_lookup.suppliers.0.rating}} 级，{{tools.supplier_lookup.suppliers.0.purchasingOrgName}}）综合评价：需要重点关注交付风险。
+
+          交付：目前有 {{tools.purchase_order_list.total}} 张未交付的订单已超过计划交期，其中逾期超过 90 天的 {{output.longOverdueCount}} 张：
+          {{#output.longOverdue}}
+          - {{id}}，已逾期 {{overdueDays}} 天（计划交期 {{nextPlannedDate}}）
+          {{/output.longOverdue}}
+          近期交付记录 {{tools.delivery_list.total}} 条，其中晚于计划交付的 {{output.lateDeliveries}} 条。
+          价格：最近一次询价 {{tools.rfq_lookup.rfqs.0.id}}（{{tools.rfq_lookup.rfqs.0.issuedAt}}），{{tools.rfq_lookup.rfqs.0.quotationLines.size}} 行报价，最低报价 {{tools.rfq_lookup.rfqs.0.lowestPrice}} {{tools.rfq_lookup.rfqs.0.currency}}，与目标价的差异率 {{tools.rfq_lookup.rfqs.0.priceVariance}}%。
+          质量：合同质保 {{tools.supplier_lookup.suppliers.0.warrantyMonths}} 个月，本版本没有质量检验数据，不做推断。
+
+          风险：存在逾期超过 90 天的订单。按规则 PUR-R-007，交付逾期超过 90 天的供应商不建议发起降价谈判，应先处理交付问题。
+          依据的时间范围：截至 {{today}} 的订单与交付记录；数据范围：{{tools.purchase_order_list.scopeLabel}}。
+        output:
+          supplier: '{{vars.supplier}}'
+          overallRating: risk
+          maxOverdueDays: '=size(tools.purchase_order_list.items) > 0 ? tools.purchase_order_list.items[0].overdueDays : 0'
+          longOverdue: "=tools.purchase_order_list.items.filter(p, p.overdueDays > 90).map(p, {'id': p.id, 'overdueDays': p.overdueDays, 'nextPlannedDate': p.nextPlannedDate})"
+          longOverdueCount: '=size(tools.purchase_order_list.items.filter(p, p.overdueDays > 90))'
+          lateDeliveries: '=size(tools.delivery_list.items.filter(d, d.actualDate != null && d.actualDate > d.plannedDate))'
+          risks: "=tools.purchase_order_list.items.filter(p, p.overdueDays > 90).map(p, p.id + ' 逾期 ' + string(p.overdueDays) + ' 天')"

@@ -10,7 +10,7 @@ ERP 厂商的研发团队用它开发随产品交付的标品 Agent；租户和�
 
 ## 快速开始
 
-需要 Node.js 22 或更新版本、pnpm 9，以及 JDK 21（后端为 Java，见 docs/decisions/0006）。Maven 由仓库内的 Maven Wrapper 自动下载。演示默认使用脚本化模型，不需要任何大模型 API Key，断网也能运行。
+需要 Node.js 22 或更新版本、pnpm 9，以及 JDK 21（后端为 Java，见 docs/decisions/0006）。Maven 由仓库内的 Maven Wrapper 自动下载。演示默认使用脚本化模型，不需要任何大模型 API Key，断网也能运行。设置 `EAB_MODEL_PROVIDER=anthropic` 和 `ANTHROPIC_API_KEY`（或 OpenAI 兼容协议的对应变量）即可换用真实模型。
 
 ```bash
 pnpm install
@@ -46,6 +46,7 @@ docker compose up --build      # 独立安装的旧版 Compose 用 docker-compos
 | `pnpm lint` | ESLint 和 Spotless |
 | `pnpm typecheck` | 前端的 TypeScript 类型检查 |
 | `pnpm seed:reset` | 把演示数据重置到初始状态 |
+| `pnpm agent:run <Agent> --user <用户> "<话术>"` | 在命令行里跑一次 Agent，打印流式结果和追踪树，断网可用 |
 | `pnpm assets:validate` | 校验 `assets/` 下全部资产 |
 | `pnpm format` | Prettier 与 Spotless 格式化 |
 
@@ -60,7 +61,7 @@ packages/      前端共用的视觉规范 ui
 schemas/       由资产 schema 导出的 JSON Schema
 assets/        平台层、标品层的声明式资产（YAML），以及演示租户的完成态快照
 external-agents/  外部 Agent 与 MCP Server 样例
-demo/          脚本化模型剧本、种子数据、演示讲解词
+demo/          脚本化模型剧本（demo/scripts）、演示讲解词
 docs/          架构说明、术语、ADR；docs/brief/ 是项目的需求输入材料
 e2e/           Playwright 端到端测试
 ```

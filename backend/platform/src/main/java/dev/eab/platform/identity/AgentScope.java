@@ -7,6 +7,7 @@ import dev.eab.spec.AssetResolver;
 import dev.eab.spec.AssetResolver.Status;
 import dev.eab.spec.model.Asset.SkillAsset;
 import dev.eab.spec.model.Asset.ToolSourceAsset;
+import dev.eab.spec.model.Asset.WorkflowAsset;
 import dev.eab.spec.model.StepSpecs;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -36,19 +37,44 @@ public final class AgentScope {
             }
             if (!tool.type().equals("skill")) continue;
             // 有效定义里的来源带精确版本（namespace/name@1.1.0），可以直接作为版本范围解析
-            var skill = resolver.resolveOfKind(tool.source(), SkillAsset.class, statuses);
-            if (skill.isEmpty()) continue;
-            for (var step : StepSpecs.flatten(skill.get().spec().steps())) {
-                if (step.type().equals("tool")
-                        && step.tool() != null
-                        && step.source() != null
-                        && isBoSource(resolver, step.source(), statuses)
-                        && DemoDirectory.isBoOperation(step.tool())) {
-                    ops.add(step.tool());
-                }
+            resolver.resolveOfKind(tool.source(), SkillAsset.class, statuses)
+                    .ifPresent(skill ->
+                            collectSteps(skill.spec().steps(), resolver, statuses, ops, new LinkedHashSet<>()));
+        }
+        // 钩子里的工作流和技能以同一个 Agent 身份运行，它们调用的 BO 操作同样要进入 Agent 令牌
+        for (var hook : definition.hooks()) {
+            if (hook.workflow() != null) {
+                resolver.resolveOfKind(hook.workflow(), WorkflowAsset.class, statuses)
+                        .ifPresent(w -> collectSteps(w.spec().steps(), resolver, statuses, ops, new LinkedHashSet<>()));
+            }
+            if (hook.skill() != null) {
+                resolver.resolveOfKind(hook.skill(), SkillAsset.class, statuses)
+                        .ifPresent(s -> collectSteps(s.spec().steps(), resolver, statuses, ops, new LinkedHashSet<>()));
             }
         }
         return List.copyOf(ops);
+    }
+
+    /** 步骤里直接调用的 BO 工具，以及嵌套技能里的；visited 防止技能互相引用时死循环 */
+    private static void collectSteps(
+            List<StepSpecs.Step> steps,
+            AssetResolver resolver,
+            List<Status> statuses,
+            Set<String> ops,
+            Set<String> visited) {
+        for (var step : StepSpecs.flatten(steps)) {
+            if (step.type().equals("tool")
+                    && step.tool() != null
+                    && step.source() != null
+                    && isBoSource(resolver, step.source(), statuses)
+                    && DemoDirectory.isBoOperation(step.tool())) {
+                ops.add(step.tool());
+            }
+            if (step.type().equals("skill") && step.skill() != null && visited.add(step.skill())) {
+                resolver.resolveOfKind(step.skill(), SkillAsset.class, statuses)
+                        .ifPresent(s -> collectSteps(s.spec().steps(), resolver, statuses, ops, visited));
+            }
+        }
     }
 
     private static boolean isBoSource(AssetResolver resolver, String ref, List<Status> statuses) {

@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>dev.eab</groupId>
+    <artifactId>eab-backend</artifactId>
+    <version>0.1.0</version>
+  </parent>
+
+  <artifactId>eab-cli</artifactId>
+  <name>命令行</name>
+  <description>pnpm agent:run：在进程内启动平台和 DemoERP，跑一次 Agent，打印流式结果和追踪树</description>
+
+  <dependencies>
+    <dependency>
+      <groupId>dev.eab</groupId>
+      <artifactId>platform</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>dev.eab</groupId>
+      <artifactId>demo-erp</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>eab-cli</finalName>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+        <configuration>
+          <classifier>exec</classifier>
+          <mainClass>dev.eab.cli.AgentRun</mainClass>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

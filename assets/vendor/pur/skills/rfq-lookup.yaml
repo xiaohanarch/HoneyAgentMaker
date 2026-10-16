@@ -3,7 +3,7 @@ kind: Skill
 metadata:
   name: rfq-lookup
   namespace: vendor.pur.skills
-  version: 1.0.0
+  version: 1.0.1
   displayName: 询价单查询
   description: 查询某个供应商最近的询价单及报价行，计算最低报价与目标价的差异
   owner: pur-team
@@ -27,7 +27,8 @@ spec:
       name: 查询询价单
       tool: rfq_list
       source: vendor.erp.tools/demo-erp-bo
-      with: { supplierName: input.supplierName, sort: '-issuedAt' }
+      # BO API 按发出时间倒序返回，不需要排序参数
+      with: { supplierName: input.supplierName }
       output: rfqs
     - id: latest
       type: condition

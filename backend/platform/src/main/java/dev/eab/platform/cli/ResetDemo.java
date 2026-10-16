@@ -8,14 +8,26 @@ import java.time.Clock;
 import java.util.List;
 
 /**
- * pnpm seed:reset 的平台部分：清空审计、业务事件、委托、租户设置，并重新预置演示委托。
+ * pnpm seed:reset 的平台部分：清空审计、业务事件、委托、租户设置和运行期数据（运行、追踪、记忆、告警），并重新预置演示委托。
  * 资产与密钥保留（标品资产仍然有效，签名不变）。服务运行中也可以执行。DemoERP 部分见 demo-erp 的 ResetErp。
  */
 public final class ResetDemo {
 
     private ResetDemo() {}
 
-    static final List<String> TABLES = List.of("audit_events", "business_events", "delegations", "tenant_settings");
+    /** 运行期数据：审计、业务事件、委托、租户设置，以及运行、追踪、记忆、告警、IM 消息 */
+    static final List<String> TABLES = List.of(
+            "audit_events",
+            "business_events",
+            "delegations",
+            "tenant_settings",
+            "runs",
+            "trace_spans",
+            "session_messages",
+            "memories",
+            "risk_alerts",
+            "write_log",
+            "im_messages");
 
     public static void reset(Path dataDir, Clock clock) {
         try (PlatformDb db = PlatformDb.open(dataDir.resolve("platform.db").toString())) {

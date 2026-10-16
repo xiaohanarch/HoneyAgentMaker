@@ -1,5 +1,6 @@
 package dev.eab.platform;
 
+import dev.eab.common.IsoTime;
 import dev.eab.platform.audit.AuditStore;
 import dev.eab.platform.http.Principals;
 import dev.eab.platform.identity.ClientRegistry;
@@ -8,6 +9,13 @@ import dev.eab.platform.identity.TokenService;
 import dev.eab.platform.registry.AssetSeeder;
 import dev.eab.platform.registry.Ed25519Signer;
 import dev.eab.platform.registry.RegistryService;
+import dev.eab.platform.runtime.PlatformMcpServer;
+import dev.eab.platform.runtime.RuntimeService;
+import dev.eab.runtime.RuntimeDeps;
+import dev.eab.runtime.model.GatewayConfig;
+import dev.eab.runtime.model.ModelGateway;
+import dev.eab.runtime.model.ModelProviders;
+import dev.eab.runtime.model.Scripts;
 import java.net.InetAddress;
 import java.util.List;
 import org.slf4j.Logger;
@@ -17,6 +25,8 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.servlet.function.RouterFunction;
+import org.springframework.web.servlet.function.ServerResponse;
 
 /** 把 PlatformServices 里的对象注册成 Spring Bean，并在启动时灌入平台规则和标品资产 */
 @Configuration
@@ -73,15 +83,56 @@ public class PlatformConfig {
         return services.principals();
     }
 
+    /**
+     * 运行服务：模型网关按环境变量选择提供方（默认脚本化模型，读 demo/scripts 下的剧本）；选了真实提供方却缺少 Key 时启动即失败，
+     * 不会静默退回脚本化模型。
+     */
+    @Bean
+    public RuntimeService runtimeService(PlatformServices services, PlatformProperties props) {
+        GatewayConfig config = GatewayConfig.fromEnv(System.getenv());
+        var scripts = Scripts.loadDirectory(props.resolvedScriptsDir());
+        var model = ModelProviders.create(
+                config, scripts, () -> IsoTime.date(services.clock().instant()));
+        LOG.info("模型网关：{}，剧本 {} 条", config, scripts.size());
+        return new RuntimeService(
+                services,
+                new RuntimeService.Settings(
+                        props.demoErpUrl(),
+                        new ModelGateway(model, config),
+                        props.otlpEndpoint(),
+                        props.resolvedConnections(),
+                        RuntimeDeps.DEFAULT_MAX_TURNS));
+    }
+
+    /** 平台对外的 MCP 端点（/mcp），工具在资产入库后登记 */
+    @Bean(destroyMethod = "close")
+    public PlatformMcpServer platformMcpServer(RuntimeService runtime, Principals principals) {
+        return new PlatformMcpServer(runtime, principals);
+    }
+
+    @Bean
+    public RouterFunction<ServerResponse> mcpRouter(PlatformMcpServer server) {
+        return server.router();
+    }
+
     /** 启动时把平台规则和标品资产签名入库；同版本同内容时跳过 */
     @Bean
-    public ApplicationRunner seedAssets(PlatformProperties props, RegistryService registry, PlatformServices services) {
+    public ApplicationRunner seedAssets(
+            PlatformProperties props, RegistryService registry, PlatformServices services, PlatformMcpServer mcp) {
         return args -> {
             services.ensureDemoDefaults();
-            if (!props.seedAssets()) return;
+            if (!props.seedAssets()) {
+                mcp.refreshTools();
+                return;
+            }
             var report = AssetSeeder.seed(registry, props.resolvedAssetsDir(), List.of("platform", "vendor"));
             LOG.info("平台与标品资产已签名入库：{} 个", report.published().size());
             report.failed().forEach(f -> LOG.error("资产入库失败 {}：{}", f.file(), f.message()));
+            mcp.refreshTools();
+            LOG.info(
+                    "MCP 端点 {} 已登记 {} 个工具",
+                    PlatformMcpServer.ENDPOINT,
+                    mcp.toolNames().size());
         };
     }
 }

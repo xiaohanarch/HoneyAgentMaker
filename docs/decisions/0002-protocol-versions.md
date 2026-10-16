@@ -38,8 +38,11 @@
 
 | 组件 | 选用版本 | 用在哪里 |
 |---|---|---|
-| MCP Java SDK `io.modelcontextprotocol.sdk:mcp` | 2.0.1，经 Spring AI 2.0.1 的 MCP starter 引入 | MCP 网关接入外部 MCP Server，平台对外 MCP 端点（Streamable HTTP） |
+| MCP Java SDK `io.modelcontextprotocol.sdk:mcp` | 2.0.0，由 `spring-ai-mcp` 2.0.1 引入（J3 实际解析到的版本） | MCP 网关接入外部 MCP Server（`HttpClientStreamableHttpTransport`） |
+| Spring AI `mcp-spring-webmvc` | 2.0.1 | 平台对外 MCP 端点 `/mcp`，用无状态的 Streamable HTTP 传输（`WebMvcStatelessServerTransport`） |
 | A2A Java SDK `org.a2aproject.sdk` | 1.4.0.Final | A2A 网关的出站与入站 |
+
+平台对外的 MCP 端点选用无状态传输：每个请求独立鉴权（Bearer 用户令牌经传输上下文传给工具处理函数），不需要服务端保存会话，多实例部署也不用粘性会话。端点只暴露只读工具，调用时以 `agent:platform/mcp-endpoint` 的身份做令牌交换。
 
 A2A Java SDK 在 2026 年把 groupId 从 `io.github.a2asdk` 改为 `org.a2aproject.sdk`，包名从 `io.a2a` 改为 `org.a2aproject.sdk`，查资料时注意区分。上文 TypeScript SDK 的兼容层用法在 P7 按 Java SDK 的接口重新核对。外部 Agent 样例仍按上表使用 Python 和 JS SDK。
 

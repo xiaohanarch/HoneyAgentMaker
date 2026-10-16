@@ -15,6 +15,7 @@ import dev.eab.erp.db.ErpDb;
 import dev.eab.erp.db.Rows;
 import java.time.Clock;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -73,7 +74,7 @@ public final class InventoryFinanceRoutes {
         return BoRoute.get("inventory_balance_list", "/bo/v1/inventory-balances")
                 .summary("查询库存余额")
                 .description("各仓库的库存余额、库龄与呆滞标识（none 正常、watch 库龄超过 90 天、slow 库龄超过 180 天）。"
-                        + "belowSafetyStock=true 只返回低于安全库存的记录。")
+                        + "belowSafetyStock=true 只返回低于安全库存的记录，按缺口占安全库存的比例从大到小排列。")
                 .query(
                         Param.string("materialId"),
                         Param.enumOf("slowMoving", "none", "watch", "slow"),
@@ -108,6 +109,11 @@ public final class InventoryFinanceRoutes {
                             .filter(b -> equalsIfSet(b.get("materialId"), in.query("materialId"))
                                     && equalsIfSet(b.get("slowMoving"), in.query("slowMoving"))
                                     && (!Boolean.TRUE.equals(below) || (boolean) b.get("belowSafetyStock")))
+                            .sorted(
+                                    Boolean.TRUE.equals(below)
+                                            ? Comparator.comparingDouble(InventoryFinanceRoutes::shortageRatio)
+                                                    .reversed()
+                                            : (x, y) -> 0)
                             .limit(in.limit())
                             .toList();
                     return Outcome.ok(
@@ -115,6 +121,12 @@ public final class InventoryFinanceRoutes {
                             firstNonNull(in.query("materialId"), "库存余额"),
                             "返回 " + items.size() + " 条库存余额");
                 });
+    }
+
+    /** 缺口占安全库存的比例：(安全库存 - 可用量) / 安全库存 */
+    static double shortageRatio(Map<String, Object> balance) {
+        double safety = ((Number) balance.get("safetyStock")).doubleValue();
+        return safety <= 0 ? 0 : (safety - Rows.num(balance, "quantity")) / safety;
     }
 
     private BoRoute stockMovementList() {
