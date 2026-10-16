@@ -88,6 +88,18 @@ public final class ScriptedChatModel implements ChatModel {
         view.put("user", Map.of("id", userId));
         view.put("today", today);
         view.put("month", today.length() >= 7 ? today.substring(0, 7) : today);
+        try {
+            java.time.LocalDate date = java.time.LocalDate.parse(today);
+            view.put("nextMonth", date.plusMonths(1).toString().substring(0, 7));
+            int quarterMonth = (date.getMonthValue() - 1) / 3 * 3 + 1;
+            view.put(
+                    "quarterStart",
+                    java.time.LocalDate.of(date.getYear(), quarterMonth, 1).toString());
+        } catch (java.time.format.DateTimeParseException e) {
+            // today 不是日期时不提供日期辅助变量
+        }
+        int userIndex = lastUserIndex(messages);
+        view.put("utterance", userIndex < 0 ? "" : messages.get(userIndex).getText());
         return view;
     }
 

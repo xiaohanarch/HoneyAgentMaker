@@ -1,0 +1,13 @@
+apiVersion: eab.dev/v1
+kind: KnowledgeSource
+metadata:
+  name: procurement-policies
+  namespace: vendor.pur
+  version: 1.0.0
+  displayName: 采购管理制度
+  description: 随采购标品提供的制度模板（示例），租户可以替换为本企业的正式制度
+  owner: pur-team
+  businessProcess: [source-to-pay]
+spec:
+  documents:
+    - { title: 采购降价谈判管理办法（示例）, path: vendor/pur/docs/negotiation-policy.md }

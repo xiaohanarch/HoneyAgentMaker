@@ -16,8 +16,6 @@ public final class ModelProviders {
 
     private ModelProviders() {}
 
-    static final int MAX_TOKENS = 4096;
-
     public static ChatModel create(GatewayConfig config, List<Scripts.Script> scripts, Supplier<String> today) {
         return switch (config.provider()) {
             case "anthropic" ->
@@ -26,7 +24,7 @@ public final class ModelProviders {
                                 .apiKey(config.apiKey())
                                 .baseUrl(config.baseUrl())
                                 .model(config.modelFor("reasoning"))
-                                .maxTokens(MAX_TOKENS)
+                                .maxTokens(config.maxTokens())
                                 .build())
                         .build();
             case "openai" ->
@@ -35,7 +33,7 @@ public final class ModelProviders {
                                 .apiKey(config.apiKey())
                                 .baseUrl(config.baseUrl())
                                 .model(config.modelFor("reasoning"))
-                                .maxTokens(MAX_TOKENS)
+                                .maxTokens(config.maxTokens())
                                 .build())
                         .build();
             default -> new ScriptedChatModel(scripts, today);

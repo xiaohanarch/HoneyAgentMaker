@@ -1,6 +1,9 @@
 package dev.eab.platform;
 
 import dev.eab.common.IsoTime;
+import dev.eab.platform.assist.AssistService;
+import dev.eab.platform.assist.EventTriggers;
+import dev.eab.platform.assist.NotificationStore;
 import dev.eab.platform.audit.AuditStore;
 import dev.eab.platform.http.Principals;
 import dev.eab.platform.identity.ClientRegistry;
@@ -16,6 +19,8 @@ import dev.eab.runtime.model.GatewayConfig;
 import dev.eab.runtime.model.ModelGateway;
 import dev.eab.runtime.model.ModelProviders;
 import dev.eab.runtime.model.Scripts;
+import dev.eab.runtime.routing.ModelDecider;
+import dev.eab.runtime.routing.Router;
 import java.net.InetAddress;
 import java.util.List;
 import org.slf4j.Logger;
@@ -102,6 +107,30 @@ public class PlatformConfig {
                         props.otlpEndpoint(),
                         props.resolvedConnections(),
                         RuntimeDeps.DEFAULT_MAX_TURNS));
+    }
+
+    /** 统一入口：两级路由，召回用 BM25；配置了真实模型时由模型在候选里决策（ADR 0009） */
+    @Bean
+    public AssistService assistService(PlatformServices services, RuntimeService runtime) {
+        var gateway = runtime.settings().gateway();
+        Router.Decider decider = gateway.providerName().equals("scripted")
+                ? new Router.ScoreDecider()
+                : new ModelDecider(gateway.chatModel(), gateway.config().modelFor("fast"));
+        return new AssistService(services, runtime, new Router(new Router.Bm25Retriever(), decider));
+    }
+
+    @Bean
+    public NotificationStore notificationStore(PlatformServices services) {
+        return new NotificationStore(services.db().jdbc(), services.clock());
+    }
+
+    /** 业务事件触发受托运行，结果推送到委托人的通知区 */
+    @Bean(destroyMethod = "")
+    public EventTriggers eventTriggers(
+            PlatformServices services, RuntimeService runtime, NotificationStore notifications) {
+        EventTriggers triggers = new EventTriggers(services, runtime, notifications);
+        triggers.subscribe();
+        return triggers;
     }
 
     /** 平台对外的 MCP 端点（/mcp），工具在资产入库后登记 */

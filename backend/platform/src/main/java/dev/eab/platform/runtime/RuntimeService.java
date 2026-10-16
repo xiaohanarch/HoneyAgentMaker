@@ -126,7 +126,19 @@ public final class RuntimeService {
      * @param sessionId 会话编号，为空时新建
      */
     public record StartRequest(
-            DemoUser user, String userToken, String agent, String message, String sessionId, String delegationId) {}
+            DemoUser user,
+            String userToken,
+            String agent,
+            String message,
+            String sessionId,
+            String delegationId,
+            Map<String, Object> routing) {
+
+        public StartRequest(
+                DemoUser user, String userToken, String agent, String message, String sessionId, String delegationId) {
+            this(user, userToken, agent, message, sessionId, delegationId, null);
+        }
+    }
 
     /** 运行的标识与结果 */
     public record RunOutcome(String runId, String traceId, String sessionId, AgentRuntime.RunResult result) {}
@@ -155,7 +167,7 @@ public final class RuntimeService {
                 null,
                 now,
                 now));
-        return execute(runs.get(runId).orElseThrow(), request.userToken(), journal, sink);
+        return execute(runs.get(runId).orElseThrow(), request.userToken(), journal, sink, request.routing());
     }
 
     public static final class RunNotFoundException extends RuntimeException {
@@ -179,11 +191,12 @@ public final class RuntimeService {
             Journal journal = new Journal(Journal.fromJson(run.journal()));
             journal.decide(approved);
             runs.update(runId, "running", Journal.toJson(journal.state()), null);
-            return execute(run, userToken, journal, sink);
+            return execute(run, userToken, journal, sink, null);
         }
     }
 
-    private RunOutcome execute(RunRecord run, String userToken, Journal journal, RunEvents.Sink sink) {
+    private RunOutcome execute(
+            RunRecord run, String userToken, Journal journal, RunEvents.Sink sink, Map<String, Object> routing) {
         DemoUser user = DemoDirectory.findUser(run.userId()).orElseThrow();
         RuntimeDeps deps = depsFor(run.tenantId());
         AgentRuntime runtime = new AgentRuntime(deps);
@@ -196,7 +209,8 @@ public final class RuntimeService {
                 run.delegationId(),
                 new RunContext.Subject(run.delegationId() == null ? userToken : null, run.delegationId()),
                 run.agent(),
-                run.utterance());
+                run.utterance(),
+                routing);
         AgentRuntime.RunResult result = runtime.run(request, journal, tracer, sink);
         runs.update(
                 run.id(),
@@ -243,7 +257,7 @@ public final class RuntimeService {
                 settings.maxTurns());
     }
 
-    EffectiveDefinition assemble(String agent, String tenantId) {
+    public EffectiveDefinition assemble(String agent, String tenantId) {
         var outcome = EffectiveAssembly.assemble(
                 services.registry(), Viewer.tenant(tenantId), EffectiveAssembly.Request.of(agent, tenantId));
         if (outcome instanceof EffectiveAssembly.Outcome.Ok ok) return ok.definition();
@@ -383,6 +397,62 @@ public final class RuntimeService {
         }
     }
 
+    /** 统一入口路由器的身份：导航、澄清、能力缺口这类不交给 Agent 的结果，记在它名下 */
+    public static final String ROUTER_AGENT = "platform/router";
+
+    /**
+     * 统一入口没有交给 Agent 的一次提问（导航、澄清、能力缺口）：同样记一次运行和一条追踪，路由说明与“本次链路”面板照常可看。
+     *
+     * @param kind navigation、clarify、gap，同时作为推送事件的类型
+     */
+    public RunOutcome recordRouterRun(
+            DemoUser user,
+            String sessionId,
+            String message,
+            Map<String, Object> routing,
+            String kind,
+            Map<String, Object> payload,
+            RunEvents.Sink sink) {
+        String runId = "run-" + UUID.randomUUID();
+        String traceId = Tracer.newTraceId();
+        String session = sessionId == null || sessionId.isBlank() ? "ses-" + UUID.randomUUID() : sessionId;
+        String now = IsoTime.now(services.clock());
+        Tracer tracer = new Tracer(traceId, traces, user.tenantId(), services.clock());
+        var root = tracer.start("统一入口 · " + kind, SpanRecord.SpanKind.run, null, "run", Map.of());
+        root.set("eab.run.id", runId)
+                .set("eab.agent", ROUTER_AGENT)
+                .set("eab.user.id", user.id())
+                .set("eab.tenant.id", user.tenantId());
+        sink.accept(RunEvents.RunEvent.of(
+                "run_started", ROUTER_AGENT, "runId", runId, "traceId", traceId, "agent", "统一入口"));
+        AgentRuntime.recordRouting(root, routing, sink, ROUTER_AGENT);
+        root.set("eab.router.outcome", kind).end();
+        Map<String, Object> event = new java.util.LinkedHashMap<>(payload);
+        event.put("traceId", traceId);
+        sink.accept(new RunEvents.RunEvent(kind, ROUTER_AGENT, event));
+        String text = String.valueOf(payload.getOrDefault("message", ""));
+        sink.accept(RunEvents.RunEvent.of("final", ROUTER_AGENT, "text", text, "traceId", traceId, "kind", kind));
+        Journal journal = new Journal();
+        var result = new AgentRuntime.RunResult("completed", text, payload, null, null, List.of(), 0);
+        runs.insert(new RunRecord(
+                runId,
+                traceId,
+                session,
+                user.tenantId(),
+                user.id(),
+                ROUTER_AGENT,
+                "on-behalf",
+                null,
+                message,
+                "completed",
+                Journal.toJson(journal.state()),
+                Json.MAPPER.writeValueAsString(result),
+                now,
+                now));
+        memory.appendSession(session, user.tenantId(), user.id(), ROUTER_AGENT, message, text);
+        return new RunOutcome(runId, traceId, session, result);
+    }
+
     // ── 平台对外的 MCP 端点 ─────────────────────────────
 
     static final String MCP_AGENT = "platform/mcp-endpoint";
@@ -426,7 +496,7 @@ public final class RuntimeService {
     }
 
     /** MCP 端点的有效定义：只读工具，挂上全部已发布的标品语义包 */
-    private EffectiveDefinition mcpDefinition() {
+    private EffectiveDefinition platformAgentDefinition(String agent) {
         List<EffectiveDefinition.EffectiveTool> tools = mcpTools().stream()
                 .map(t -> new EffectiveDefinition.EffectiveTool(
                         t.name(), t.type(), Layers.Layer.platform, t.source(), t.description(), "L0", "query"))
@@ -440,9 +510,9 @@ public final class RuntimeService {
                         + a.metadata().version())
                 .toList();
         return new EffectiveDefinition(
-                MCP_AGENT,
-                "平台 MCP 端点",
-                "对外提供只读的 ERP 工具",
+                agent,
+                agent.equals(MCP_AGENT) ? "平台 MCP 端点" : "平台导航",
+                "以平台身份使用只读的 ERP 工具",
                 List.of(),
                 tools,
                 List.of(),
@@ -454,7 +524,7 @@ public final class RuntimeService {
                 null,
                 null,
                 new EffectiveDefinition.Provenance(
-                        "agent:" + MCP_AGENT, null, MCP_AGENT + "@" + MCP_VERSION, null, List.of(), List.of(), packs));
+                        "agent:" + agent, null, agent + "@" + MCP_VERSION, null, List.of(), List.of(), packs));
     }
 
     /**
@@ -462,36 +532,47 @@ public final class RuntimeService {
      * 并记一次运行，追踪可以在治理中心查看。
      */
     public ToolGateway.ToolOutcome callAsMcp(DemoUser user, String userToken, String tool, Map<String, Object> args) {
+        return callPlatformTool(MCP_AGENT, user, userToken, tool, args);
+    }
+
+    /** 平台导航（统一入口的导航型交互）查找单据时使用的身份 */
+    public static final String NAVIGATOR_AGENT = "platform/navigator";
+
+    /**
+     * 以平台的某个只读身份（MCP 端点、导航）调用一个工具：令牌交换、鉴权点 3、审计与 Agent 的工具调用相同，并记一次运行。
+     */
+    public ToolGateway.ToolOutcome callPlatformTool(
+            String agent, DemoUser user, String userToken, String tool, Map<String, Object> args) {
         String tenantId = user.tenantId();
         RuntimeDeps deps = depsFor(tenantId);
-        EffectiveDefinition definition = mcpDefinition();
+        EffectiveDefinition definition = platformAgentDefinition(agent);
         List<String> readOps = definition.tools().stream()
                 .filter(t -> t.type().equals("api"))
                 .map(EffectiveDefinition.EffectiveTool::name)
                 .toList();
-        String agentToken = services.identity().issueAgentToken(MCP_AGENT, MCP_VERSION, tenantId, readOps);
+        String agentToken = services.identity().issueAgentToken(agent, MCP_VERSION, tenantId, readOps);
         String runId = "run-" + UUID.randomUUID();
         String traceId = Tracer.newTraceId();
         String now = IsoTime.now(services.clock());
         Journal journal = new Journal();
         Tracer tracer = new Tracer(traceId, traces, tenantId, services.clock());
-        var root = tracer.start("MCP 调用 · " + tool, SpanRecord.SpanKind.run, null, "run", Map.of());
-        root.set("eab.agent", MCP_AGENT).set("eab.user.id", user.id()).set("eab.tenant.id", tenantId);
+        var root = tracer.start("平台工具调用 · " + tool, SpanRecord.SpanKind.run, null, "run", Map.of());
+        root.set("eab.agent", agent).set("eab.user.id", user.id()).set("eab.tenant.id", tenantId);
         RunContext ctx = new RunContext(
                 runId,
-                "mcp-" + runId,
+                agent.substring(agent.indexOf('/') + 1) + "-" + runId,
                 runUser(user),
                 "on-behalf",
                 null,
                 new RunContext.Subject(userToken, null),
-                MCP_AGENT,
+                agent,
                 definition,
                 agentToken,
                 0);
         ToolGateway.ToolOutcome outcome;
         try {
             Exec exec = new Exec(ctx, journal, event -> {}, root, "run", false);
-            outcome = new AgentRuntime(deps).tools().callTool(exec, "mcp", tool, args);
+            outcome = new AgentRuntime(deps).tools().callTool(exec, "call", tool, args);
             root.end();
         } catch (Exception e) {
             root.fail(e.getMessage());
@@ -503,10 +584,10 @@ public final class RuntimeService {
                 ctx.sessionId(),
                 tenantId,
                 user.id(),
-                MCP_AGENT,
+                agent,
                 "on-behalf",
                 null,
-                "MCP 调用 " + tool,
+                "平台工具调用 " + tool,
                 "completed",
                 Journal.toJson(journal.state()),
                 Json.MAPPER.writeValueAsString(outcome),

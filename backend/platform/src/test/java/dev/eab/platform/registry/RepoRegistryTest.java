@@ -81,7 +81,7 @@ class RepoRegistryTest {
     }
 
     @Test
-    @DisplayName("四个标品 Agent 都能组装，并且都带公开版指令")
+    @DisplayName("六个标品 Agent 都能组装，并且都带公开版指令")
     void agentsAssemble() {
         var agents = assets.stream()
                 .filter(AgentAsset.class::isInstance)
@@ -91,6 +91,8 @@ class RepoRegistryTest {
                 .containsExactly(
                         "inventory-risk-analyst",
                         "period-close-checker",
+                        "procurement-policy-advisor",
+                        "purchase-order-clerk",
                         "supplier-performance-analyst",
                         "transaction-anomaly-analyst");
         for (var agent : agents) {

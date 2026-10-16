@@ -35,7 +35,7 @@ scripts:
 - 可用的变量：
   - `vars`：剧本变量与正则命名分组；
   - `tools`：本轮的工具结果，工具名里的点和连字符换成下划线，例如 `tools.supplier_lookup`；同名工具取最后一次；
-  - `user.id`、`today`（YYYY-MM-DD）、`month`（YYYY-MM）；
+  - `user.id`、`utterance`（本轮话术）、`today`（YYYY-MM-DD）、`month`（YYYY-MM）、`nextMonth`（下个月，YYYY-MM）、`quarterStart`（本季度第一天）；
   - `output`：只在 `reply` 里可用，是同一步的结构化结果，先求值再渲染回复。
 - 列表可以用下标和长度：`{{tools.x.items.0.id}}`、`{{tools.x.items.size}}`；分隔符可以用 `{{^-last}}、{{/-last}}`。
 

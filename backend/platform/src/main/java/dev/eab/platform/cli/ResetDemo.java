@@ -27,7 +27,8 @@ public final class ResetDemo {
             "memories",
             "risk_alerts",
             "write_log",
-            "im_messages");
+            "im_messages",
+            "notifications");
 
     public static void reset(Path dataDir, Clock clock) {
         try (PlatformDb db = PlatformDb.open(dataDir.resolve("platform.db").toString())) {

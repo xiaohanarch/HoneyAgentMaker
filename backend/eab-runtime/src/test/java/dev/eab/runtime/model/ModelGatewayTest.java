@@ -376,6 +376,19 @@ class ModelGatewayTest {
         }
 
         @Test
+        @DisplayName("输出上限默认 16384，可以用 EAB_MODEL_MAX_TOKENS 调整，超出范围或不是整数时报错")
+        void maxTokens() {
+            assertThat(GatewayConfig.scripted().maxTokens()).isEqualTo(GatewayConfig.DEFAULT_MAX_TOKENS);
+            assertThat(GatewayConfig.fromEnv(Map.of("EAB_MODEL_MAX_TOKENS", " 8192 "))
+                            .maxTokens())
+                    .isEqualTo(8192);
+            assertThatThrownBy(() -> GatewayConfig.fromEnv(Map.of("EAB_MODEL_MAX_TOKENS", "100")))
+                    .hasMessageContaining("EAB_MODEL_MAX_TOKENS");
+            assertThatThrownBy(() -> GatewayConfig.fromEnv(Map.of("EAB_MODEL_MAX_TOKENS", "很多")))
+                    .hasMessageContaining("EAB_MODEL_MAX_TOKENS");
+        }
+
+        @Test
         @DisplayName("按单价估算成本，没有单价的模型标记为未定价")
         void cost() {
             var config = GatewayConfig.fromEnv(Map.of("EAB_MODEL_PRICES", "{\"m\":{\"input\":2,\"output\":10}}"));
@@ -465,6 +478,40 @@ class ModelGatewayTest {
                 assertThat(r.outputTokens()).isEqualTo(200);
                 assertThat(r.estimated()).isFalse();
                 assertThat(r.costUsd()).isEqualTo(0.006);
+            }
+        }
+
+        @Test
+        @DisplayName("路由的模型决策走 OpenAI 兼容协议：用 fast 档位的模型，在候选里选择并给出理由")
+        void routerDecidesWithOpenAi() throws Exception {
+            String reply = """
+                    {"id":"c1","object":"chat.completion","created":1,"model":"demo-fast",
+                     "choices":[{"index":0,"message":{"role":"assistant","content":"{\\"choice\\":\\"vendor.pur/b\\",\\"confidence\\":0.9,\\"reason\\":\\"问的是订单\\"}"},"finish_reason":"stop"}],
+                     "usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}
+                    """;
+            try (var vendor = new FakeVendor(reply)) {
+                var config = GatewayConfig.fromEnv(Map.of(
+                        "EAB_MODEL_PROVIDER", "openai",
+                        "OPENAI_API_KEY", "test-key",
+                        "EAB_OPENAI_BASE_URL", vendor.url() + "/v1",
+                        "EAB_MODEL_FAST", "demo-fast",
+                        "EAB_MODEL_REASONING", "demo-model",
+                        "EAB_MODEL_JUDGE", "demo-judge"));
+                var decider = new dev.eab.runtime.routing.ModelDecider(
+                        ModelProviders.create(config, List.of(), () -> "2026-10-15"), config.modelFor("fast"));
+                var a = new dev.eab.runtime.routing.Catalog.Entry(
+                        "agent", "vendor.pur/a", "1.0.0", "供应商分析", "", List.of(), List.of(), false);
+                var b = new dev.eab.runtime.routing.Catalog.Entry(
+                        "agent", "vendor.pur/b", "1.0.0", "订单处理", "", List.of(), List.of(), false);
+                var decision = decider.decide(
+                        "改交期",
+                        List.of(
+                                new dev.eab.runtime.routing.Router.Candidate(a, 3, "x", null),
+                                new dev.eab.runtime.routing.Router.Candidate(b, 2, "y", null)));
+                assertThat(decision.decidedBy()).isEqualTo("model");
+                assertThat(decision.chosen()).isEqualTo(b);
+                assertThat(decision.reason()).isEqualTo("问的是订单");
+                assertThat(vendor.lastBody.get().path("model").asString()).isEqualTo("demo-fast");
             }
         }
 

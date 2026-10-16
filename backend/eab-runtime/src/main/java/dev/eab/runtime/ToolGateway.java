@@ -254,10 +254,7 @@ public final class ToolGateway {
         }
         if (decision.outcome().equals("confirm") && !confirmed) {
             boolean approved = Confirmations.require(
-                    exec,
-                    "confirm",
-                    "确认执行 " + name,
-                    Map.of("tool", name, "arguments", args, "reason", decision.reason()));
+                    exec, "confirm", "确认执行 " + name, preview(name, tool, args, decision.reason()));
             if (!approved) return ToolOutcome.failure("USER_REJECTED", "用户拒绝执行 " + name + "，没有写入任何数据");
             confirmed = true;
         }
@@ -266,6 +263,16 @@ public final class ToolGateway {
         if (tool != null && Supervisor.isWrite(tool.writeLevel()) && outcome.ok()) watchWrites(execution, name);
         if (outcome.ok()) watchScope(execution, outcome.data());
         return outcome;
+    }
+
+    /** 确认卡片上的内容：工具、写级别、参数和需要确认的原因 */
+    static Map<String, Object> preview(String name, EffectiveTool tool, Map<String, Object> args, String reason) {
+        Map<String, Object> preview = new LinkedHashMap<>();
+        preview.put("tool", name);
+        if (tool != null && tool.writeLevel() != null) preview.put("writeLevel", tool.writeLevel());
+        preview.put("arguments", args);
+        preview.put("reason", reason);
+        return preview;
     }
 
     private Decision authorize(
@@ -356,7 +363,7 @@ public final class ToolGateway {
             case "documents" ->
                 ToolOutcome.success(Map.of(
                         "items",
-                        deps.documents().search(tool.source(), String.valueOf(args.getOrDefault("query", "")), 5)));
+                        deps.documents().search(tool.source(), String.valueOf(args.getOrDefault("query", "")), 3)));
             case "remoteAgent" -> ToolOutcome.failure("NOT_IMPLEMENTED", "远程 Agent（A2A）在 P7 接入，当前不可用");
             default -> ToolOutcome.failure("UNSUPPORTED_TOOL", "不支持的工具类型 " + tool.type());
         };

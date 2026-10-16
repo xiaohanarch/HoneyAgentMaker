@@ -26,6 +26,11 @@ class AgentRuntimeTest {
                   - calls: [{ tool: purchase_order_list, args: { supplierName: 百润精密, overdueDaysGt: 30 } }]
                   - reply: '百润精密有 {{tools.purchase_order_list.total}} 张逾期订单：{{#tools.purchase_order_list.items}}{{id}} {{/tools.purchase_order_list.items}}'
                     output: { supplier: 百润精密 }
+              - id: empty
+                agent: vendor.pur/analyst
+                match: { all: [空回复] }
+                steps:
+                  - reply: '{{#vars.never}}x{{/vars.never}}'
               - id: forever
                 agent: vendor.pur/analyst
                 match: { all: [一直查] }
@@ -155,6 +160,16 @@ class AgentRuntimeTest {
             assertThat(run.result().status()).isEqualTo("completed");
             assertThat(run.result().text()).contains("最多 4 轮");
             assertThat(rt.boCalls).hasSize(4);
+        }
+
+        @Test
+        @DisplayName("模型没有给出正文（例如推理用完了输出上限）时运行失败并说明原因，不给用户空回复")
+        void emptyReplyFails() {
+            var rt = new TestRuntime(SCRIPTS);
+            var run = rt.run(ANALYST, "空回复");
+            assertThat(run.result().status()).isEqualTo("failed");
+            assertThat(run.result().error()).contains("EAB_MODEL_MAX_TOKENS");
+            assertThat(run.events().getLast().data()).containsEntry("code", "MODEL_EMPTY_REPLY");
         }
 
         @Test

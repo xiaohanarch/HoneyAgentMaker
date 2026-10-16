@@ -94,8 +94,8 @@ public final class Ports {
     public interface Memory {
         List<String> longTerm(String tenantId, String userId, String agent);
 
-        /** 会话里此前的问答，按时间顺序，每条是 [用户话术, 最终回复] */
-        List<List<String>> session(String sessionId);
+        /** 本人在这个会话里此前的问答，按时间顺序，每条是 [用户话术, 最终回复]；别人的同名会话不可见 */
+        List<List<String>> session(String sessionId, String tenantId, String userId);
 
         void appendSession(
                 String sessionId, String tenantId, String userId, String agent, String utterance, String reply);

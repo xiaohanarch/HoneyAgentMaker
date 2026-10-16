@@ -57,5 +57,20 @@ ANTHROPIC_API_KEY=...                 # openai 时用 OPENAI_API_KEY 和 EAB_OPE
 EAB_MODEL_REASONING=claude-sonnet-5-5
 ```
 
+OpenAI 兼容协议的服务（例如 GLM）需要写全三个档位的模型名，`EAB_OPENAI_BASE_URL` 写到 `/v1` 为止：
+
+```bash
+EAB_MODEL_PROVIDER=openai
+EAB_OPENAI_BASE_URL=https://<网关地址>/v1
+OPENAI_API_KEY=...
+EAB_MODEL_FAST=glm-5.3-flash
+EAB_MODEL_REASONING=glm-5.3
+EAB_MODEL_JUDGE=glm-5.3
+```
+
+`EAB_MODEL_MAX_TOKENS` 是单次模型调用的输出上限，默认 16384。带推理过程的模型把推理也算进输出，上限太小时会只有推理没有正文；这时运行以 MODEL_EMPTY_REPLY 失败，并提示调大这个值。
+
+本机用真实模型跑命令行时，把同样的内容放在仓库之外（例如 `~/.config/eab/model.env`），执行前载入环境变量：`set -a; . ~/.config/eab/model.env; set +a`。
+
 修改后执行 `systemctl restart eab-demo`。选了真实提供方却缺少 Key 时平台启动失败，日志里说明缺哪个变量，不会静默退回脚本化模型。删除这个文件并重启即回到脚本化模型。
 

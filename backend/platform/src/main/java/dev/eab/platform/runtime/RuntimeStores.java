@@ -237,10 +237,10 @@ public final class RuntimeStores {
         }
 
         @Override
-        public List<List<String>> session(String sessionId) {
-            List<List<String>> turns = jdbc.sql("SELECT utterance, reply FROM session_messages WHERE session_id = ?"
-                            + " ORDER BY id DESC LIMIT ?")
-                    .params(sessionId, SESSION_TURNS)
+        public List<List<String>> session(String sessionId, String tenantId, String userId) {
+            List<List<String>> turns = jdbc.sql("SELECT utterance, reply FROM session_messages"
+                            + " WHERE session_id = ? AND tenant_id = ? AND user_id = ? ORDER BY id DESC LIMIT ?")
+                    .params(sessionId, tenantId, userId, SESSION_TURNS)
                     .query((rs, i) -> List.of(rs.getString("utterance"), rs.getString("reply")))
                     .list();
             List<List<String>> ordered = new ArrayList<>(turns);
