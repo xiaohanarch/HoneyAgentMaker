@@ -5,6 +5,7 @@ import { Cable, FileClock, Inbox, Rocket } from 'lucide-react'
 import { ENVIRONMENTS } from '../api'
 import { Avatar } from '../Avatar'
 import { errorText, useStudioApi } from '../use-studio'
+import { DRAFT_KIND_LABELS, draftPath } from '../extend/use-extend'
 
 function Section({
   icon: Icon,
@@ -61,14 +62,14 @@ export function HomeLists(): ReactNode {
             {data.drafts.map((d) => (
               <li key={d.id}>
                 <Link
-                  to={`/studio/drafts/${d.id}`}
+                  to={draftPath(d)}
                   className="flex items-center gap-2.5 rounded-md px-1.5 py-1 transition-colors hover:bg-surface-sunken"
                 >
                   <Avatar name={d.name} className="size-8 rounded-lg" />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">{d.intent}</span>
                     <span className="block text-[11px] text-ink-faint">
-                      {`第 ${d.step} 步 · ${formatTime(d.updatedAt)}`}
+                      {`${d.kind === 'Agent' ? `第 ${d.step} 步` : DRAFT_KIND_LABELS[d.kind]} · ${formatTime(d.updatedAt)}`}
                       {d.publishedVersion != null && ` · 已发布 ${d.publishedVersion}`}
                     </span>
                   </span>

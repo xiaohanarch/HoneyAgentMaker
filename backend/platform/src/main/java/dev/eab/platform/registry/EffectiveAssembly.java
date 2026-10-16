@@ -103,6 +103,18 @@ public final class EffectiveAssembly {
                     .toList();
         }
 
+        // 私有环境里叠加的扩展草稿替换同名的已发布扩展（P6 扩展编辑器的预览、测试与评测）
+        if (request.overlay() != null) {
+            List<AgentExtensionAsset> drafts = extensionsOf(request.overlay());
+            if (!drafts.isEmpty()) {
+                java.util.Map<String, AgentExtensionAsset> merged = new java.util.LinkedHashMap<>();
+                for (var e : extensions)
+                    merged.put(e.metadata().namespace() + "/" + e.metadata().name(), e);
+                for (var e : drafts)
+                    merged.put(e.metadata().namespace() + "/" + e.metadata().name(), e);
+                extensions = List.copyOf(merged.values());
+            }
+        }
         Assembler.Result result = Assembler.assemble(new Assembler.Input(
                 request.agent(), request.tenantId(), extensions, platformRules, resolver, request.statuses()));
         List<String> failures = scoped.integrityFailures();

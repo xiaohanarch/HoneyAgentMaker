@@ -8,7 +8,7 @@ import type { DraftView } from '../api'
 import { valueFromAsset } from '../draft-values'
 import { TestUserSelect } from './EvalStep'
 import { TraceTimeline } from './TraceTimeline'
-import { constraintsOf, useTestRuns } from './use-test-run'
+import { constraintsOf, useTestRuns, type StartRun } from './use-test-run'
 
 /** 故事 A 的测试话术 */
 const STORY_PROMPT = '查一下百润精密最近一次询价，帮我出一份谈判策略'
@@ -82,14 +82,24 @@ function TestTurn({
 }
 
 /** 测试：私有环境里以选定用户运行草稿，下面是所选一轮的链路追踪 */
-export function TestStep({ view }: { view: DraftView }): ReactNode {
+export function TestStep({
+  view,
+  start,
+  prompts: given,
+  defaultUser = 'zhangmin',
+}: {
+  view: DraftView
+  start?: StartRun
+  prompts?: readonly string[]
+  defaultUser?: string
+}): ReactNode {
   const { users } = useIdentity()
-  const runs = useTestRuns(view.draft.id)
-  const [asUser, setAsUser] = useState('zhangmin')
+  const runs = useTestRuns(view.draft.id, start)
+  const [asUser, setAsUser] = useState(defaultUser)
   const [input, setInput] = useState('')
   const [pinned, setPinned] = useState<string | undefined>()
   const examples = (valueFromAsset('examples', view.asset).examples as string[]) ?? []
-  const prompts = [...new Set([STORY_PROMPT, ...examples])].slice(0, 3)
+  const prompts = given ?? [...new Set([STORY_PROMPT, ...examples])].slice(0, 3)
   const selected = runs.turns.find((t) => t.id === pinned) ?? runs.turns.at(-1)
   const selectedView = selected === undefined ? undefined : viewOf(selected)
   const dataScope = users.find((u) => u.id === asUser)?.dataScope ?? ''

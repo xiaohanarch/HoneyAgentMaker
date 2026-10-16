@@ -103,6 +103,12 @@ public final class SkillEngine {
         return last;
     }
 
+    /** 步骤的入参与输出写进 span 时截断，避免大结果撑大追踪 */
+    static String preview(Object value) {
+        String text = JSON.writeValueAsString(value);
+        return text.length() <= 2000 ? text : text.substring(0, 2000) + "…";
+    }
+
     private Object execute(Exec exec, Step step, Map<String, Object> vars) {
         String segment = "step:" + step.id();
         Span span = exec.span("步骤 · " + (step.name() == null ? step.id() : step.name()), SpanKind.workflow, segment);
@@ -129,6 +135,8 @@ public final class SkillEngine {
             if (!step.type().equals("condition") || value != null) {
                 vars.put(step.output() == null ? step.id() : step.output(), value);
             }
+            // 技能编辑器单独测试时按步骤查看输出
+            if (value != null) span.set("eab.step.output", preview(value));
             span.end();
             return value;
         } catch (Suspended e) {
@@ -174,6 +182,7 @@ public final class SkillEngine {
 
     private Object tool(Exec exec, Step step, Map<String, Object> vars) {
         Map<String, Object> args = arguments(step.with(), vars);
+        exec.span().set("eab.step.input", preview(args));
         ToolOutcome outcome;
         try {
             outcome = step.source() == null

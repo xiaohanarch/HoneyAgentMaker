@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Link } from 'react-router'
 import { Blocks, Cable, Globe, Sparkles, Workflow } from 'lucide-react'
 import { SOURCE_STYLES, SourceBadge, cn, type AssetSource } from '@eab/ui'
 import { useIdentity } from '../identity/identity-context'
@@ -12,6 +13,8 @@ interface Entry {
   description: string
   source: AssetSource
   phase: string
+  /** 已接通的入口链接到对应页面 */
+  to?: string
 }
 
 /** Studio 首页的入口卡片（主提示词 10.1 节）。 */
@@ -22,6 +25,7 @@ const ENTRIES: readonly Entry[] = [
     description: '在标品声明的扩展点上追加指令、工具、知识、钩子和确认点',
     source: 'vendor',
     phase: 'P6',
+    to: '/studio/vendor-agents',
   },
   {
     icon: Globe,
@@ -36,6 +40,7 @@ const ENTRIES: readonly Entry[] = [
     description: '确定性的步骤流程，不依赖大模型推理',
     source: 'tenant',
     phase: 'P6',
+    to: '/studio/tools#skills',
   },
   {
     icon: Cable,
@@ -43,6 +48,7 @@ const ENTRIES: readonly Entry[] = [
     description: '从 BO API 的 OpenAPI 描述生成工具，或登记 MCP Server',
     source: 'platform',
     phase: 'P6',
+    to: '/studio/tools',
   },
 ]
 
@@ -90,17 +96,26 @@ export function StudioPage(): ReactNode {
           <IntentForm disabled={!canBuild || token === undefined} />
         </article>
 
-        {ENTRIES.map(({ icon: Icon, title, description, source, phase }) => (
+        {ENTRIES.map(({ icon: Icon, title, description, source, phase, to }) => (
           <article
             key={title}
             className={cn(
-              'rounded-xl border border-line border-l-4 bg-surface p-5',
+              'relative rounded-xl border border-line border-l-4 bg-surface p-5',
+              to !== undefined && canBuild && 'transition-colors hover:border-line-strong',
               SOURCE_STYLES[source].accentClass,
             )}
           >
             <div className="flex items-center gap-2">
               <Icon aria-hidden className="size-4 text-ink-muted" />
-              <h2 className="text-sm font-semibold">{title}</h2>
+              <h2 className="text-sm font-semibold">
+                {to !== undefined && canBuild ? (
+                  <Link to={to} className="after:absolute after:inset-0 hover:underline">
+                    {title}
+                  </Link>
+                ) : (
+                  title
+                )}
+              </h2>
               <span className="ml-auto">
                 <PhaseTag phase={phase} />
               </span>

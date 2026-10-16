@@ -20,7 +20,7 @@ export interface DraftSummary {
   id: string
   intent: string
   step: number
-  kind: 'Agent'
+  kind: 'Agent' | 'AgentExtension' | 'Skill'
   namespace: string
   name: string
   publishedVersion: string | null
