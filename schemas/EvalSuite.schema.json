@@ -140,10 +140,14 @@
             "required" : [ "id", "user", "question", "assertions" ],
             "additionalProperties" : false
           },
-          "minItems" : 1
+          "default" : [ ]
+        },
+        "scenarios" : {
+          "type" : "string",
+          "minLength" : 1
         }
       },
-      "required" : [ "target", "cases" ],
+      "required" : [ "target" ],
       "additionalProperties" : false
     }
   },
