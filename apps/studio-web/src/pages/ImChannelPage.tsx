@@ -150,7 +150,8 @@ export function ImChannelPage(): ReactNode {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               maxLength={2000}
-              placeholder="发消息给 ERP 助手"
+              placeholder={token === undefined ? '正在连接平台…' : '发消息给 ERP 助手'}
+              disabled={token === undefined}
               className="flex-1 bg-transparent text-sm outline-none placeholder:text-ink-faint"
             />
             <button
