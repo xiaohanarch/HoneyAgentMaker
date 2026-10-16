@@ -116,6 +116,8 @@ OpenAPI 描述由 springdoc 生成（`GET /openapi.json`），响应统一为 `{
 | `GET /identity/v1/delegations/:id/status` | 委托核实，供 DemoERP 调用，需要内部调用密钥 |
 | `POST /identity/v1/demo/agent-token` | 演示模式下由平台运维代运行时签发 Agent 令牌，用于手工验证 |
 
+登录和令牌端点按来源 IP 限流，默认每分钟 30 次（`eab.login-rate-per-minute`）。演示环境里端到端测试、验收脚本和多个页面共用 127.0.0.1 一个来源地址，`pnpm demo` 用 `EAB_LOGIN_RATE_PER_MINUTE` 把额度调高到 240，生产环境保持默认值。
+
 平台调用 BO API 的唯一通道是 `DelegatedClient.callBoApi`：先换取委托令牌，再带着它调用，并且只允许落在配置的 ERP 地址上的 `/bo/v1/` 路径。失败时抛出 `DelegationException`，不存在使用集成账号的路径。
 
 ### 策略引擎

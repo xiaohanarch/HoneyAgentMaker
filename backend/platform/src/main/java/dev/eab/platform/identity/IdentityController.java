@@ -29,6 +29,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
+import org.springframework.core.env.Environment;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -59,10 +60,12 @@ public class IdentityController {
     private final boolean demoMode;
     private final RateLimiter limiter;
 
-    public IdentityController(PlatformServices services, DemoMode demoMode) {
+    public IdentityController(PlatformServices services, DemoMode demoMode, Environment env) {
         this.services = services;
         this.demoMode = demoMode.enabled();
-        this.limiter = new RateLimiter(30, 60_000, services.clock());
+        // 登录限流默认每 IP 每分钟 30 次；演示环境共用回环地址，由 EAB_LOGIN_RATE_PER_MINUTE 调高
+        this.limiter = new RateLimiter(
+                env.getProperty("eab.login-rate-per-minute", Integer.class, 30), 60_000, services.clock());
     }
 
     /** 平台与 DemoERP 之间的内部调用校验，常量时间比较 */

@@ -46,10 +46,16 @@ public final class TestPlatform {
 
     /** demoMode 为 true 时开放选人登录等演示接口（相当于 TS 版 buildApp({ demoMode: true })） */
     public static MockMvc mvc(PlatformServices services, boolean demoMode) {
+        return mvc(services, demoMode, new org.springframework.mock.env.MockEnvironment());
+    }
+
+    /** 同上；env 里可以设置 eab.login-rate-per-minute 等配置，覆盖默认值 */
+    public static MockMvc mvc(
+            PlatformServices services, boolean demoMode, org.springframework.core.env.Environment env) {
         return MockMvcBuilders.standaloneSetup(
                         new RegistryController(services.registry(), services.principals()),
                         new AuditController(services.audit(), services.principals()),
-                        new dev.eab.platform.identity.IdentityController(services, new DemoMode(demoMode)),
+                        new dev.eab.platform.identity.IdentityController(services, new DemoMode(demoMode), env),
                         new dev.eab.platform.policy.PolicyController(services),
                         new dev.eab.platform.events.EventController(services))
                 .setControllerAdvice(new ApiExceptionHandler())
