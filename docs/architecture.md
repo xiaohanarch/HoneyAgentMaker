@@ -326,6 +326,30 @@ Studio 是开发态的入口，接口见 `docs/studio-api.md`，设计取舍见 
 
 连接中心列出本租户的连接别名、每个环境的绑定（地址、认证方式、凭据引用）和引用它的工具来源与 Agent。租户管理员可以修改绑定，每次修改写入 Connection 资产的新补丁版本并发布；凭据引用只能是 `env:` 或 `vault:` 开头的引用。连接是环境配置，启动时随平台和标品资产一起入库。
 
+## 扩展标品 Agent、工具中心与技能编辑器（P6）
+
+接口见 `docs/studio-api.md` 的 P6 各节，设计取舍见 ADR 0011。代码在平台的 `dev.eab.platform.extend`、`dev.eab.platform.tools`、`dev.eab.platform.skills` 三个包里，前端在 `apps/studio-web/src/studio/extend`、`tools`、`skills`。
+
+### 扩展
+
+标品 Agent 目录（`ExtendService`）列出本租户可见的标品 Agent，带扩展点、工具清单、公开评测集和本租户的扩展，详情里给出叠加已发布扩展后的有效定义，全部按租户视角裁剪。扩展草稿存在工作区里（kind 为 AgentExtension），`ExtensionComposer` 按扩展点分页改写 YAML 树里对应的字段。有效定义预览、私有环境测试和评测都把扩展草稿叠加进租户的解析范围：`EffectiveAssembly` 遇到叠加里的扩展时替换同名的已发布扩展，再按主提示词 5.4 节的规则组装。
+
+`ExtensionReleases` 负责评测与发布。评测同时运行标品公开评测集和扩展评测集，被测对象都是标品叠加扩展草稿，确认点一律拒绝；发布前检查评测集存在、静态检查、MCP 审批和同一内容的评测结果，通过后扩展和评测集一起写入注册中心并签名，发布即对本租户生效。复制为租户 Agent（`TenantCopy`）生成一份新建 Agent 的草稿，指令取标品的公开版指令，约束只保留规则编号。
+
+故事 B 的流程是：陈工在扩展编辑器里追加“单笔超过 50 万元须给出责任部门”的指令，增加 IM 通知工具，在 onResult 上挂“生成跟进任务”工作流，给 IM 通知加确认点；预览确认标品指令仍是占位块，评测通过后发布。王芳在统一入口问本月高风险交易异常时，运行时组装出扩展后的定义，IM 通知前弹出确认，结论按异常类型给出责任部门。
+
+### 工具中心
+
+`ToolCenter` 汇总本租户可见的工具来源和技能，并反查被哪些 Agent、扩展、技能引用。BO 工具导入读取 DemoERP 的 OpenAPI 描述，复用命令行 `tools:import-bo` 的转换逻辑生成入参 schema。MCP 登记由 `McpToolLister` 用 MCP Java SDK 连接连接别名对应的服务列出工具，开发者标好写级别后生成工具来源，并在 `mcp_approvals` 表里新建一条待审批记录（迁移 V5）。`McpGate` 作为额外的 prod 门禁注册到 `StudioReleases`：Agent 晋级 prod、扩展发布时，用到的租户 MCP 工具来源必须已经审批通过。
+
+### 技能编辑器
+
+技能草稿（kind 为 Skill）在编辑器里以步骤表单和流程图编辑，流程图由前端按步骤树布局后用 SVG 绘制，条件和并行分列显示。单独测试时 `SkillStudio` 临时组装一个只挂这一个技能的测试 Agent，与技能草稿一起叠加，经 `RuntimeService.testTool` 以测试用户的身份直接执行技能，不经过模型。技能引擎在每个步骤的 span 上记录输入输出，编辑器从追踪里取出每一步的结果并在流程图上着色。
+
+### 启动入库与剧本
+
+启动时租户的连接、工具来源和工作流随平台入库（`AssetSeeder` 的 `TENANT_INFRA`），扩展和技能由开发者在 Studio 里创建。脚本化模型的剧本可以用 `match.tools` 要求某些工具可用才匹配，故事 B 的剧本要求 `notify_im`，扩展发布前后自动走不同的剧本。
+
 ## 技术选型
 
 | 方面 | 选择 | 依据 |
