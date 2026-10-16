@@ -28,6 +28,8 @@
     <module>eab-assembler</module>
     <module>eab-directory</module>
     <module>eab-policy</module>
+    <module>eab-tracing</module>
+    <module>eab-runtime</module>
     <module>platform</module>
     <module>demo-erp</module>
   </modules>
