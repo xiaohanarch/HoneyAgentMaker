@@ -97,7 +97,10 @@ final class StudioDefaults {
     }
 
     static Map<String, Object> collaborators(String intent, StudioCatalog catalog) {
-        List<String> refs = rank(catalog.agents(), Item::text, intent, 2).stream()
+        List<Item> readOnly = catalog.agents().stream()
+                .filter(a -> a.writeLevel() == null || "L0".equals(a.writeLevel()))
+                .toList();
+        List<String> refs = rank(readOnly, Item::text, intent, 2).stream()
                 .map(s -> s.item().ref())
                 .toList();
         return Map.of("agents", refs);

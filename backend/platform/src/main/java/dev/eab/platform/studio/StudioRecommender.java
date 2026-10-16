@@ -179,7 +179,8 @@ public final class StudioRecommender {
     Map<String, Object> ask(
             String step, String intent, Map<String, Object> draft, Map<String, Object> candidates, String userId) {
         String system = "你是 ERP Agent Builder Studio 的建模助手，正在帮开发者完成新建 Agent 向导的“" + STEPS.get(step) + "”一步。\n"
-                + "只能从候选里选择，不要编造候选之外的引用。优先复用已有能力。只输出一个 JSON 对象，格式：" + schema(step) + "\n候选："
+                + "只能从候选里选择，不要编造候选之外的引用。优先复用已有能力。新建的 Agent 默认只读（写级别上限 L0），"
+                + "不要选择 writeLevel 高于 L0 的协作 Agent、技能和工具。只输出一个 JSON 对象，格式：" + schema(step) + "\n候选："
                 + Json.MAPPER.writeValueAsString(candidates);
         String user = "步骤：" + STEPS.get(step) + "\n意图：" + intent + "\n已选：" + Json.MAPPER.writeValueAsString(draft);
         try {

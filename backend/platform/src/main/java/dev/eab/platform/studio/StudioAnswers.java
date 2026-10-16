@@ -38,7 +38,7 @@ final class StudioAnswers {
                 value.put("businessProcess", codes);
             }
             case "collaborators" ->
-                value.put("agents", known(answer.get("agents"), refs(candidates.get("agents"), "ref")));
+                value.put("agents", known(answer.get("agents"), readOnly(candidates.get("agents"))));
             case "knowledge" -> {
                 value.put(
                         "semanticPacks",
@@ -48,7 +48,7 @@ final class StudioAnswers {
                         known(answer.get("knowledgeSources"), refs(candidates.get("knowledgeSources"), "ref")));
             }
             case "tools" -> {
-                value.put("skills", known(answer.get("skills"), refs(candidates.get("skills"), "ref")));
+                value.put("skills", known(answer.get("skills"), readOnly(candidates.get("skills"))));
                 value.put("tools", knownTools(answer.get("tools"), candidates.get("tools")));
             }
             case "triggers" -> {
@@ -79,6 +79,21 @@ final class StudioAnswers {
             }
         }
         return value;
+    }
+
+    /**
+     * 只读候选的引用：新建的 Agent 默认写级别上限是 L0，写级别更高的协作 Agent、技能和工具不接受，
+     * 否则组装时会报写级别越界。需要写操作时由开发者调高上限并配置确认点。
+     */
+    static Set<String> readOnly(Object candidates) {
+        Set<String> result = new LinkedHashSet<>();
+        if (!(candidates instanceof List<?> list)) return result;
+        for (Object item : list) {
+            Object level = item instanceof Map<?, ?> m ? m.get("writeLevel") : fieldOf(item, "writeLevel");
+            Object ref = item instanceof Map<?, ?> m ? m.get("ref") : fieldOf(item, "ref");
+            if (ref != null && (level == null || "L0".equals(level))) result.add(String.valueOf(ref));
+        }
+        return result;
     }
 
     /** 候选列表里某个字段的取值集合；候选是记录或 Map 都可以 */
@@ -112,7 +127,9 @@ final class StudioAnswers {
         Set<String> allowed = new LinkedHashSet<>();
         if (candidates instanceof List<?> list) {
             for (Object c : list) {
-                if (c instanceof StudioCatalog.Tool t) allowed.add(t.source() + "#" + t.name());
+                if (c instanceof StudioCatalog.Tool t && "L0".equals(t.writeLevel())) {
+                    allowed.add(t.source() + "#" + t.name());
+                }
             }
         }
         List<Map<String, Object>> result = new ArrayList<>();

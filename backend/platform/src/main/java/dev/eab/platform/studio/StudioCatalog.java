@@ -119,7 +119,10 @@ public record StudioCatalog(
                             nameOf(a),
                             a.metadata().description(),
                             layer,
-                            null,
+                            // 子 Agent 作为工具时的写级别就是它的写级别上限
+                            a.spec().writePolicy() == null
+                                    ? null
+                                    : a.spec().writePolicy().maxLevel(),
                             true,
                             null,
                             a.spec().routing() == null || a.spec().routing().examples() == null
