@@ -31,7 +31,7 @@ node scripts/acceptance-p2.mjs、acceptance-p3.mjs、acceptance-p4.mjs   对运�
 
 以下命令在对应阶段加入：`pnpm eval:smoke`（P8）。
 
-模型提供方由环境变量决定：`EAB_MODEL_PROVIDER` 取 scripted（默认）、anthropic、openai；Key 只从环境变量读取（`ANTHROPIC_API_KEY`、`OPENAI_API_KEY` 加 `EAB_OPENAI_BASE_URL`），档位映射 `EAB_MODEL_FAST/REASONING/JUDGE`，单次输出上限 `EAB_MODEL_MAX_TOKENS`（默认 16384，推理模型的推理也计入）。本机的真实模型配置放在仓库外的 `~/.config/eab/model.env`，主机上是 `/home/eab/.config/eab/model.env`，都不进仓库和数据快照。
+模型提供方由环境变量决定：`EAB_MODEL_PROVIDER` 取 scripted（默认）、anthropic、openai；Key 只从环境变量读取（`ANTHROPIC_API_KEY`、`OPENAI_API_KEY` 加 `EAB_OPENAI_BASE_URL`），档位映射 `EAB_MODEL_FAST/REASONING/JUDGE`，单次输出上限 `EAB_MODEL_MAX_TOKENS`（默认 16384，推理模型的推理也计入），超时 `EAB_MODEL_TIMEOUT_SECONDS`（默认 300）与重试 `EAB_MODEL_MAX_RETRIES`（默认 1）。本机的真实模型配置放在仓库外的 `~/.config/eab/model.env`，主机上是 `/home/eab/.config/eab/model.env`，都不进仓库和数据快照。
 
 本机只有独立安装的 `docker-compose`（没有 `docker compose` 插件），容器方式启动用 `docker-compose up --build`。
 

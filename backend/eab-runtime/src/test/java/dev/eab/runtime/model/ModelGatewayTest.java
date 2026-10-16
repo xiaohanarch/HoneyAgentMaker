@@ -376,6 +376,32 @@ class ModelGatewayTest {
         }
 
         @Test
+        @DisplayName("超时默认 300 秒、重试 1 次，可以用环境变量调整，超出范围时报错")
+        void timeoutAndRetries() {
+            var config = GatewayConfig.scripted();
+            assertThat(config.timeoutSeconds()).isEqualTo(300);
+            assertThat(config.maxRetries()).isEqualTo(1);
+            var custom =
+                    GatewayConfig.fromEnv(Map.of("EAB_MODEL_TIMEOUT_SECONDS", "600", "EAB_MODEL_MAX_RETRIES", "0"));
+            assertThat(custom.timeoutSeconds()).isEqualTo(600);
+            assertThat(custom.maxRetries()).isZero();
+            assertThatThrownBy(() -> GatewayConfig.fromEnv(Map.of("EAB_MODEL_MAX_RETRIES", "9")))
+                    .hasMessageContaining("EAB_MODEL_MAX_RETRIES");
+
+            var openai = GatewayConfig.fromEnv(Map.of(
+                    "EAB_MODEL_PROVIDER", "openai",
+                    "OPENAI_API_KEY", "k",
+                    "EAB_OPENAI_BASE_URL", "http://127.0.0.1:1/v1",
+                    "EAB_MODEL_FAST", "f",
+                    "EAB_MODEL_REASONING", "r",
+                    "EAB_MODEL_JUDGE", "j"));
+            var options = (org.springframework.ai.openai.OpenAiChatOptions)
+                    ModelProviders.create(openai, List.of(), () -> "2026-10-15").getDefaultOptions();
+            assertThat(options.getTimeout()).isEqualTo(java.time.Duration.ofSeconds(300));
+            assertThat(options.getMaxRetries()).isEqualTo(1);
+        }
+
+        @Test
         @DisplayName("输出上限默认 16384，可以用 EAB_MODEL_MAX_TOKENS 调整，超出范围或不是整数时报错")
         void maxTokens() {
             assertThat(GatewayConfig.scripted().maxTokens()).isEqualTo(GatewayConfig.DEFAULT_MAX_TOKENS);

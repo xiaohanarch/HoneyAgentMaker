@@ -68,9 +68,11 @@ EAB_MODEL_REASONING=glm-5.3
 EAB_MODEL_JUDGE=glm-5.3
 ```
 
+`EAB_MODEL_TIMEOUT_SECONDS` 是单次请求的超时，默认 300 秒；`EAB_MODEL_MAX_RETRIES` 是失败后的重试次数，默认 1 次。厂商模块自带的默认值是 60 秒超时、重试 3 次，推理模型处理大输入时单次常常超过 60 秒，会被反复取消重发，四分钟后才失败。
+
 `EAB_MODEL_MAX_TOKENS` 是单次模型调用的输出上限，默认 16384。带推理过程的模型把推理也算进输出，上限太小时会只有推理没有正文；这时运行以 MODEL_EMPTY_REPLY 失败，并提示调大这个值。
 
 本机用真实模型跑命令行时，把同样的内容放在仓库之外（例如 `~/.config/eab/model.env`），执行前载入环境变量：`set -a; . ~/.config/eab/model.env; set +a`。
 
-修改后执行 `systemctl restart eab-demo`。选了真实提供方却缺少 Key 时平台启动失败，日志里说明缺哪个变量，不会静默退回脚本化模型。删除这个文件并重启即回到脚本化模型。
+修改后执行 `systemctl restart eab-demo`。部署脚本跑端到端测试时会暂时把这个文件改名为 `model.env.paused`，用脚本化模型跑完测试后恢复并重启，脚本中途失败也会恢复。选了真实提供方却缺少 Key 时平台启动失败，日志里说明缺哪个变量，不会静默退回脚本化模型。删除这个文件并重启即回到脚本化模型。
 

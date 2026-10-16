@@ -25,6 +25,8 @@ public final class ModelProviders {
                                 .baseUrl(config.baseUrl())
                                 .model(config.modelFor("reasoning"))
                                 .maxTokens(config.maxTokens())
+                                .timeout(java.time.Duration.ofSeconds(config.timeoutSeconds()))
+                                .maxRetries(config.maxRetries())
                                 .build())
                         .build();
             case "openai" ->
@@ -34,6 +36,8 @@ public final class ModelProviders {
                                 .baseUrl(config.baseUrl())
                                 .model(config.modelFor("reasoning"))
                                 .maxTokens(config.maxTokens())
+                                .timeout(java.time.Duration.ofSeconds(config.timeoutSeconds()))
+                                .maxRetries(config.maxRetries())
                                 .build())
                         .build();
             default -> new ScriptedChatModel(scripts, today);
