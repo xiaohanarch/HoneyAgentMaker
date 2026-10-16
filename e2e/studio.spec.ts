@@ -60,9 +60,12 @@ test('故事 A：从一句话新建价格谈判助手，测试、评测、发布
   await expect(studio.getByTestId('constraint-banner').first()).toContainText('PUR-R-007', WAIT)
   await expect(studio.getByTestId('trace-timeline')).toContainText('约束 · PUR-R-007 触发', WAIT)
 
-  // 发布：静态检查通过，发布到 dev，晋级 test、prod
+  // 发布：静态检查没有错误（可能有路由重叠警告，例如环境里已有相近的 Agent），发布到 dev，晋级 test、prod
   await gotoStep(studio, '发布')
-  await expect(studio.getByTestId('lint-panel')).toContainText('静态检查通过', WAIT)
+  await expect(studio.getByTestId('lint-panel')).toContainText(
+    /静态检查通过|静态检查没有错误/,
+    WAIT,
+  )
   await studio.getByRole('button', { name: '发布并部署到 dev' }).click()
   // 同一内容已经发布过时版本不变；已在目标环境的就不再晋级（重复运行本用例时）
   for (const env of ['test', 'prod']) {
