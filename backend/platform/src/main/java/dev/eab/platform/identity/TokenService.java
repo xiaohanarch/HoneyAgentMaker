@@ -39,6 +39,8 @@ public final class TokenService {
         public static final String BO = "demo-erp-bo";
         public static final String OPEN = "demo-erp-open";
         public static final String PAGES = "demo-erp-pages";
+        /** 平台调用外部 Agent 时携带的服务令牌（A2A 出站，ADR 0012） */
+        public static final String A2A = "eab-a2a";
     }
 
     /** 有效期（秒） */
@@ -48,6 +50,7 @@ public final class TokenService {
     public static final long CLIENT_TTL = 3600;
     public static final long DELEGATED_TTL = 300;
     public static final long PAGE_TTL = 600;
+    public static final long SERVICE_TTL = 300;
 
     public static final class TokenException extends RuntimeException {
         private final String code;
@@ -134,6 +137,22 @@ public final class TokenService {
     /** DemoERP 只读页面的深链接令牌：只能打开页面，按该用户的数据权限展示 */
     public String issuePage(String sub, String tid) {
         return sign(Map.of("kind", "page", "sub", sub, "tid", tid), Audience.PAGES, PAGE_TTL);
+    }
+
+    /**
+     * 服务令牌：平台以某个 Agent 的身份、代表某个用户调用外部 Agent。sub 是最终用户，act 是发起调用的平台 Agent，
+     * target 是被调用的远程 Agent 资产。外部 Agent 按平台的 JWKS 验签。
+     */
+    public String issueService(String user, String tenant, String actorAgent, String target) {
+        return sign(
+                Map.of(
+                        "kind", "service",
+                        "sub", user,
+                        "tid", tenant,
+                        "act", Map.of("sub", actorAgent),
+                        "target", target),
+                Audience.A2A,
+                SERVICE_TTL);
     }
 
     public String issueDelegated(Map<String, Object> claims) {

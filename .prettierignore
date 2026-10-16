@@ -9,3 +9,4 @@ docs/brief
 packages/spec/json-schema
 backend/**/target
 schemas
+**/.venv

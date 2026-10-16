@@ -19,6 +19,12 @@ final class StudioDraftComposer {
 
     private StudioDraftComposer() {}
 
+    /** 远程 Agent 资产登记在 tenant.&lt;租户&gt;.remote 命名空间（接入外部 Agent 页面发布时使用的约定） */
+    static boolean isRemote(String ref) {
+        int slash = ref.indexOf('/');
+        return slash > 0 && ref.substring(0, slash).endsWith(".remote");
+    }
+
     static String namespaceFor(String tenantId) {
         return "tenant." + tenantId + ".agents";
     }
@@ -122,8 +128,9 @@ final class StudioDraftComposer {
             case "collaborators" -> {
                 List<Map<String, Object>> entries = new ArrayList<>();
                 for (String ref : StudioDefaults.strings(value.get("agents"))) {
-                    // 远程 Agent 在 P7 接入后才有资产，连接别名形式的候选不写进草稿
-                    if (!ref.startsWith("connection:")) entries.add(Map.of("agent", ref));
+                    // 连接别名形式的候选是还没有登记远程 Agent 资产的外部 Agent，不写进草稿
+                    if (ref.startsWith("connection:")) continue;
+                    entries.add(Map.of(isRemote(ref) ? "remoteAgent" : "agent", ref));
                 }
                 replaceTools(spec, List.of("agent", "remoteAgent"), entries);
             }

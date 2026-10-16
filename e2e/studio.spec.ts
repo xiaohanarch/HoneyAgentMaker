@@ -31,7 +31,7 @@ test('故事 A：从一句话新建价格谈判助手，测试、评测、发布
     const recommendation = studio.getByTestId('ai-recommendation')
     await expect(recommendation).toBeVisible(WAIT)
     await expect(recommendation).toContainText('模型推荐', WAIT)
-    if (i === 3) await expect(recommendation).toContainText('P7 接入后可调用')
+    if (i === 3) await expect(recommendation).toContainText('供应商风险舆情 Agent')
     await studio.getByRole('button', { name: '一键采纳' }).click()
     await studio.waitForTimeout(500)
     if (i === 9) {

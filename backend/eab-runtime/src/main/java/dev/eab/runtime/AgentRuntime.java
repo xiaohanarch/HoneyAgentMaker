@@ -253,7 +253,7 @@ public final class AgentRuntime {
     }
 
     /** 最终回复分段推送，前端可以逐段显示 */
-    static void streamText(RunEvents.Sink sink, String agent, String text) {
+    public static void streamText(RunEvents.Sink sink, String agent, String text) {
         if (text == null || text.isEmpty()) return;
         int chunk = 24;
         for (int i = 0; i < text.length(); i += chunk) {

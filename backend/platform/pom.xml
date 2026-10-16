@@ -42,6 +42,11 @@
     </dependency>
     <dependency>
       <groupId>dev.eab</groupId>
+      <artifactId>eab-a2a</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>dev.eab</groupId>
       <artifactId>eab-eval</artifactId>
       <version>${project.version}</version>
     </dependency>

@@ -4,6 +4,8 @@ import { Filter, Route, Waypoints } from 'lucide-react'
 import { cn } from '@eab/ui'
 import { getJson } from './api'
 import type { Routing, RoutingLevel } from './turn'
+import { ExchangeLog } from '../studio/external/ExchangeLog'
+import type { Exchange } from '../studio/external/api'
 
 function Panel({
   icon: Icon,
@@ -54,6 +56,11 @@ function LevelView({ level }: { level: RoutingLevel }): ReactNode {
           >
             <span className="flex items-center gap-2">
               <span className="min-w-0 flex-1 truncate font-medium">{c.name}</span>
+              {c.kind === 'remote' && (
+                <span className="rounded bg-external-soft px-1 text-[10px] text-external">
+                  外部 Agent · {c.action ?? 'agent-request'}
+                </span>
+              )}
               <span className="font-mono text-ink-faint">{c.score.toFixed(2)}</span>
             </span>
             {c.matched !== '' && <span className="block text-ink-faint">匹配：{c.matched}</span>}
@@ -74,7 +81,9 @@ function LevelView({ level }: { level: RoutingLevel }): ReactNode {
             ? '模型决策'
             : level.decision.decidedBy === 'user'
               ? '用户选择'
-              : '按召回分数'}
+              : level.decision.decidedBy === 'session'
+                ? '续接上一轮'
+                : '按召回分数'}
           ）：
           {level.decision.reason}
         </p>
@@ -112,6 +121,18 @@ interface Span {
   startTime: string
   endTime: string | null
   statusMessage: string | null
+  attributes?: Record<string, unknown>
+}
+
+/** A2A span 记录的请求与响应原文（JSON 字符串），解析失败时不展示 */
+function a2aExchanges(span: Span): Exchange[] {
+  const raw = span.attributes?.['eab.a2a.exchanges']
+  if (typeof raw !== 'string') return []
+  try {
+    return JSON.parse(raw) as Exchange[]
+  } catch {
+    return []
+  }
 }
 
 const KIND_STYLES: Record<string, string> = {
@@ -186,7 +207,7 @@ export function TracePanel({
           {flatten(data.spans).map(({ span, depth }) => (
             <li
               key={span.spanId}
-              className="flex items-center gap-1.5"
+              className="flex flex-wrap items-center gap-1.5"
               style={{ paddingLeft: `${Math.min(depth, 6) * 10}px` }}
               title={span.statusMessage ?? undefined}
             >
@@ -208,6 +229,14 @@ export function TracePanel({
               <span className="shrink-0 font-mono text-[10px] text-ink-faint">
                 {durationOf(span)}
               </span>
+              {a2aExchanges(span).length > 0 && (
+                <details className="basis-full" data-testid="a2a-raw">
+                  <summary className="cursor-pointer text-[10px] text-external">
+                    A2A 请求与响应原文
+                  </summary>
+                  <ExchangeLog title="A2A 原文" exchanges={a2aExchanges(span)} />
+                </details>
+              )}
             </li>
           ))}
         </ol>

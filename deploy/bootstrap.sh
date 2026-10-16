@@ -38,6 +38,15 @@ as_eab "pnpm config set registry $MIRROR >/dev/null"
 as_eab "mkdir -p ~/.m2 && [ -f ~/.m2/settings.xml ] || printf '%s' '<settings><mirrors><mirror><id>aliyun</id><mirrorOf>central</mirrorOf><url>https://maven.aliyun.com/repository/public</url></mirror></mirrors></settings>' > ~/.m2/settings.xml"
 as_eab "grep -q MVNW_REPOURL ~/.profile || echo 'export MVNW_REPOURL=https://maven.aliyun.com/repository/public' >> ~/.profile"
 
+# 外部 Agent 样例（P7）：供应商风险舆情 Agent 用 Python 3.12 + uv，pnpm demo 启动时自动 uv sync；
+# uv 装在 eab 用户的 ~/.local/bin；Python 依赖按 uv.lock 安装
+if ! as_eab "command -v uv >/dev/null || [ -x ~/.local/bin/uv ]"; then
+  log "安装 uv（pip install --user，清华镜像）"
+  apt-get install -y -qq python3-pip >/dev/null
+  as_eab "python3 -m pip install --user --break-system-packages -q -i https://pypi.tuna.tsinghua.edu.cn/simple uv"
+fi
+log "uv $(as_eab '~/.local/bin/uv --version' || echo 未安装)"
+
 log "拉取代码"
 if [ ! -d /home/eab/app/.git ]; then
   as_eab "git clone https://github.com/xiaohanarch/HoneyAgentMaker.git /home/eab/app"

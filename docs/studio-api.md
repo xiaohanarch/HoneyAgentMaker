@@ -185,3 +185,11 @@ interface SkillView { ref: string; version: string; name: string; layer: string;
 - `POST /studio/drafts/{id}/skill-test` body `{input, asUser?}`（默认 zhangmin）→ `{status: 'ok'|'failed'|'confirmation', output, error, pending, steps, runId, traceId}`。以测试用户的身份直接执行技能，不经过模型；`steps` 是每一步的 `{id, name, type, status, input, output, error, durationMs}`，输入输出截断到 2000 字。
 - `POST /studio/drafts/{id}/skill-publish` → `{ref, version, unchanged}`：写入注册中心并签名发布，内容变化时升补丁版本。
 
+## 接入外部 Agent（P7）
+
+外部 Agent 经 A2A 协议接入，设计见 ADR 0012。资产里只写连接别名，地址在连接中心按环境绑定；只能访问本机回环地址或已登记的连接地址。
+
+- `POST /studio/external/inspect` body `{cardUrl}` → 拉取并解读 Agent Card（名称、技能、能力、认证方式），给出接入配置的建议
+- `POST /studio/external/test` body `{cardUrl, message}` → 连通性测试：发一条消息，返回回复，以及 A2A 请求与响应的原文（令牌显示为 `Bearer ***`）
+- `POST /studio/external/publish` body `{cardUrl, displayName, …}` → 把接入配置发布为 `tenant.<租户>.remote` 下的 RemoteAgent 资产，发布后进入能力目录
+- `GET /studio/external` → 本租户已接入的外部 Agent，以及平台对外暴露的 A2A Agent（岗位助手和 Agent 需要声明 `{type: agent}` 触发器才对外暴露）

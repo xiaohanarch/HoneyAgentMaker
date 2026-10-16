@@ -35,14 +35,14 @@ scripts:
           reason: 降价谈判属于寻源到付款（S2P）流程里的谈判环节
 
   - id: studio-collaborators-negotiation
-    description: 故事 A 第 4 步：协作 Agent，复用标品的供应商绩效分析，外部风险舆情 Agent 在 P7 接入
+    description: 故事 A 第 4 步：协作 Agent，复用标品的供应商绩效分析，加上经 A2A 接入的外部风险舆情 Agent
     agent: platform/studio
     match: { all: ['步骤：协作 Agent', 降价谈判] }
     steps:
       - reply: 已推荐协作 Agent
         output:
-          agents: [vendor.pur/supplier-performance-analyst, 'connection:SUPPLIER_RISK_AGENT']
-          reason: 谈判前要看供应商的交付表现（复用标品的供应商绩效分析 Agent），外部的供应商风险舆情 Agent 补充舆情风险（P7 接入后可调用）
+          agents: [vendor.pur/supplier-performance-analyst, tenant.t001.remote/supplier-risk]
+          reason: 谈判前要看供应商的交付表现（复用标品的供应商绩效分析 Agent），外部的供应商风险舆情 Agent 经 A2A 补充舆情风险
 
   - id: studio-knowledge-negotiation
     description: 故事 A 第 5 步：语义包与知识源
@@ -115,7 +115,7 @@ scripts:
           reason: 制定策略需要综合多方数据做判断，选 reasoning 档
 
   - id: negotiation-strategy
-    description: 故事 A 测试：查询价、核对逾期订单、请供应商绩效分析 Agent 评估，PUR-R-007 触发后先提示交付问题
+    description: 故事 A 测试：查询价、核对逾期订单、请供应商绩效分析 Agent 评估、经 A2A 请外部风险舆情 Agent 补充，PUR-R-007 触发后先提示交付问题
     agent: tenant.t001.agents/price-negotiation-assistant
     match:
       any: [谈判, 议价]
@@ -132,6 +132,9 @@ scripts:
       - thought: 请供应商绩效分析 Agent 评估 {{vars.supplier}} 的交付表现
         calls:
           - { tool: supplier-performance-analyst, args: { message: '{{vars.supplier}}最近表现怎么样' } }
+      - thought: 经 A2A 请外部的供应商风险舆情 Agent 补充 {{vars.supplier}} 的舆情风险
+        calls:
+          - { tool: supplier-risk, args: { message: '{{vars.supplier}}最近有没有什么风险' } }
       - reply: |
           {{#tools.purchase_order_list.platformConstraints}}先说结论：按规则 {{rule}}，{{remedy}}。{{/tools.purchase_order_list.platformConstraints}}{{vars.supplier}}目前有 {{tools.purchase_order_list.total}} 张未交付的逾期订单，最长的 {{tools.purchase_order_list.items.0.id}} 已逾期 {{tools.purchase_order_list.items.0.overdueDays}} 天。
 
@@ -140,7 +143,9 @@ scripts:
           2. 价格依据：最近一次询价 {{tools.rfq_lookup.rfqs.0.id}}（{{tools.rfq_lookup.rfqs.0.issuedAt}}），最低报价 {{tools.rfq_lookup.rfqs.0.lowestPrice}} {{tools.rfq_lookup.rfqs.0.currency}}，与目标价差异 {{tools.rfq_lookup.rfqs.0.priceVariance}}%，届时以它作为目标价的基础。
           3. 交付表现：供应商绩效分析 Agent 的结论是需要重点关注交付风险，谈判时把交付改进写进条款。
 
-          外部风险舆情在 P7 接入供应商风险舆情 Agent 后补充。依据的时间范围：截至 {{today}}；数据范围：{{tools.purchase_order_list.scopeLabel}}。
+          {{#tools.supplier_risk.text}}4. 外部风险舆情（供应商风险舆情 Agent，经 A2A）：{{tools.supplier_risk.text}}{{/tools.supplier_risk.text}}{{#tools.supplier_risk.error}}4. 外部风险舆情：{{tools.supplier_risk.error.reason}}{{/tools.supplier_risk.error}}
+
+          依据的时间范围：截至 {{today}}；数据范围：{{tools.purchase_order_list.scopeLabel}}。
         output:
           supplier: '{{vars.supplier}}'
           recommendation: resolve-delivery-first

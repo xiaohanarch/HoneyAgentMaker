@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>dev.eab</groupId>
+    <artifactId>eab-backend</artifactId>
+    <version>0.1.0</version>
+  </parent>
+
+  <artifactId>eab-a2a</artifactId>
+  <name>A2A 网关</name>
+  <description>A2A 官方 Java SDK 的薄封装：出站客户端（同步、流式、多轮、推送回调）与入站 JSON-RPC 服务端，不依赖 Web 框架</description>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.a2aproject.sdk</groupId>
+      <artifactId>a2a-java-sdk-client</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.a2aproject.sdk</groupId>
+      <artifactId>a2a-java-sdk-client-transport-jsonrpc</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.a2aproject.sdk</groupId>
+      <artifactId>a2a-java-sdk-server-common</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.a2aproject.sdk</groupId>
+      <artifactId>a2a-java-sdk-transport-jsonrpc</artifactId>
+    </dependency>
+    <!-- 0.3 版本客户端（旧路径 /.well-known/agent.json）的兼容层：把 0.3 的请求转成 1.0 交给同一个请求处理器 -->
+    <dependency>
+      <groupId>org.a2aproject.sdk</groupId>
+      <artifactId>a2a-java-sdk-compat-0.3-transport-jsonrpc</artifactId>
+    </dependency>
+    <!-- 代码 Agent SDK 校验平台签发的服务令牌（EdDSA，Nimbus 的 Ed25519 基于 Tink） -->
+    <dependency>
+      <groupId>com.nimbusds</groupId>
+      <artifactId>nimbus-jose-jwt</artifactId>
+      <version>${nimbus-jose-jwt.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.google.crypto.tink</groupId>
+      <artifactId>tink</artifactId>
+      <version>${tink.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>

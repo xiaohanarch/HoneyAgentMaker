@@ -1,0 +1,22 @@
+[project]
+name = "supplier-risk-py"
+version = "0.1.0"
+description = "供应商风险舆情 Agent：LangGraph 编写，经 A2A 官方 Python SDK 对外提供服务（ERP Agent Builder 的外部 Agent 样例）"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "a2a-sdk[http-server]==1.2.2",
+  "langgraph==1.2.15",
+  "uvicorn==0.37.0",
+  "pyjwt[crypto]==2.10.1",
+  "httpx==0.28.1",
+]
+
+[dependency-groups]
+dev = ["pytest==8.4.2", "pytest-asyncio==1.2.0"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.uv]
+package = false

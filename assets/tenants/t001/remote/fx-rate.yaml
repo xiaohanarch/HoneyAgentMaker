@@ -1,0 +1,17 @@
+apiVersion: eab.dev/v1
+kind: RemoteAgent
+metadata:
+  name: fx-rate
+  namespace: tenant.t001.remote
+  version: 1.0.0
+  displayName: 汇率查询 Agent
+  description: 外部的汇率查询 Agent（TypeScript 实现），经 A2A 协议接入，返回演示用的参考汇率
+  owner: zhaoadmin
+spec:
+  connection: FX_RATE_AGENT
+  agentCardPath: /.well-known/agent-card.json
+  auth: { type: platform-service-token }
+  routing:
+    description: 查询币种之间的参考汇率，例如美元兑人民币、欧元兑人民币
+    examples: [美元兑人民币的汇率是多少, 今天欧元兑人民币汇率, 1000 美元折合多少人民币]
+    direct: true
