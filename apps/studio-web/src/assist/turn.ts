@@ -13,6 +13,8 @@ export interface RoutingCandidate {
   ref: string
   name: string
   kind: string
+  /** 远程 Agent（kind 为 remote）的执行动作类型 agent-request */
+  action?: string
   score: number
   matched: string
   filtered?: string
