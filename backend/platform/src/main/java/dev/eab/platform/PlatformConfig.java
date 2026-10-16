@@ -27,7 +27,6 @@ import dev.eab.runtime.model.Scripts;
 import dev.eab.runtime.routing.ModelDecider;
 import dev.eab.runtime.routing.Router;
 import java.net.InetAddress;
-import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -193,7 +192,8 @@ public class PlatformConfig {
                 mcp.refreshTools();
                 return;
             }
-            var report = AssetSeeder.seed(registry, props.resolvedAssetsDir(), AssetSeeder.startupDirectories(props.resolvedAssetsDir()));
+            var report = AssetSeeder.seed(
+                    registry, props.resolvedAssetsDir(), AssetSeeder.startupDirectories(props.resolvedAssetsDir()));
             LOG.info("平台、标品资产与租户连接已入库：{} 个", report.published().size());
             report.failed().forEach(f -> LOG.error("资产入库失败 {}：{}", f.file(), f.message()));
             mcp.refreshTools();

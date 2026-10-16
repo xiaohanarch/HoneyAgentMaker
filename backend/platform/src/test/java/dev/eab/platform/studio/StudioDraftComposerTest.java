@@ -21,18 +21,24 @@ class StudioDraftComposerTest {
         tree = StudioDraftComposer.apply(
                 tree, "naming", Map.of("name", "price-negotiation-assistant", "displayName", "价格谈判助手"));
         tree = StudioDraftComposer.apply(
-                tree, "collaborators", Map.of("agents", List.of("vendor.pur/supplier-performance-analyst", "connection:X")));
+                tree,
+                "collaborators",
+                Map.of("agents", List.of("vendor.pur/supplier-performance-analyst", "connection:X")));
         tree = StudioDraftComposer.apply(
                 tree,
                 "tools",
                 Map.of(
                         "skills", List.of("vendor.pur.skills/rfq-lookup"),
-                        "tools", List.of(Map.of("source", "vendor.erp.tools/demo-erp-bo", "name", "purchase_order_list"))));
-        tree = StudioDraftComposer.apply(tree, "instructions", Map.of("instructions", "指令", "constraints", List.of("PUR-R-007")));
+                        "tools",
+                                List.of(Map.of(
+                                        "source", "vendor.erp.tools/demo-erp-bo", "name", "purchase_order_list"))));
+        tree = StudioDraftComposer.apply(
+                tree, "instructions", Map.of("instructions", "指令", "constraints", List.of("PUR-R-007")));
 
         String yaml = StudioDraftComposer.write(tree);
         assertThat(yaml)
-                .contains("name: price-negotiation-assistant", "价格谈判助手", "rfq-lookup", "purchase_order_list", "PUR-R-007")
+                .contains(
+                        "name: price-negotiation-assistant", "价格谈判助手", "rfq-lookup", "purchase_order_list", "PUR-R-007")
                 .contains("builtin: calculator")
                 .doesNotContain("connection:X");
         assertThat(AssetParser.parseYaml(yaml).ok()).isTrue();

@@ -97,6 +97,25 @@ class RouterTest {
     }
 
     @Test
+    @DisplayName("只靠“帮我”这类功能性词语匹配不到能力：唯一的候选也不会被选中")
+    void functionWordsDoNotMatch() {
+        var entry = new Catalog.Entry(
+                "agent",
+                "tenant.t001.agents/negotiator",
+                "1.0.0",
+                "价格谈判助手",
+                "制定降价谈判策略",
+                List.of("帮我准备和百润精密的降价谈判"),
+                List.of(),
+                true);
+        assertThat(ROUTER.route("帮我预订下周去深圳的机票", List.of(entry), e -> null).outcome())
+                .isEqualTo("gap");
+        assertThat(ROUTER.route("帮我准备和百润精密的降价谈判", List.of(entry), e -> null).outcome())
+                .isEqualTo("route");
+        assertThat(Router.Bm25Retriever.strip("请问我们怎么办")).doesNotContain("请问", "我们", "怎么");
+    }
+
+    @Test
     @DisplayName("分数接近时向用户澄清，给出两个选项")
     void clarify() {
         Router.Decider undecided = (q, c) -> new Router.Decision(c.getFirst().entry(), 0.5, "两个都可能", "score");

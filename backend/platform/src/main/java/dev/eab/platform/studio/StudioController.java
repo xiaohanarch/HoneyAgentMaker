@@ -135,7 +135,10 @@ public class StudioController {
             item.put("createdAt", summary.updatedAt());
             requests.add(item);
         }
-        return ApiResponse.success(Map.of("drafts", drafts, "agents", agents, "devRequests", requests));
+        // 开发需求只列最近 10 条，按提交时间从新到旧
+        requests.sort((x, y) -> String.valueOf(y.get("createdAt")).compareTo(String.valueOf(x.get("createdAt"))));
+        List<Map<String, Object>> latest = requests.subList(0, Math.min(10, requests.size()));
+        return ApiResponse.success(Map.of("drafts", drafts, "agents", agents, "devRequests", latest));
     }
 
     @GetMapping("/studio/catalog")
