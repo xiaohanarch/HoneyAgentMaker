@@ -165,10 +165,12 @@ public final class EvalRunner {
         return new AssertionResult(a.type(), description, ok, a.path() + " = " + v);
     }
 
-    /** 不变量的变量：output（结构化结果）、text（回复）、tools（调用过的工具名） */
+    /** 不变量的变量：output 与 result（结构化结果，两个名字指向同一个值）、text（回复）、tools（调用过的工具名） */
     static AssertionResult invariant(Assertion a, CaseRun run, String description) {
         Map<String, Object> vars = new LinkedHashMap<>();
         vars.put("output", run.output() == null ? Map.of() : run.output());
+        // 评测集里也常写 result（与钩子条件的写法一致），指向同一个结构化结果
+        vars.put("result", run.output() == null ? Map.of() : run.output());
         vars.put("text", run.text() == null ? "" : run.text());
         vars.put("tools", new ArrayList<>(run.calledTools()));
         try {
