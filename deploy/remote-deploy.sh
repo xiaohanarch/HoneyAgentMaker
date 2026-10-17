@@ -67,6 +67,8 @@ fi
 restart_service
 
 if [ "$SKIP_E2E" != "--skip-e2e" ]; then
+  # e2e 的故事 A/B 会发布租户 Agent 与扩展，在遗留数据上跑会因版本已发布而误报失败，先重置演示状态
+  as_eab "pnpm -s seed:reset"
   log "端到端测试（复用正在运行的演示环境）"
   if [ ! -d /home/eab/.cache/ms-playwright ]; then
     log "安装 Chromium 及其系统依赖（首次）"
