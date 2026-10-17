@@ -74,12 +74,13 @@ test('故事 E：缺口卡片提交需求，陈工生成方案、采纳草稿、
   await expect(studio.getByTestId('plan-eval-suite')).toContainText('purchase-clerk-ext-smoke')
 
   // 重新生成要确认；确认后方案还在。等生成时间换新再继续：重新生成会覆盖六张卡并清空未保存的编辑，
-  // 旧卡还显示时就往下编辑，会被完成后的重置清掉，保存按钮就一直点不了
+  // 旧卡还显示时就往下编辑，会被完成后的重置清掉，保存按钮就一直点不了。
+  // 等的是带毫秒的 data-generated 属性，渲染文本按秒截断，同一秒内两次生成的文本不变
   studio.on('dialog', (dialog) => dialog.accept())
   const meta = studio.getByTestId('plan-meta')
-  const beforeRegenerate = await meta.textContent()
+  const beforeRegenerate = await meta.getAttribute('data-generated')
   await studio.getByRole('button', { name: '重新生成' }).click()
-  await expect(meta).not.toHaveText(beforeRegenerate ?? '', WAIT)
+  await expect(meta).not.toHaveAttribute('data-generated', beforeRegenerate ?? '', WAIT)
   await expect(meta).toContainText('模型生成', WAIT)
 
   // 陈工改一处 YAML 后保存
