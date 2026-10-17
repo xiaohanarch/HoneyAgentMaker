@@ -42,6 +42,7 @@ cd external-agents/supplier-risk-py && uv sync && uv run pytest -q   Python 外�
 
 - 后端是 Java（ADR 0006）：`backend/` 是 Maven 多模块工程（Spring Boot 4.1、Spring AI 2.0、JDK 21），包名 `dev.eab.*`。前端 `apps/studio-web` 和 `packages/ui` 仍是 TypeScript。对外 HTTP 契约（路径、响应信封、端口、令牌、环境变量名）与迁移前一致。
 - Java 命令都在 `backend/` 下用 Maven Wrapper 执行（Windows 用 `mvnw.cmd`），或经 `node scripts/mvnw.mjs <参数>` 调用；JAVA_HOME 指向 JDK 21。可执行 jar 是 `target/<模块>-exec.jar`。
+- 父 pom 的 dependencyManagement 里把 `com.squareup.okhttp3:okhttp` 显式管理成 compile，这条覆盖不能删：A2A SDK 的 parent pom 把 okhttp 管理成 test scope，经 BOM import 会连传递依赖一起压成 test，fat jar 缺类导致平台启动时报 `NoClassDefFoundError: okhttp3/Callback`。
 - Java 数据访问用 `JdbcClient` 加仓储接口，不用 JPA；测试用 JUnit 5、AssertJ 和 MockMvc，测试名用 `@DisplayName` 写中文描述。
 - 数据库迁移用 Flyway：平台在 `classpath:db/migration`，DemoERP 在 `classpath:db/erp`，两处分开，两个应用才能在同一个测试进程里启动。数据目录默认是仓库根目录下的 `data/`；迁移到 Java 之前建的库在首次打开时自动改名归档（`*.pre-flyway-<时间>`）。
 - 资产 schema 的唯一来源是 `backend/eab-spec`：`kinds/` 下是 schema 定义（校验、默认值、JSON Schema），`model/` 下是对应的记录类型，两处一起改（ADR 0007）。测试里的资产用 `dev.eab.spec.testing.Fixtures` 构造，不手写整段 YAML。
