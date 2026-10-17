@@ -3,7 +3,7 @@ kind: Agent
 metadata:
   name: purchase-order-clerk
   namespace: vendor.pur
-  version: 1.1.0
+  version: 1.2.0
   displayName: 采购订单处理 Agent
   description: 处理采购订单的日常变更，例如提交交期变更单。写入前由用户确认，变更单需他人审批
   owner: pur-team
@@ -19,8 +19,10 @@ spec:
     3. 提交后告诉用户变更单号，并说明变更单需要由提交人以外的有审批权限的同事审批后才生效。
     4. 用户已经明确了订单号和新交期时，确认订单后直接调用 purchase_order_change_delivery_date，不要在回复里先问用户是否确认：
        平台会在写入前向用户展示确认卡片，用户确认后才会真正提交，拒绝则不写入。新交期按今天的日期换算成 YYYY-MM-DD。
+    5. 用户要做的事没有对应的工具时，如实说明缺少什么能力、还需要哪些信息才能办，不要拼凑替代方案，
+       结构化输出里 capabilityGap 置为 true，missingCapability 写缺的能力；正常办结时 capabilityGap 置为 false。
   publicInstructions: |
-    确认订单后提交交期变更单，说明变更单号以及需要他人审批后才生效。
+    确认订单后提交交期变更单，说明变更单号以及需要他人审批后才生效。缺少相应工具时如实说明，并给出提交扩展需求的入口。
   constraints: [PUR-R-007]
   model: { profile: fast }
   tools:
@@ -31,6 +33,12 @@ spec:
   triggers:
     - { type: assistant }
   writePolicy: { maxLevel: L2 }
+  output:
+    schema:
+      capabilityGap: { type: bool, description: 用户要做的事是否缺少对应能力 }
+      missingCapability:
+        type: string
+        description: 缺失的能力，例如“从备选供应商查询现货并创建请购单草稿”；没有缺口时留空
   approvals:
     - tool: purchase_order_change_delivery_date
       policy: require-confirmation
@@ -40,7 +48,13 @@ spec:
       description: 审批交期变更单前由用户确认；提交人不能审批自己提交的变更单（职责分离由策略引擎和 BO API 拦截）
   routing:
     description: 修改采购订单的交期，提交交期变更单
-    examples: [把 PO-2026-0117 的交期改到下月 15 号, 帮我把这张订单的交期往后推两周, 把交期变更单 DC-2026-0001 审批通过]
+    examples: [把 PO-2026-0117 的交期改到下月 15 号, 帮我把这张订单的交期往后推两周, 把交期变更单 DC-2026-0001 审批通过, 百润精密这批货到不了，帮我从备选供应商里找有现货的下单]
   extensionPoints:
+    - type: instructions.append
+      description: 追加本企业的采购规定，例如大额请购须人工审批
+    - type: tools.add
+      description: 增加本企业开通的 BO 操作，例如备选供应商查询、请购单草稿
+    - type: skills.add
+      description: 增加本企业的技能，例如备选供应商补货
     - type: approvals.add
       description: 对交期变更增加本企业的确认条件

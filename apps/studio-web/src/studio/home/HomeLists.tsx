@@ -2,10 +2,12 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { Cable, FileClock, Inbox, Rocket } from 'lucide-react'
+import { ToneBadge } from '@eab/ui'
 import { ENVIRONMENTS } from '../api'
 import { Avatar } from '../Avatar'
 import { errorText, useStudioApi } from '../use-studio'
 import { DRAFT_KIND_LABELS, draftPath } from '../extend/use-extend'
+import { REQUEST_STATUS_VIEWS, requestPath } from '../requests/request-model'
 
 function Section({
   icon: Icon,
@@ -118,12 +120,33 @@ export function HomeLists(): ReactNode {
             <Empty>统一入口里提交的扩展需求会出现在这里。</Empty>
           ) : (
             <ul className="space-y-2">
-              {data.devRequests.map((r) => (
-                <li key={r.ref} className="text-xs">
-                  <p className="font-medium text-ink">{r.originalText}</p>
-                  <p className="text-ink-faint">{`${r.requester} · ${r.status} · ${formatTime(r.createdAt)}`}</p>
-                </li>
-              ))}
+              {data.devRequests.map((r) => {
+                const status = REQUEST_STATUS_VIEWS[r.status]
+                const to = requestPath(r.ref)
+                const summary = (
+                  <>
+                    <p className="font-medium text-ink">{r.originalText}</p>
+                    <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-ink-faint">
+                      <ToneBadge tone={status.tone}>{status.label}</ToneBadge>
+                      <span>{`${r.requester} · ${formatTime(r.createdAt)}`}</span>
+                    </p>
+                  </>
+                )
+                return (
+                  <li key={r.ref} className="text-xs">
+                    {to === null ? (
+                      <div className="px-1.5 py-1">{summary}</div>
+                    ) : (
+                      <Link
+                        to={to}
+                        className="block rounded-md px-1.5 py-1 transition-colors hover:bg-surface-sunken"
+                      >
+                        {summary}
+                      </Link>
+                    )}
+                  </li>
+                )
+              })}
             </ul>
           )}
         </Section>

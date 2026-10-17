@@ -6,6 +6,7 @@
 // optional 为 true 的服务启动失败不会拖垮整个演示环境。
 import { execFileSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
+import net from 'node:net'
 import { join } from 'node:path'
 import { concurrently } from 'concurrently'
 import { ensureJars, jarOf } from './java-cli.mjs'
@@ -70,6 +71,7 @@ function externalServices() {
       name: 'risk-py',
       color: 'yellow',
       command: risk,
+      port: 4200,
       env: { PORT: '4200', PUBLIC_URL: 'http://127.0.0.1:4200', EAB_PLATFORM_URL: PLATFORM_URL },
       healthUrl: 'http://127.0.0.1:4200/.well-known/agent-card.json',
       optional: true,
@@ -80,6 +82,7 @@ function externalServices() {
       name: 'fx-ts',
       color: 'blue',
       command: 'node scripts/optional-service.mjs pnpm --filter @eab/fx-rate-ts run start',
+      port: 4210,
       env: { PORT: '4210', PUBLIC_URL: 'http://127.0.0.1:4210', EAB_PLATFORM_URL: PLATFORM_URL },
       healthUrl: 'http://127.0.0.1:4210/.well-known/agent-card.json',
       optional: true,
@@ -88,6 +91,7 @@ function externalServices() {
       name: 'mcp',
       color: 'gray',
       command: 'node scripts/optional-service.mjs pnpm --filter @eab/logistics-mcp run start',
+      port: 4400,
       env: { PORT: '4400' },
       healthUrl: 'http://127.0.0.1:4400/health',
       optional: true,
@@ -98,13 +102,14 @@ function externalServices() {
 
 /**
  * 端口通过各服务专用的环境变量显式下发，避免继承开发者 shell 里的通用 PORT。
- * @type {Array<{name: string, color: string, command: string, env: Record<string, string>, healthUrl: string, url?: string, optional?: boolean}>}
+ * @type {Array<{name: string, color: string, command: string, env: Record<string, string>, port: number, healthUrl: string, url?: string, optional?: boolean}>}
  */
 const SERVICES = [
   {
     name: 'platform',
     color: 'magenta',
     command: javaCommand('platform'),
+    port: 4000,
     env: {
       EAB_PLATFORM_PORT: '4000',
       EAB_INTERNAL_SECRET: INTERNAL_SECRET,
@@ -119,6 +124,7 @@ const SERVICES = [
     name: 'demo-erp',
     color: 'cyan',
     command: javaCommand('demo-erp'),
+    port: 4100,
     env: {
       EAB_DEMO_ERP_PORT: '4100',
       EAB_INTERNAL_SECRET: INTERNAL_SECRET,
@@ -130,6 +136,7 @@ const SERVICES = [
     name: 'web',
     color: 'green',
     command: 'pnpm --filter @eab/studio-web run start',
+    port: 5173,
     env: {
       EAB_PLATFORM_URL: PLATFORM_URL,
       EAB_DEMO_ERP_URL: DEMO_ERP_URL,
@@ -148,6 +155,49 @@ async function isHealthy(url) {
     return false
   }
 }
+
+/** 探测端口是否已有进程在监听（能建立 TCP 连接即视为占用） */
+function isPortListening(port, host) {
+  return new Promise((resolve) => {
+    const socket = net.connect({ port, host })
+    socket.once('connect', () => {
+      socket.destroy()
+      resolve(true)
+    })
+    socket.once('error', () => resolve(false))
+  })
+}
+
+/**
+ * 启动前检查各服务端口没有被占用。旧环境残留时健康检查会被旧进程应答，把没绑定成功的新服务
+ * 错当成就绪（Windows 上结束任务经常杀不掉全部子进程），所以必须在拉起服务之前失败。
+ */
+async function assertPortsFree() {
+  const occupied = []
+  for (const service of SERVICES) {
+    if (
+      (await isPortListening(service.port, '127.0.0.1')) ||
+      (await isPortListening(service.port, '::1'))
+    ) {
+      occupied.push(`${service.name}(${service.port})`)
+    }
+  }
+  if (occupied.length > 0) {
+    console.error(
+      [
+        '',
+        `[demo] 端口已被占用：${occupied.join('、')}，可能是上一次演示环境没有停干净。`,
+        '  Windows 上结束任务经常杀不掉全部子进程，请用任务管理器（或 Get-NetTCPConnection）找到并结束占用端口的进程后重试。',
+        '',
+      ].join('\n'),
+    )
+    process.exit(1)
+  }
+}
+
+await assertPortsFree()
+
+ensureJars(['platform', 'demo-erp'])
 
 /** 轮询直到健康、超时，或者进程组已经退出（stopped() 返回 true）。 */
 async function waitForHealthy(service, stopped) {

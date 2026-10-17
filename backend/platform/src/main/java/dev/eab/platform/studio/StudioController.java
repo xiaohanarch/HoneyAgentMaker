@@ -50,14 +50,20 @@ public class StudioController {
     private final PlatformServices services;
     private final StudioService studio;
     private final StudioReleases releases;
+    private final RequestService requests;
     private final boolean demoMode;
     private final RateLimiter limiter;
 
     public StudioController(
-            PlatformServices services, StudioService studio, StudioReleases releases, DemoMode demoMode) {
+            PlatformServices services,
+            StudioService studio,
+            StudioReleases releases,
+            RequestService requests,
+            DemoMode demoMode) {
         this.services = services;
         this.studio = studio;
         this.releases = releases;
+        this.requests = requests;
         this.demoMode = demoMode.enabled();
         this.limiter = new RateLimiter(60, 60_000, services.clock());
     }
@@ -121,7 +127,7 @@ public class StudioController {
             item.put("environments", envs);
             agents.add(item);
         }
-        List<Map<String, Object>> requests = new ArrayList<>();
+        List<Map<String, Object>> devRequests = new ArrayList<>();
         for (var summary :
                 services.registry().list(viewer, new AssetFilter("DevRequest", null, null, user.tenantId(), null))) {
             var view = services.registry().view(viewer, summary.namespace(), summary.name(), summary.version());
@@ -129,15 +135,18 @@ public class StudioController {
             var spec = view.value().asset().path("spec");
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("ref", summary.namespace() + "/" + summary.name());
+            item.put(
+                    "displayName",
+                    view.value().asset().path("metadata").path("displayName").asString(summary.name()));
             item.put("originalText", spec.path("originalText").asString(""));
             item.put("requester", spec.path("requester").asString(""));
             item.put("status", spec.path("status").asString(""));
             item.put("createdAt", summary.updatedAt());
-            requests.add(item);
+            devRequests.add(item);
         }
         // 开发需求只列最近 10 条，按提交时间从新到旧
-        requests.sort((x, y) -> String.valueOf(y.get("createdAt")).compareTo(String.valueOf(x.get("createdAt"))));
-        List<Map<String, Object>> latest = requests.subList(0, Math.min(10, requests.size()));
+        devRequests.sort((x, y) -> String.valueOf(y.get("createdAt")).compareTo(String.valueOf(x.get("createdAt"))));
+        List<Map<String, Object>> latest = devRequests.subList(0, Math.min(10, devRequests.size()));
         return ApiResponse.success(Map.of("drafts", drafts, "agents", agents, "devRequests", latest));
     }
 
@@ -145,6 +154,79 @@ public class StudioController {
     @Operation(summary = "向导推荐用的能力清单")
     public ApiResponse<StudioCatalog> catalog(HttpServletRequest request) {
         return ApiResponse.success(studio.catalog(developer(request).tenantId()));
+    }
+
+    // ── 扩展需求：意图驱动的处理闭环（主提示词 10.3 节） ──
+
+    @GetMapping("/studio/requests/{namespace}/{name}")
+    @Operation(summary = "需求详情：原文、补充说明、自动附带的业务上下文和已生成的方案卡")
+    public ApiResponse<RequestService.RequestView> request(
+            HttpServletRequest request, @PathVariable String namespace, @PathVariable String name) {
+        DemoUser user = developer(request);
+        return ApiResponse.success(call(() -> requests.view(user.tenantId(), namespace, name)));
+    }
+
+    @PostMapping("/studio/requests/{namespace}/{name}/plan")
+    @Operation(summary = "生成六步方案卡；首次生成时需求进入处理中")
+    public ApiResponse<RequestService.RequestView> generatePlan(
+            HttpServletRequest request, @PathVariable String namespace, @PathVariable String name) {
+        DemoUser user = developer(request);
+        limiter.check("studio:" + user.id());
+        return ApiResponse.success(call(() -> requests.generate(user, namespace, name)));
+    }
+
+    public record PlanBody(Map<String, Object> plan) {}
+
+    @PutMapping("/studio/requests/{namespace}/{name}/plan")
+    @Operation(summary = "保存开发者修改后的方案卡")
+    public ApiResponse<RequestService.RequestView> savePlan(
+            HttpServletRequest request,
+            @PathVariable String namespace,
+            @PathVariable String name,
+            @RequestBody PlanBody body) {
+        DemoUser user = developer(request);
+        if (body == null || body.plan() == null) {
+            throw new ApiException(400, "BAD_REQUEST", "请求参数不合法：需要 plan");
+        }
+        return ApiResponse.success(call(() -> requests.save(user, namespace, name, body.plan())));
+    }
+
+    @PostMapping("/studio/requests/{namespace}/{name}/adopt")
+    @Operation(summary = "采纳方案：把资产草稿落成工作区草稿，幂等")
+    public ApiResponse<Map<String, Object>> adopt(
+            HttpServletRequest request, @PathVariable String namespace, @PathVariable String name) {
+        DemoUser user = developer(request);
+        return ApiResponse.success(Map.of("drafts", call(() -> requests.adopt(user, namespace, name))));
+    }
+
+    public record NoteBody(String summary, String reason) {}
+
+    @PostMapping("/studio/requests/{namespace}/{name}/deliver")
+    @Operation(summary = "标记交付并通知提出人；发布完成后调用")
+    public ApiResponse<RequestService.RequestView> deliver(
+            HttpServletRequest request,
+            @PathVariable String namespace,
+            @PathVariable String name,
+            @RequestBody(required = false) NoteBody body) {
+        DemoUser user = developer(request);
+        String summary = body == null ? null : body.summary();
+        if (summary != null && summary.length() > MAX_TEXT)
+            throw new ApiException(400, "BAD_REQUEST", "交付说明最长 " + MAX_TEXT + " 字");
+        return ApiResponse.success(call(() -> requests.deliver(user, namespace, name, summary)));
+    }
+
+    @PostMapping("/studio/requests/{namespace}/{name}/reject")
+    @Operation(summary = "拒绝需求并通知提出人")
+    public ApiResponse<RequestService.RequestView> reject(
+            HttpServletRequest request,
+            @PathVariable String namespace,
+            @PathVariable String name,
+            @RequestBody(required = false) NoteBody body) {
+        DemoUser user = developer(request);
+        String reason = body == null ? null : body.reason();
+        if (reason != null && reason.length() > MAX_TEXT)
+            throw new ApiException(400, "BAD_REQUEST", "拒绝理由最长 " + MAX_TEXT + " 字");
+        return ApiResponse.success(call(() -> requests.reject(user, namespace, name, reason)));
     }
 
     // ── 草稿与向导 ──

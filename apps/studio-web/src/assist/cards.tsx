@@ -12,6 +12,7 @@ import {
   X,
 } from 'lucide-react'
 import { WRITE_LEVELS, WriteLevelBadge, cn, type WriteLevel } from '@eab/ui'
+import type { DevRequestResult } from './api'
 import type { Option, Pending, ToolStep, TurnView } from './turn'
 
 function isWriteLevel(value: unknown): value is WriteLevel {
@@ -200,25 +201,47 @@ export function ClarifyCard({ clarify, disabled, onPick }: ClarifyCardProps): Re
   )
 }
 
-interface GapCardProps {
-  gap: NonNullable<TurnView['gap']>
-  onSubmit: () => Promise<string>
+/** 提交扩展需求后告诉提出人带给了开发者哪些口径；两者都为空时不显示 */
+export function attachedSummary(
+  semanticObjects: readonly string[],
+  rules: readonly string[],
+): string | null {
+  const parts: string[] = []
+  if (semanticObjects.length > 0) parts.push(`${semanticObjects.length} 个业务对象`)
+  if (rules.length > 0) parts.push(`${rules.length} 条规则`)
+  return parts.length === 0 ? null : `已附带给开发者：${parts.join('、')}`
 }
 
-/** 能力缺口：说明原因，提供“提交扩展需求” */
+interface GapCardProps {
+  gap: NonNullable<TurnView['gap']>
+  /** 提交需求；参数是提出人的补充说明，可以为空 */
+  onSubmit: (supplement: string) => Promise<DevRequestResult>
+}
+
+/** 能力缺口：说明原因，提出人可以补一句说明后提交扩展需求 */
 export function GapCard({ gap, onSubmit }: GapCardProps): ReactNode {
+  const [supplement, setSupplement] = useState('')
   const [state, setState] = useState<{
     status: 'idle' | 'sending' | 'sent' | 'error'
     message?: string
+    attached?: string | null
   }>({
     status: 'idle',
   })
   const submit = (): void => {
     setState({ status: 'sending' })
-    onSubmit().then(
-      (message) => setState({ status: 'sent', message }),
+    onSubmit(supplement.trim()).then(
+      (result) =>
+        setState({
+          status: 'sent',
+          message: result.message,
+          attached: attachedSummary(result.semanticObjects, result.rules),
+        }),
       (error: unknown) =>
-        setState({ status: 'error', message: error instanceof Error ? error.message : '提交失败' }),
+        setState({
+          status: 'error',
+          message: error instanceof Error ? error.message : '提交失败',
+        }),
     )
   }
   return (
@@ -226,16 +249,30 @@ export function GapCard({ gap, onSubmit }: GapCardProps): ReactNode {
       <p className="text-sm">{gap.message}</p>
       <p className="text-xs text-ink-muted">{gap.suggestion}</p>
       {state.status === 'sent' ? (
-        <p className="text-xs text-allow">{state.message}</p>
+        <div className="space-y-0.5">
+          <p className="text-xs text-allow">{state.message}</p>
+          {state.attached != null && <p className="text-[11px] text-ink-faint">{state.attached}</p>}
+        </div>
       ) : (
-        <button
-          type="button"
-          disabled={state.status === 'sending'}
-          onClick={submit}
-          className="rounded-md bg-ink px-3 py-1.5 text-xs font-medium text-surface transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
-          提交扩展需求
-        </button>
+        <div className="space-y-2">
+          <textarea
+            aria-label="补充说明"
+            value={supplement}
+            onChange={(e) => setSupplement(e.target.value)}
+            maxLength={2000}
+            rows={2}
+            placeholder="补充说明，例如：金额超过 10 万元的请购单草稿必须人工审批"
+            className="block w-full rounded-md border border-line bg-canvas px-2.5 py-1.5 text-xs leading-relaxed outline-none focus:border-line-strong"
+          />
+          <button
+            type="button"
+            disabled={state.status === 'sending'}
+            onClick={submit}
+            className="rounded-md bg-ink px-3 py-1.5 text-xs font-medium text-surface transition-opacity hover:opacity-90 disabled:opacity-50"
+          >
+            提交扩展需求
+          </button>
+        </div>
       )}
       {state.status === 'error' && <p className="text-xs text-deny">{state.message}</p>}
     </div>

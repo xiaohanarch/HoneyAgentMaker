@@ -15,6 +15,7 @@ import dev.eab.platform.registry.RegistryService;
 import dev.eab.platform.runtime.PlatformMcpServer;
 import dev.eab.platform.runtime.RuntimeService;
 import dev.eab.platform.studio.EvalRunner;
+import dev.eab.platform.studio.RequestService;
 import dev.eab.platform.studio.StudioRecommender;
 import dev.eab.platform.studio.StudioReleases;
 import dev.eab.platform.studio.StudioService;
@@ -155,6 +156,20 @@ public class PlatformConfig {
     @Bean
     public StudioReleases studioReleases(PlatformServices services, StudioService studio) {
         return new StudioReleases(services, studio, deploymentStore(services));
+    }
+
+    /** 扩展需求的处理闭环（P9）：方案生成共用 Studio 的模型网关配置 */
+    @Bean
+    public RequestService requestService(
+            PlatformServices services, StudioService studio, NotificationStore notifications, RuntimeService runtime) {
+        var gateway = runtime.settings().gateway();
+        return new RequestService(
+                services,
+                studio.drafts(),
+                new StudioStores.RequestPlanStore(services.db().jdbc(), services.clock()),
+                notifications,
+                gateway.chatModel(),
+                gateway.config().modelFor("fast"));
     }
 
     @Bean

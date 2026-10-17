@@ -1,0 +1,35 @@
+apiVersion: eab.dev/v1
+kind: AgentExtension
+metadata:
+  name: purchase-order-clerk-ext
+  namespace: tenant.t001.pur
+  version: 1.0.0
+  displayName: 采购订单处理 · 星海制造扩展
+  description: 订单交付有问题时从认证备选供应商补货；增加备选供应商补货技能，金额超过 10 万元的请购单草稿须人工确认
+  owner: chengong
+spec:
+  target: vendor.pur/purchase-order-clerk@^1.2
+  instructions:
+    append: |
+      本公司规定：金额超过 10 万元的请购单草稿，提交前必须向用户展示供应商、数量与金额并取得人工确认。
+      采购订单交付出现问题、需要从备选供应商补货时，调用 alternative-supplier-lookup 技能并传入订单号 poId：
+      技能会查询订单缺口和现货足够的认证备选供应商，有现货时按协议价创建请购单草稿（提交前会请用户确认），
+      没有现货时建议对物料发起询价流程。不要直接调用 purchase_requisition_draft_create，
+      请购数量、协议价和金额由技能按订单缺口与备选记录计算。
+  tools:
+    add:
+      - api:
+          source: vendor.erp.tools/demo-erp-bo
+          tools: [purchase_requisition_draft_create]
+  skills:
+    add: [tenant.t001.skills/alternative-supplier-lookup]
+  constraints:
+    append: [PUR-R-008]
+  approvals:
+    add:
+      - tool: purchase_requisition_draft_create
+        policy: require-confirmation
+        when: 'input.amount > 100000'
+        description: 金额超过 10 万元的请购单草稿须人工确认（本公司大额请购规定）
+  evals:
+    suites: [tenant.t001.evals/purchase-clerk-ext-smoke]

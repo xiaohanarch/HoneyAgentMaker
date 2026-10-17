@@ -27,6 +27,23 @@ export class ApiError extends Error {
   }
 }
 
+/** POST /dev-requests 的响应（P9）：提交后告诉提出人哪些口径被带给了开发者 */
+export interface DevRequestResult {
+  ref: string
+  status: string
+  semanticObjects: string[]
+  rules: string[]
+  message: string
+}
+
+/** 提交扩展需求：需求原话、答复的助手 ref 与提出人的补充说明 */
+export function submitDevRequest(
+  token: string | undefined,
+  body: { text: string; assistant: string; supplement: string },
+): Promise<DevRequestResult> {
+  return postJson<DevRequestResult>('/dev-requests', token, body)
+}
+
 function headers(token: string | undefined, accept: string): HeadersInit {
   const result: Record<string, string> = { accept, 'content-type': 'application/json' }
   if (token !== undefined) result.authorization = `Bearer ${token}`

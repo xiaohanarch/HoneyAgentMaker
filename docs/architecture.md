@@ -232,7 +232,7 @@ BO 工具的入参 schema 从 DemoERP 的 OpenAPI 生成：`pnpm tools:import-bo
 
 ### 技能与工作流
 
-技能和工作流是确定性的步骤序列，不调用模型。步骤类型有 tool、skill、agent、transform、condition、parallel、confirm、notify、waitEvent，其中 agent、parallel、waitEvent 只用于工作流。with、transform、condition 的值是 CEL 表达式，confirm 和 notify 的消息用 mustache 渲染。技能调用前已经取得确认时，技能内部的确认步骤和写操作不再重复询问。waitEvent 在 P3 只做挂起，P4 接上事件触发后恢复。
+技能和工作流是确定性的步骤序列，不调用模型。步骤类型有 tool、skill、agent、transform、condition、parallel、confirm、notify、waitEvent，其中 agent、parallel、waitEvent 只用于工作流。with、transform、condition 的值是 CEL 表达式，confirm 和 notify 的消息用 mustache 渲染。技能调用前已经取得确认时，技能内部的确认步骤和写操作不再重复询问；技能调用本身也不触发 TOOL-010 的确认（策略规则 2026.10.2 起 `input.tool.type != 'skill'`），确认落在技能内部的写操作或确认步骤上，扩展按条件（例如金额超过 10 万元）追加的确认点同样在内部工具上生效。waitEvent 在 P3 只做挂起，P4 接上事件触发后恢复。
 
 ### 挂起与恢复
 
@@ -288,7 +288,7 @@ span 存在平台数据库里，种类有 run、assemble、pipeline、model、po
 | 接口 | 说明 |
 |---|---|
 | `POST /assist` | 提问，body 是 message、sessionId、target；默认 SSE，`Accept: application/json` 时同步返回。事件在运行事件之外多了 routing、navigation、clarify、gap |
-| `POST /dev-requests` | 提交扩展需求，在本租户的 `tenant.<租户>.requests` 命名空间里创建一份 DevRequest 草稿（评审与交付在 P9） |
+| `POST /dev-requests` | 提交扩展需求，可带补充说明；服务端按需求文本检索相关的业务对象与规则一并存入 DevRequest（处理闭环见“扩展需求闭环”一节） |
 | `GET /notifications`、`POST /notifications/{id}/read` | 本人的通知 |
 | `POST /demo/v1/events` | 演示模式下触发业务事件，平台带内部调用密钥转发给 DemoERP，DemoERP 再按正常的 webhook 推回平台 |
 
@@ -415,6 +415,26 @@ Studio 的“接入外部 Agent”页面（`/studio/external/new`）读取 Agent
 ### 指标
 
 `run_metrics` 保存每次运行的耗时、令牌、费用、确认次数和工具调用，从运行记录和追踪补算；`business_metrics` 保存流程指标和业务结果。治理中心按 Agent 汇总技术指标，按天画运行量、流程指标和业务结果的趋势，并按岗位助手的 KPI 定义展示当前值、上期值和目标。`pnpm data:simulate` 生成 30 天的演示历史。
+
+## 扩展需求闭环（P9）
+
+接口见 `docs/studio-api.md` 的“扩展需求与意图生成”。代码在平台的 `dev.eab.platform.studio`（`RequestService`、`RequestPlan`、`SemanticContexts`），前端在 `apps/studio-web/src/studio/requests`。
+
+### 提交与附带口径
+
+统一入口提交扩展需求时可以带一句补充说明。服务端把原话与补充说明拼成查询，在本租户可见的语义包里用 BM25 检索相关的业务对象和规则（各取前 3 条），连同答复助手一起写进 DevRequest 的 context；响应里告诉提出人哪些口径被带给了开发者。DevRequest 存在 `tenant.<租户>.requests` 命名空间里，只有本租户的开发者可以处理，状态从 submitted 到 in-progress，交付或拒绝后关闭并只读；`pnpm seed:reset` 会撤回演示中产生的需求与方案卡。
+
+### 意图驱动的方案生成
+
+开发者点“生成方案”时，`RequestService` 以 `platform/studio` 的身份经模型网关调用 fast 档位的模型，提示词里带原话、补充说明、附带的口径和候选能力（复用 Studio 的能力清单），模型输出六步产物：意图澄清（最多 3 个问题）、意图分析与 fit-gap（标品已满足、扩展标品即可、需要新建三档结论，带匹配度和依据）、需求摘要（用户、场景、指标、边界）、技术规格（复用与新建的资产清单）、资产草稿（完整 YAML，可编辑）、评测集草稿（可编辑）。解析失败或模型不可用时退回检索兜底：按 BM25 匹配候选能力，结论为需要新建、匹配度为 0，`decidedBy` 标为 retrieval。生成方式与时间由服务端记录，不取模型的自报。
+
+六张卡以 YAML 为准，开发者改完点“保存修改”，服务端重新校验结构：草稿必须能解析成对应 kind 的资产且命名空间在本租户，不合格报 PLAN_INVALID。点“采纳方案”后资产草稿逐份落成工作区草稿（技能与标品扩展），评测集草稿挂到扩展草稿上；重复采纳返回同一批草稿，草稿被删除时整体重建。发布仍走各自的发布流程（技能发布、扩展发布），完成后回到需求页标记交付或拒绝：平台升补丁版本、通知提出人（正文带交付说明或拒绝原因，请他重新提问），需求转为只读。
+
+### 故事 E
+
+张敏问“百润精密这批货到不了，帮我从备选供应商里找有现货的下单”。标品采购订单处理 Agent 查到逾期订单后如实说明自己没有查认证备选供应商和创建请购单的能力，结构化输出 capabilityGap，统一入口补发缺口卡片。张敏在卡片里补上“金额超过 10 万的必须人工审批”后提交，平台把业务对象 `erp.pur.SupplierAlternative` 和规则 PUR-R-008 一并附带给开发者。陈工在 Studio 首页看到新需求，点“生成方案”得到六张卡：fit-gap 结论是扩展标品即可（匹配度 0.9），技术规格列出复用的标品 Agent 与 BO 工具、要新建的补货技能和扩展，资产草稿是两份完整 YAML，评测集草稿覆盖大额请购确认。陈工改完边界保存，采纳成工作区草稿，发布技能与扩展后标记交付。张敏收到通知重新提问：技能查到 PO-2026-0117 的交付缺口和现货足够的认证备选 S-0009，按协议价算出金额 112000 元，超过 10 万元，提交请购单草稿前弹出确认卡片，确认后创建草稿 PR-2026-0001。
+
+断网演示由剧本保证：`demo/scripts/story-e.yaml` 覆盖扩展发布前后的两条回答路径（按 `match.tools` 区分），`studio.yaml` 的方案剧本按“任务：生成扩展方案”话术匹配。剧本里嵌的资产草稿和评测集与仓库里的租户资产是同一棵 YAML 树，`DemoScriptsTest` 逐字比对，防止两边漂移。
 
 ## 技术选型
 

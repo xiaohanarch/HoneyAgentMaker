@@ -3,7 +3,7 @@ kind: ToolSource
 metadata:
   name: demo-erp-bo
   namespace: vendor.erp.tools
-  version: 1.2.0
+  version: 1.3.0
   displayName: DemoERP 业务对象 API
   description: 面向业务对象的 BO API，按用户与 Agent 的双重身份授权并做数据权限过滤。P3 起改为从 OpenAPI 自动生成。
   owner: platform-team
@@ -93,6 +93,73 @@ spec:
                   'description': '最多返回条数',
                 },
             },
+        }
+    - name: purchase_order_get
+      description: 查询单张采购订单的订单行与交付进度，每个订单行带已交付与未交付数量
+      writeLevel: L0
+      category: query
+      operation: { method: GET, path: '/bo/v1/purchase-orders/{poId}' }
+      inputSchema:
+        {
+          'type': 'object',
+          'properties':
+            { 'poId': { 'type': 'string', 'description': '采购订单号，例如 PO-2026-0117' } },
+          'required': ['poId'],
+        }
+    - name: supplier_alternative_list
+      description: 查询物料的认证备选供应商，带协议单价、现货数量与备货周期，按采购组织过滤
+      writeLevel: L0
+      category: query
+      operation: { method: GET, path: /bo/v1/supplier-alternatives }
+      inputSchema:
+        {
+          'type': 'object',
+          'properties':
+            {
+              'materialId': { 'type': 'string', 'description': '物料编号，例如 M-0007' },
+              'materialName': { 'type': 'string', 'description': '物料名称，模糊匹配' },
+              'stockQtyGte':
+                {
+                  'type': 'number',
+                  'minimum': 0.0,
+                  'description': '只返回现货数量不小于该值的备选',
+                },
+              'limit':
+                {
+                  'type': 'integer',
+                  'minimum': 1,
+                  'maximum': 200,
+                  'default': 50,
+                  'description': '最多返回条数',
+                },
+            },
+        }
+    - name: purchase_requisition_draft_create
+      description: 从物料的备选供应商中选中一家创建请购单草稿；单价按协议价，金额必须等于数量×单价
+      writeLevel: L2
+      category: write
+      operation: { method: POST, path: /bo/v1/purchase-requisitions }
+      inputSchema:
+        {
+          'type': 'object',
+          'properties':
+            {
+              'supplierId': { 'type': 'string', 'description': '备选供应商编号，例如 S-0009' },
+              'materialId': { 'type': 'string', 'description': '物料编号，例如 M-0007' },
+              'quantity': { 'type': 'number', 'minimum': 0.01, 'description': '请购数量' },
+              'unitPrice':
+                {
+                  'type': 'number',
+                  'minimum': 0.01,
+                  'description': '协议单价，与备选供应商查询一致',
+                },
+              'amount':
+                { 'type': 'number', 'minimum': 0.01, 'description': '金额，必须等于数量×单价' },
+              'sourcePoId':
+                { 'type': 'string', 'description': '来源采购订单号，例如 PO-2026-0117' },
+              'note': { 'type': 'string', 'description': '备注' },
+            },
+          'required': ['supplierId', 'materialId', 'quantity', 'unitPrice', 'amount'],
         }
     - name: purchase_order_change_delivery_date
       description: 修改采购订单的计划交期，生成一张交期变更单，需用户确认后写入

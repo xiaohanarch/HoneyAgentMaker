@@ -167,7 +167,7 @@ class RuntimeEndToEndTest {
 
         JsonNode suspended = run("sunkg", "vendor.scm/inventory-risk-analyst", "为 M-0007 创建补货跟进任务");
         assertThat(suspended.path("status").asString()).isEqualTo("suspended");
-        assertThat(suspended.path("pending").path("title").asString()).contains("create-followup-task");
+        assertThat(suspended.path("pending").path("title").asString()).contains("M-0007", "跟进任务");
         String runId = suspended.path("runId").asString();
         // 别人不能替他确认
         assertThat(call("POST", "/runs/" + runId + "/confirmation", login("zhangmin"), Map.of("approved", true))
@@ -244,6 +244,41 @@ class RuntimeEndToEndTest {
                         .path("code")
                         .asString())
                 .isEqualTo("FORBIDDEN");
+    }
+
+    @Test
+    @DisplayName("运行列表：开发者看本租户全部并可按 Agent 过滤，普通用户只看自己的，厂商被拒绝")
+    void listRuns() throws Exception {
+        run("zhangmin", "vendor.pur/supplier-performance-analyst", "百润精密最近表现怎么样");
+        JsonNode all = call(
+                        "GET", "/runs?agent=vendor.pur/supplier-performance-analyst&limit=5", login("chengong"), null)
+                .path("data");
+        assertThat(all.size()).isGreaterThanOrEqualTo(1);
+        assertThat(all.get(0).path("agent").asString()).isEqualTo("vendor.pur/supplier-performance-analyst");
+        assertThat(all.get(0).path("runId").asString()).isNotEmpty();
+        assertThat(all.get(0).has("journal")).isFalse();
+
+        // 普通用户只看自己的运行：王芳没有发起过这个 Agent 的运行
+        JsonNode own = call("GET", "/runs?agent=vendor.pur/supplier-performance-analyst", login("wangfang"), null)
+                .path("data");
+        assertThat(own.size()).isZero();
+
+        // 不带过滤时开发者能看到其他用户的运行
+        JsonNode tenant =
+                call("GET", "/runs?limit=100", login("chengong"), null).path("data");
+        assertThat(tenant.size()).isGreaterThanOrEqualTo(1);
+        assertThat(tenant.toString()).contains("zhangmin");
+
+        assertThat(call("GET", "/runs", login("vendordev"), null)
+                        .path("error")
+                        .path("code")
+                        .asString())
+                .isEqualTo("FORBIDDEN");
+        assertThat(call("GET", "/runs?agent=bad%20ref", login("zhangmin"), null)
+                        .path("error")
+                        .path("code")
+                        .asString())
+                .isEqualTo("BAD_REQUEST");
     }
 
     io.modelcontextprotocol.client.McpSyncClient mcpClient(String token) {

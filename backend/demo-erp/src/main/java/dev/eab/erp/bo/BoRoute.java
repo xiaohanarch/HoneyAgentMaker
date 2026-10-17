@@ -42,6 +42,11 @@ public record BoRoute(
             return value == null ? null : ((Number) value).longValue();
         }
 
+        public Double queryNumber(String name) {
+            Object value = query.get(name);
+            return value == null ? null : ((Number) value).doubleValue();
+        }
+
         public Boolean queryBool(String name) {
             return (Boolean) query.get(name);
         }
@@ -52,6 +57,11 @@ public record BoRoute(
 
         public String body(String name) {
             return (String) body.get(name);
+        }
+
+        public Double bodyNumber(String name) {
+            Object value = body.get(name);
+            return value == null ? null : ((Number) value).doubleValue();
         }
     }
 

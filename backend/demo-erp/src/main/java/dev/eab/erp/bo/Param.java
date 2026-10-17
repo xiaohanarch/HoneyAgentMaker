@@ -16,8 +16,8 @@ public record Param(
         List<String> enumValues,
         String pattern,
         String patternMessage,
-        Integer min,
-        Integer max,
+        Number min,
+        Number max,
         Object defaultValue,
         String description) {
 
@@ -31,6 +31,11 @@ public record Param(
 
     public static Param integer(String name, Integer min, Integer max) {
         return new Param(name, "integer", false, null, null, null, min, max, null, null);
+    }
+
+    /** 数值参数；min、max 表示取值范围 */
+    public static Param number(String name, Double min, Double max) {
+        return new Param(name, "number", false, null, null, null, min, max, null, null);
     }
 
     /** 只接受 true/false 字符串 */
@@ -96,8 +101,20 @@ public record Param(
                     return null;
                 }
                 long value = (long) number;
-                if (min != null && value < min) problems.add(new Problem(name, name + " 不能小于 " + min));
-                if (max != null && value > max) problems.add(new Problem(name, name + " 不能大于 " + max));
+                if (min != null && value < min.doubleValue()) problems.add(new Problem(name, name + " 不能小于 " + min));
+                if (max != null && value > max.doubleValue()) problems.add(new Problem(name, name + " 不能大于 " + max));
+                return value;
+            }
+            case "number" -> {
+                double value;
+                try {
+                    value = raw instanceof Number n ? n.doubleValue() : Double.parseDouble(text);
+                } catch (NumberFormatException e) {
+                    problems.add(new Problem(name, name + " 必须是数值"));
+                    return null;
+                }
+                if (min != null && value < min.doubleValue()) problems.add(new Problem(name, name + " 不能小于 " + min));
+                if (max != null && value > max.doubleValue()) problems.add(new Problem(name, name + " 不能大于 " + max));
                 return value;
             }
             case "boolean" -> {
@@ -115,7 +132,7 @@ public record Param(
                 if (enumValues != null && !enumValues.contains(text)) {
                     problems.add(new Problem(name, name + " 只能是 " + String.join("、", enumValues)));
                 }
-                if (min != null && text.length() < min) problems.add(new Problem(name, name + " 不能为空"));
+                if (min != null && text.length() < min.intValue()) problems.add(new Problem(name, name + " 不能为空"));
                 if (pattern != null && !Pattern.compile(pattern).matcher(text).find()) {
                     problems.add(new Problem(name, patternMessage == null ? name + " 格式不对" : patternMessage));
                 }
@@ -130,7 +147,7 @@ public record Param(
         schema.put("type", type);
         if (enumValues != null) schema.put("enum", enumValues);
         if (pattern != null) schema.put("pattern", pattern);
-        if (type.equals("integer")) {
+        if (type.equals("integer") || type.equals("number")) {
             if (min != null) schema.put("minimum", min);
             if (max != null) schema.put("maximum", max);
         } else if (min != null) {

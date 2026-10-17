@@ -49,7 +49,7 @@ docker compose up --build      # 独立安装的旧版 Compose 用 docker-compos
 | `pnpm data:simulate` | 生成 30 天演示历史，治理中心用它展示运行指标与业务结果的趋势 |
 | `pnpm eval:smoke` | 在进程内逐个运行评测集，冒烟集 3 分钟内跑完；可加 `--tier full` |
 | `pnpm agent:run <Agent> --user <用户> "<话术>"` | 在命令行里跑一次 Agent，打印流式结果和追踪树，断网可用 |
-| `node scripts/acceptance-p4.mjs` … `acceptance-p8.mjs` | 对运行中的演示环境做统一入口、Studio、扩展与工具中心、A2A 互通、治理与评测的阶段验收（只用 HTTP） |
+| `node scripts/acceptance-p4.mjs` … `acceptance-p9.mjs` | 对运行中的演示环境做统一入口、Studio、扩展与工具中心、A2A 互通、治理与评测、扩展需求闭环的阶段验收（只用 HTTP） |
 | `pnpm --filter @eab/client-demo run start` | 模拟外部平台经 A2A 调用平台的采购助手 |
 | `pnpm assets:validate` | 校验 `assets/` 下全部资产 |
 | `pnpm format` | Prettier 与 Spotless 格式化 |

@@ -328,7 +328,6 @@ final class TestRuntime {
                                                         List.of("purchase_order_list", "supplier_get"))),
                                         Map.of("builtin", "calculator")),
                         "writePolicy", Map.of("maxLevel", "L2"),
-                        "approvals", List.of(Map.of("tool", "create-followup-task", "policy", "require-confirmation")),
                         "output", Map.of("schema", Map.of("supplier", Map.of("type", "string"))),
                         "routing", Map.of("description", "分析供应商", "examples", List.of("百润精密最近表现怎么样"))));
     }

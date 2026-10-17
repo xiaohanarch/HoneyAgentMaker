@@ -237,6 +237,40 @@ public final class RuntimeStores {
                     .optional()
                     .flatMap(this::get);
         }
+
+        /** 某个租户最近的运行（CLI 的 logs 用），可按 Agent 过滤；journal 与 result 不取，保持轻量 */
+        public List<RunRecord> list(String tenantId, String agent, int limit) {
+            StringBuilder sql = new StringBuilder(
+                    "SELECT id, trace_id, session_id, tenant_id, user_id, agent, mode, delegation_id, utterance,"
+                            + " status, created_at, updated_at FROM runs WHERE tenant_id = ?");
+            List<Object> params = new ArrayList<>();
+            params.add(tenantId);
+            if (agent != null && !agent.isBlank()) {
+                sql.append(" AND (agent = ? OR agent LIKE ?)");
+                params.add(agent);
+                params.add(agent + "@%");
+            }
+            sql.append(" ORDER BY created_at DESC, id DESC LIMIT ?");
+            params.add(limit);
+            return jdbc.sql(sql.toString())
+                    .params(params)
+                    .query((rs, i) -> new RunRecord(
+                            rs.getString("id"),
+                            rs.getString("trace_id"),
+                            rs.getString("session_id"),
+                            rs.getString("tenant_id"),
+                            rs.getString("user_id"),
+                            rs.getString("agent"),
+                            rs.getString("mode"),
+                            rs.getString("delegation_id"),
+                            rs.getString("utterance"),
+                            rs.getString("status"),
+                            null,
+                            null,
+                            rs.getString("created_at"),
+                            rs.getString("updated_at")))
+                    .list();
+        }
     }
 
     /** 会话记忆与长期记忆（主提示词 8.5 节） */

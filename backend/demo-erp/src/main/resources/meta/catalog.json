@@ -217,6 +217,80 @@
       ]
     },
     {
+      "ref": "erp.pur.SupplierAlternative",
+      "label": "备选供应商",
+      "domain": "pur",
+      "version": 1,
+      "permissionDimension": "采购组织",
+      "fields": [
+        {
+          "name": "materialId",
+          "type": "string",
+          "label": "物料"
+        },
+        {
+          "name": "supplierId",
+          "type": "string",
+          "label": "供应商"
+        },
+        {
+          "name": "unitPrice",
+          "type": "number",
+          "label": "协议单价"
+        },
+        {
+          "name": "stockQty",
+          "type": "number",
+          "label": "现货数量"
+        },
+        {
+          "name": "leadTimeDays",
+          "type": "number",
+          "label": "备货周期天数"
+        }
+      ]
+    },
+    {
+      "ref": "erp.pur.PurchaseRequisition",
+      "label": "请购单",
+      "domain": "pur",
+      "version": 1,
+      "permissionDimension": "采购组织",
+      "fields": [
+        {
+          "name": "id",
+          "type": "string",
+          "label": "请购单号"
+        },
+        {
+          "name": "materialId",
+          "type": "string",
+          "label": "物料"
+        },
+        {
+          "name": "supplierId",
+          "type": "string",
+          "label": "供应商"
+        },
+        {
+          "name": "quantity",
+          "type": "number",
+          "label": "数量"
+        },
+        {
+          "name": "amount",
+          "type": "number",
+          "label": "金额"
+        },
+        {
+          "name": "status",
+          "type": "enum",
+          "label": "状态",
+          "enum": ["draft", "approved", "rejected"]
+        }
+      ]
+    },
+    {
       "ref": "erp.scm.Material",
       "label": "物料",
       "domain": "scm",
@@ -510,6 +584,11 @@
       "ref": "erp.pur.rules.negotiation_eligibility",
       "label": "降价谈判前置条件",
       "description": "交付逾期超过 90 天的供应商不建议发起降价谈判"
+    },
+    {
+      "ref": "erp.pur.rules.requisition_amount_confirm",
+      "label": "大额请购须人工确认",
+      "description": "金额超过 10 万元的请购单草稿提交前须人工确认"
     }
   ]
 }

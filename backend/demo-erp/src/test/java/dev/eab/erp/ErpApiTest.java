@@ -359,6 +359,129 @@ class ErpApiTest {
     }
 
     @Nested
+    @DisplayName("备选供应商与请购单草稿（故事 E）")
+    class StoryE {
+
+        static final List<String> E_OPS =
+                List.of("purchase_order_get", "supplier_alternative_list", "purchase_requisition_draft_create");
+
+        @Test
+        @DisplayName("张敏看到 M-0007 的华东备选，看不到华南备选；按现货过滤后只剩现货充足的一家")
+        void alternativesScopedByOrg() throws Exception {
+            JsonNode body =
+                    json(get("/bo/v1/supplier-alternatives?materialId=M-0007", delegatedToken("zhangmin", E_OPS)));
+            assertThat(body.path("filtered").asBoolean()).isTrue();
+            assertThat(body.path("scopeLabel").asString()).isEqualTo("采购组织：华东");
+            assertThat(texts(body.path("items"), "supplierId")).containsExactlyInAnyOrder("S-0009", "S-0014");
+            JsonNode best = body.path("items").get(0);
+            assertThat(best.path("id").asString()).isEqualTo("ALT-STORY-1");
+            assertThat(best.path("unitPrice").asDouble()).isEqualTo(56.0);
+            assertThat(best.path("stockQty").asInt()).isEqualTo(2600);
+            assertThat(best.path("supplierName").asString()).isNotEmpty();
+            assertThat(best.path("materialName").asString()).isEqualTo("精密级连接器");
+            assertThat(best.path("purchasingOrgName").asString()).isEqualTo("华东");
+
+            // 现货不足 2000 件的被过滤掉
+            JsonNode inStock = json(get(
+                    "/bo/v1/supplier-alternatives?materialId=M-0007&stockQtyGte=2000",
+                    delegatedToken("zhangmin", E_OPS)));
+            assertThat(texts(inStock.path("items"), "id")).containsExactly("ALT-STORY-1");
+
+            // 李强的数据权限是华南，只能看到华南那家备选
+            JsonNode li = json(get("/bo/v1/supplier-alternatives?materialId=M-0007", delegatedToken("liqiang", E_OPS)));
+            assertThat(texts(li.path("items"), "supplierId")).containsExactly("S-0033");
+        }
+
+        @Test
+        @DisplayName("订单详情带订单行与未交付数量")
+        void purchaseOrderDetail() throws Exception {
+            JsonNode body = json(get("/bo/v1/purchase-orders/PO-2026-0117", delegatedToken("zhangmin", E_OPS)));
+            JsonNode item = body.path("item");
+            assertThat(item.path("supplierName").asString()).isEqualTo("百润精密");
+            assertThat(item.path("overdueDays").asInt()).isEqualTo(120);
+            assertThat(item.path("lines").size()).isEqualTo(1);
+            JsonNode line = item.path("lines").get(0);
+            assertThat(line.path("materialId").asString()).isEqualTo("M-0007");
+            assertThat(line.path("materialName").asString()).isEqualTo("精密级连接器");
+            assertThat(line.path("quantity").asInt()).isEqualTo(2000);
+            assertThat(line.path("deliveredQuantity").asInt()).isEqualTo(0);
+            assertThat(line.path("remainingQuantity").asInt()).isEqualTo(2000);
+        }
+
+        @Test
+        @DisplayName("从备选供应商创建请购单草稿，金额 11.2 万；协议价、金额、非备选供应商都会被拒绝")
+        void createDraftRequisition() throws Exception {
+            String token = delegatedToken("zhangmin", E_OPS);
+            String body =
+                    "{\"supplierId\":\"S-0009\",\"materialId\":\"M-0007\",\"quantity\":2000,\"unitPrice\":56.0,\"amount\":112000,\"sourcePoId\":\"PO-2026-0117\",\"note\":\"原供应商逾期 120 天\"}";
+            var created = postJson("/bo/v1/purchase-requisitions", token, body, "pr-1");
+            assertThat(created.getStatus()).isEqualTo(201);
+            JsonNode item = json(created).path("item");
+            assertThat(item.path("id").asString()).isEqualTo("PR-2026-0001");
+            assertThat(item.path("status").asString()).isEqualTo("draft");
+            assertThat(item.path("purchasingOrg").asString()).isEqualTo("P-EAST");
+            assertThat(item.path("amount").asDouble()).isEqualTo(112000);
+            assertThat(item.path("requestedBy").asString()).isEqualTo("zhangmin");
+
+            // 幂等键重放返回同一张草稿
+            var replay = postJson("/bo/v1/purchase-requisitions", token, body, "pr-1");
+            assertThat(replay.getHeader("idempotent-replayed")).isEqualTo("true");
+            assertThat(json(replay).path("item").path("id").asString()).isEqualTo("PR-2026-0001");
+
+            // 单价不是备选供应商的协议价
+            var price = postJson(
+                    "/bo/v1/purchase-requisitions",
+                    token,
+                    "{\"supplierId\":\"S-0009\",\"materialId\":\"M-0007\",\"quantity\":2000,\"unitPrice\":50.0,\"amount\":100000}",
+                    null);
+            assertThat(price.getStatus()).isEqualTo(422);
+            assertThat(json(price).path("error").path("code").asString()).isEqualTo("PRICE_MISMATCH");
+
+            // 金额与数量×单价不一致
+            var amount = postJson(
+                    "/bo/v1/purchase-requisitions",
+                    token,
+                    "{\"supplierId\":\"S-0009\",\"materialId\":\"M-0007\",\"quantity\":2000,\"unitPrice\":56.0,\"amount\":90000}",
+                    null);
+            assertThat(json(amount).path("error").path("code").asString()).isEqualTo("INVALID_AMOUNT");
+
+            // 不是该物料的认证备选供应商
+            var notAlt = postJson(
+                    "/bo/v1/purchase-requisitions",
+                    token,
+                    "{\"supplierId\":\"S-0001\",\"materialId\":\"M-0007\",\"quantity\":2000,\"unitPrice\":56.0,\"amount\":112000}",
+                    null);
+            assertThat(json(notAlt).path("error").path("code").asString()).isEqualTo("NOT_ALTERNATIVE");
+
+            // 采购员角色没有请购单草稿的业务权限，即使委托里声明了操作也拒绝
+            var li = postJson(
+                    "/bo/v1/purchase-requisitions",
+                    delegatedToken("liqiang", E_OPS),
+                    "{\"supplierId\":\"S-0009\",\"materialId\":\"M-0007\",\"quantity\":2000,\"unitPrice\":56.0,\"amount\":112000}",
+                    null);
+            assertThat(li.getStatus()).isEqualTo(403);
+            assertThat(json(li).path("error").path("code").asString()).isEqualTo("BUSINESS_PERMISSION_DENIED");
+
+            // 华南供应商不在张敏的数据权限内，返回 404
+            var outOfScope = postJson(
+                    "/bo/v1/purchase-requisitions",
+                    token,
+                    "{\"supplierId\":\"S-0033\",\"materialId\":\"M-0007\",\"quantity\":2000,\"unitPrice\":51.0,\"amount\":102000}",
+                    null);
+            assertThat(outOfScope.getStatus()).isEqualTo(404);
+
+            // 委托里没有声明请购单草稿操作
+            var purchaser = postJson(
+                    "/bo/v1/purchase-requisitions",
+                    delegatedToken(new Delegation("zhangmin", List.of("supplier_alternative_list"))
+                            .agent("vendor.pur/supplier-performance-analyst")),
+                    body,
+                    null);
+            assertThat(purchaser.getStatus()).isEqualTo(403);
+        }
+    }
+
+    @Nested
     @DisplayName("财务与库存")
     class FinanceAndInventory {
 
@@ -510,7 +633,7 @@ class ErpApiTest {
                                     "/meta/v1/rules")))
                             .path("items")
                             .size())
-                    .isEqualTo(3);
+                    .isEqualTo(4);
             assertThat(json(send(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(
                                     "/meta/v1/objects")))
                             .path("items")

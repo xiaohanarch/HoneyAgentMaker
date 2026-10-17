@@ -1,0 +1,24 @@
+apiVersion: eab.dev/v1
+kind: EvalSuite
+metadata:
+  name: purchase-clerk-ext-smoke
+  namespace: tenant.t001.evals
+  version: 1.0.0
+  displayName: 采购订单处理扩展 · 冒烟集
+  owner: chengong
+spec:
+  target: tenant.t001.pur/purchase-order-clerk-ext
+  visibility: internal
+  tier: smoke
+  minPassRate: 1
+  cases:
+    - id: alternative-requisition
+      user: zhangmin
+      question: 百润精密这批货到不了，帮我从备选供应商里找有现货的下单
+      assertions:
+        - { type: calledTool, tool: alternative-supplier-lookup, description: 走备选供应商补货技能 }
+        - {
+            type: contains,
+            text: 请购单草稿,
+            description: 回复说明请购单草稿的处理结果；评测里确认点被拒绝时说明原因,
+          }

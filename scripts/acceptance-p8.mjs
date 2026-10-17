@@ -113,10 +113,21 @@ check(
 )
 
 const delegations = (await call('GET', '/identity/v1/delegations', 'zhaoadmin')).body?.data ?? []
-// 接口不输出值为 null 的字段，未撤销的委托没有 revokedAt
-const active = delegations.find((d) => d.revokedAt == null)
-const revoked = await call('DELETE', `/identity/v1/delegations/${active?.id}`, 'zhaoadmin')
-check('管理员撤销库存 Agent 的委托', revoked.status === 200, active?.id ?? '没有有效委托')
+// 接口不输出值为 null 的字段，未撤销的委托没有 revokedAt。
+// e2e 和 acceptance-p4 也会给库存 Agent 建委托，要全部撤销，事件触发器才没有可用身份
+const active = delegations.filter(
+  (d) => d.revokedAt == null && d.agent === 'vendor.scm/inventory-risk-analyst',
+)
+let revokedAll = active.length > 0
+for (const delegation of active) {
+  const result = await call('DELETE', `/identity/v1/delegations/${delegation.id}`, 'zhaoadmin')
+  revokedAll &&= result.status === 200
+}
+check(
+  '管理员撤销库存 Agent 的委托',
+  revokedAll,
+  active.map((d) => d.id).join('、') || '没有有效委托',
+)
 await call('POST', '/demo/v1/events', 'zhaoadmin', { type: 'inventory.below_safety_stock' })
 let deniedTrigger
 for (let i = 0; i < 30 && deniedTrigger === undefined; i++) {
@@ -247,7 +258,11 @@ if (hasExtension) {
   const skipped = await call('POST', `/hub/solutions/packages/${pkg?.id}/deploy`, 'zhaoadmin', {
     environment: 'prod',
   })
-  check('跳过 test 直接部署 prod 被门禁拒绝', skipped.body?.error?.code === 'GATE_BLOCKED')
+  check(
+    '跳过 test 直接部署 prod 被门禁拒绝',
+    skipped.body?.error?.code === 'GATE_BLOCKED',
+    skipped.body?.error?.code ?? `HTTP ${skipped.status}`,
+  )
   let deployed = true
   for (const environment of ['dev', 'test', 'prod']) {
     const r = await call('POST', `/hub/solutions/packages/${pkg?.id}/deploy`, 'zhaoadmin', {

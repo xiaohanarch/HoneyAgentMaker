@@ -37,6 +37,12 @@ public final class SeedGenerator {
         public static final int PO_OVERDUE_DAYS = 120;
         public static final String MATERIAL_ID = "M-0007";
         public static final String LATEST_RFQ_ID = "RFQ-2026-0058";
+
+        /** 故事物料 M-0007 的备选供应商：华东 S-0009 现货充足但单价高（2000 件需 112,000 元），华南 S-0033 华东用户看不到 */
+        public static final String ALTERNATIVE_SUPPLIER_ID = "S-0009";
+
+        public static final double ALTERNATIVE_UNIT_PRICE = 56.0;
+        public static final int ALTERNATIVE_STOCK_QTY = 2600;
     }
 
     /** 表名与生成顺序；值是驼峰字段名的行 */
@@ -55,7 +61,8 @@ public final class SeedGenerator {
             "paymentPlans",
             "transactionAnomalies",
             "accountingPeriods",
-            "closeCheckItems");
+            "closeCheckItems",
+            "supplierAlternatives");
 
     private record Org(String id, int suppliers, List<String> cities, String company) {}
 
@@ -576,6 +583,66 @@ public final class SeedGenerator {
             }
         }
 
+        // ── 备选供应商 ─────────────────────────────────────────────────────
+        // 追加在最后：随机数的取用顺序不影响前面的表，黄金样本只新增这一张表。
+        // 每个物料有 0 到 2 个认证备选供应商；故事物料 M-0007 固定三家：
+        // 华东 S-0009 现货充足但单价高（56.0 元，2000 件需 112,000 元，超过 10 万元的确认阈值）、
+        // 华东 S-0014 便宜但现货只有 600 件、华南 S-0033 现货充足但华东用户看不到（数据权限过滤）
+        record StoryAlt(String id, String supplierId, double unitPrice, int stockQty, int leadTimeDays) {}
+        List<Map<String, Object>> supplierAlternatives = new ArrayList<>();
+        for (Map<String, Object> material : materials) {
+            if (profile.story() && Story.MATERIAL_ID.equals(material.get("id"))) continue;
+            Set<String> usedSuppliers = new HashSet<>();
+            int count = rnd.nextInt(0, 3);
+            for (int k = 0; k < count; k++) {
+                Map<String, Object> supplier = rnd.pick(suppliers);
+                if (!usedSuppliers.add((String) supplier.get("id"))) continue;
+                supplierAlternatives.add(row(
+                        t,
+                        "id",
+                        "ALT-" + pad(supplierAlternatives.size() + 1, 4),
+                        "materialId",
+                        material.get("id"),
+                        "supplierId",
+                        supplier.get("id"),
+                        "purchasingOrg",
+                        supplier.get("purchasingOrg"),
+                        "unitPrice",
+                        rnd.amount(5, 800),
+                        "stockQty",
+                        rnd.nextInt(0, 120) * 10,
+                        "leadTimeDays",
+                        rnd.nextInt(2, 30)));
+            }
+        }
+        if (profile.story()) {
+            for (StoryAlt alt : List.of(
+                    new StoryAlt("ALT-STORY-1", "S-0009", Story.ALTERNATIVE_UNIT_PRICE, Story.ALTERNATIVE_STOCK_QTY, 3),
+                    new StoryAlt("ALT-STORY-2", "S-0014", 47.2, 600, 7),
+                    new StoryAlt("ALT-STORY-3", "S-0033", 51.0, 4000, 10))) {
+                Map<String, Object> supplier = suppliers.stream()
+                        .filter(s -> alt.supplierId().equals(s.get("id")))
+                        .findFirst()
+                        .orElseThrow();
+                supplierAlternatives.add(row(
+                        t,
+                        "id",
+                        alt.id(),
+                        "materialId",
+                        Story.MATERIAL_ID,
+                        "supplierId",
+                        alt.supplierId(),
+                        "purchasingOrg",
+                        supplier.get("purchasingOrg"),
+                        "unitPrice",
+                        alt.unitPrice(),
+                        "stockQty",
+                        alt.stockQty(),
+                        "leadTimeDays",
+                        alt.leadTimeDays()));
+            }
+        }
+
         Map<String, List<Map<String, Object>>> data = new LinkedHashMap<>();
         data.put("suppliers", suppliers);
         data.put("rfqs", rfqs);
@@ -592,6 +659,7 @@ public final class SeedGenerator {
         data.put("transactionAnomalies", transactionAnomalies);
         data.put("accountingPeriods", accountingPeriods);
         data.put("closeCheckItems", closeCheckItems);
+        data.put("supplierAlternatives", supplierAlternatives);
         return data;
     }
 }

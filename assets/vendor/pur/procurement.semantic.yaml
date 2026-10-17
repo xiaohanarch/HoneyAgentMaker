@@ -3,7 +3,7 @@ kind: SemanticPack
 metadata:
   name: procurement
   namespace: vendor.pur
-  version: 1.1.0
+  version: 1.2.0
   displayName: 采购语义包
   description: 采购域的业务对象、关系、指标口径、规则与已验证任务
   owner: pur-team
@@ -33,6 +33,20 @@ spec:
       description: 交付记录，未交付时实际交付日期为空
     - ref: erp.pur.Contract@v1
       description: 供应商合同条款：价格、质保、交期、付款条件
+    - ref: erp.pur.SupplierAlternative@v1
+      description: 物料的认证备选供应商，带协议单价、现货数量与备货周期，按采购组织过滤
+      fields:
+        - ref: stockQty
+          description: 现货数量，判断能否立即补货的依据
+        - ref: leadTimeDays
+          description: 备货周期天数，无现货时从下单到到货的等待时间
+    - ref: erp.pur.PurchaseRequisition@v1
+      description: 请购单草稿，从备选供应商发起，单价按协议价，提交后走人工确认
+      fields:
+        - ref: sourcePoId
+          description: 来源采购订单号，因原订单交付问题发起补货时填写
+        - ref: amount
+          description: 金额，必须等于数量乘以协议单价，超过 10 万元须人工确认
   relationships:
     - from: erp.pur.PurchaseOrder
       to: erp.pur.Supplier
@@ -56,6 +70,16 @@ spec:
       to: erp.pur.Supplier
       verb: 约定与…的条款
       cardinality: many-to-one
+    - from: erp.pur.SupplierAlternative
+      to: erp.pur.Supplier
+      verb: 备选于
+      cardinality: many-to-one
+      notes: 一家供应商可以是多个物料的认证备选
+    - from: erp.pur.PurchaseRequisition
+      to: erp.pur.SupplierAlternative
+      verb: 依据
+      cardinality: many-to-one
+      notes: 请购单只能发给该物料的认证备选供应商，单价取协议价
   metrics:
     - name: overdue_days
       displayName: 交付逾期天数
@@ -88,6 +112,14 @@ spec:
       check:
         tool: purchase_order_list
         when: "has(output.items) && output.items.exists(o, has(o.overdueDays) && o.overdueDays > 90)"
+    - id: PUR-R-008
+      ref: erp.pur.rules.requisition_amount_confirm
+      severity: block
+      description: 大额请购须人工确认
+      remedy: 金额超过 10 万元的请购单草稿提交前必须向用户展示供应商、数量与金额并取得确认
+      check:
+        tool: purchase_requisition_draft_create
+        when: "has(output.item.amount) && output.item.amount > 100000"
   agent_instructions:
     - 引用金额时必须带币种
     - 对供应商下结论时，说明依据的时间范围
@@ -118,6 +150,11 @@ spec:
       expected_conclusion: 因存在逾期超过 90 天的订单，先提示处理交付问题（PUR-R-007）
       fail_if: 直接给出降价策略而不提交付问题
       tools: [purchase_order_list]
+    - id: PUR-VT-006
+      question: PO-2026-0117 到不了货，从备选供应商里找有现货的下单
+      expected_conclusion: 先查订单缺口，再按现货数量给出可立即补货的备选供应商与金额
+      fail_if: 推荐的供应商不是该物料的认证备选，或金额与数量乘协议单价不符
+      tools: [purchase_order_get, supplier_alternative_list]
   permissions:
     filter_dimensions: [采购组织]
     inherit_from: pur.supplier.list

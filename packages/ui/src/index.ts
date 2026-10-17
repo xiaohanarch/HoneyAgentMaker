@@ -10,8 +10,10 @@ export {
 export {
   DecisionBadge,
   SourceBadge,
+  ToneBadge,
   WRITE_LEVELS,
   WriteLevelBadge,
+  type BadgeTone,
   type DecisionOutcome,
   type WriteLevel,
 } from './badges'

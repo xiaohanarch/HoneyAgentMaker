@@ -183,6 +183,15 @@ public final class StudioRecommender {
                 + "不要选择 writeLevel 高于 L0 的协作 Agent、技能和工具。只输出一个 JSON 对象，格式：" + schema(step) + "\n候选："
                 + Json.MAPPER.writeValueAsString(candidates);
         String user = "步骤：" + STEPS.get(step) + "\n意图：" + intent + "\n已选：" + Json.MAPPER.writeValueAsString(draft);
+        return callModel(model, modelName, userId, system, user, "向导推荐调用模型失败，退回检索推荐");
+    }
+
+    /**
+     * Studio 各处共用的模型调用：脚本化模型按剧本输出结构化结果，真实模型输出 JSON；
+     * 任何失败都返回 null，由调用方退回检索兜底。
+     */
+    static Map<String, Object> callModel(
+            ChatModel model, String modelName, String userId, String system, String user, String warn) {
         try {
             ChatResponse response = ChatClient.create(model)
                     .prompt(new Prompt(List.of(new SystemMessage(system), new UserMessage(user))))
@@ -207,7 +216,7 @@ public final class StudioRecommender {
             }
             return parse(output.getText());
         } catch (RuntimeException e) {
-            LOG.warn("向导推荐调用模型失败，退回检索推荐：{}", e.getMessage());
+            LOG.warn("{}：{}", warn, e.getMessage());
             return null;
         }
     }

@@ -1,6 +1,8 @@
-# Studio 的演示剧本（故事 A）：向导各步的 AI 推荐（agent 为 platform/studio），以及新建出来的价格谈判助手。
+# Studio 的演示剧本（故事 A 与故事 E）：向导各步的 AI 推荐、新建出来的价格谈判助手，以及扩展需求的方案生成。
 # 推荐剧本的话术是平台拼出来的“步骤：<步骤名>\n意图：<意图>\n已选：<JSON>”，按步骤名和意图里的关键词匹配；
 # 输出写在 output 里，平台只接受候选里存在的引用，不合格时退回检索推荐。剧本没有覆盖的意图同样退回检索推荐。
+# 方案剧本（story-e-request-plan）的话术是“任务：生成扩展方案\n需求：<原话>…”，草稿 YAML 与仓库里的租户资产一致，
+# DemoScriptsTest 逐字比对，防止两边漂移。
 scripts:
   - id: studio-purpose-negotiation
     description: 故事 A 第 1 步：把意图改写成完整的目的
@@ -149,3 +151,177 @@ scripts:
         output:
           supplier: '{{vars.supplier}}'
           recommendation: resolve-delivery-first
+
+  - id: story-e-request-plan
+    description: 故事 E：陈工点“生成方案”，产出六步方案卡（意图澄清、fit-gap、需求摘要、技术规格、资产草稿、评测集草稿）
+    agent: platform/studio
+    match: { all: ['任务：生成扩展方案', 备选供应商] }
+    steps:
+      - reply: 已生成方案
+        output:
+          decidedBy: model
+          generatedAt: '服务端记录'
+          clarifications: []
+          fitGap:
+            verdict: extend
+            score: 0.9
+            matched:
+              - ref: vendor.pur/purchase-order-clerk
+                reason: 采购订单处理 Agent 已覆盖订单查询与交付问题答复，但没有从备选供应商补货的能力，扩展即可
+              - ref: vendor.erp.tools/demo-erp-bo
+                reason: 订单查询、备选供应商查询、请购单草稿创建的 BO 操作都已存在，技能可以直接复用
+            reason: 需求是“从备选供应商里找有现货的下单”，标品采购订单处理 Agent 能查订单、答交付问题，缺的是查备选与按协议价补货的技能和大额请购确认，扩展标品即可满足，不需要新建 Agent
+          summary:
+            user: 星海制造的采购订单处理用户（张敏）
+            scenario: 供应商交付出现缺口时，从认证备选供应商里找现货足够的按协议价创建请购单草稿补货，没有现货时建议对物料发起询价
+            metrics: [补货请购单草稿创建成功率, 交付缺口响应时长, 大额请购确认合规率]
+            boundaries: 只对认证备选供应商操作；金额超过 10 万元的请购单草稿必须人工确认（PUR-R-008）；请购数量、协议价与金额由技能按订单缺口与备选记录计算
+          assets:
+            - { action: reuse, kind: Agent, ref: 'vendor.pur/purchase-order-clerk', note: 扩展目标，已覆盖订单查询与交付问题答复 }
+            - { action: reuse, kind: Tool, ref: 'vendor.erp.tools/demo-erp-bo', note: 复用 purchase_order_get、supplier_alternative_list、purchase_requisition_draft_create 三个 BO 操作 }
+            - { action: create, kind: Skill, ref: 'tenant.t001.skills/alternative-supplier-lookup', note: 查订单缺口、找现货足够的认证备选、按协议价创建请购单草稿 }
+            - { action: create, kind: AgentExtension, ref: 'tenant.t001.pur/purchase-order-clerk-ext', note: 挂载补货技能，追加 PUR-R-008 约束与大额请购确认点 }
+          drafts:
+            - kind: Skill
+              yaml: |
+                apiVersion: eab.dev/v1
+                kind: Skill
+                metadata:
+                  name: alternative-supplier-lookup
+                  namespace: tenant.t001.skills
+                  version: 1.0.0
+                  displayName: 备选供应商补货
+                  description: 按采购订单的未交付缺口查询现货足够的认证备选供应商，有现货时按协议价创建请购单草稿，没有时建议走询价流程
+                  owner: chengong
+                spec:
+                  writeLevel: L2
+                  agentOnly: false
+                  inputSchema:
+                    type: object
+                    required: [poId]
+                    properties:
+                      poId: { type: string, description: 采购订单号，例如 PO-2026-0117 }
+                  outputSchema:
+                    type: object
+                    properties:
+                      requisitionCreated: { type: boolean, description: 是否创建了请购单草稿 }
+                      requisitionId: { type: string, description: 请购单草稿号 }
+                      amount: { type: number, description: 请购金额 }
+                      suggestion: { type: string, description: 没有创建草稿时的建议 }
+                  steps:
+                    - id: order
+                      type: tool
+                      name: 查询订单与缺口
+                      tool: purchase_order_get
+                      source: vendor.erp.tools/demo-erp-bo
+                      with: { poId: input.poId }
+                      output: order
+                    - id: has-gap
+                      type: condition
+                      name: 有没有未交付的缺口
+                      if: "order.item.lines.exists(l, l.remainingQuantity > 0)"
+                      then:
+                        - id: shortage
+                          type: transform
+                          name: 取第一个未交付完的订单行
+                          expression: "order.item.lines.filter(l, l.remainingQuantity > 0)[0]"
+                        - id: alternatives
+                          type: tool
+                          name: 查询现货足够的认证备选
+                          tool: supplier_alternative_list
+                          source: vendor.erp.tools/demo-erp-bo
+                          with: { materialId: shortage.materialId, stockQtyGte: shortage.quantity }
+                          output: candidates
+                        - id: has-stock
+                          type: condition
+                          name: 有没有现货足够的备选
+                          if: "candidates.items.size() > 0"
+                          then:
+                            - id: draft
+                              type: tool
+                              name: 按协议价创建请购单草稿，金额超过 10 万元须人工确认
+                              tool: purchase_requisition_draft_create
+                              source: vendor.erp.tools/demo-erp-bo
+                              with:
+                                supplierId: 'candidates.items[0].supplierId'
+                                materialId: 'shortage.materialId'
+                                quantity: 'shortage.quantity'
+                                unitPrice: 'candidates.items[0].unitPrice'
+                                amount: 'shortage.quantity * candidates.items[0].unitPrice'
+                                sourcePoId: 'order.item.id'
+                                note: "'订单 ' + order.item.id + ' 交付存在缺口，按备选供应商 ' + candidates.items[0].supplierName + ' 的协议价补货'"
+                              output: draft
+                            - id: summary
+                              type: transform
+                              name: 汇总请购结果
+                              expression: "{'requisitionCreated': true, 'requisitionId': draft.item.id, 'materialId': draft.item.materialId, 'materialName': shortage.materialName, 'unit': shortage.unit, 'quantity': draft.item.quantity, 'supplierId': draft.item.supplierId, 'supplierName': candidates.items[0].supplierName, 'unitPrice': draft.item.unitPrice, 'amount': draft.item.amount, 'currency': draft.item.currency, 'status': draft.item.status, 'sourcePoId': draft.item.sourcePoId, 'originalSupplier': order.item.supplierName}"
+                          else:
+                            - id: rfq
+                              type: transform
+                              name: 没有现货足够的备选，建议询价
+                              expression: "{'requisitionCreated': false, 'materialId': shortage.materialId, 'materialName': shortage.materialName, 'quantity': shortage.quantity, 'sourcePoId': order.item.id, 'suggestion': '没有现货足够的认证备选供应商，建议对物料 ' + shortage.materialId + ' 发起询价流程'}"
+                      else:
+                        - id: no-gap
+                          type: transform
+                          name: 订单没有缺口
+                          expression: "{'requisitionCreated': false, 'sourcePoId': order.item.id, 'suggestion': '订单 ' + order.item.id + ' 已全部交付，没有需要补货的缺口'}"
+            - kind: AgentExtension
+              yaml: |
+                apiVersion: eab.dev/v1
+                kind: AgentExtension
+                metadata:
+                  name: purchase-order-clerk-ext
+                  namespace: tenant.t001.pur
+                  version: 1.0.0
+                  displayName: 采购订单处理 · 星海制造扩展
+                  description: 订单交付有问题时从认证备选供应商补货；增加备选供应商补货技能，金额超过 10 万元的请购单草稿须人工确认
+                  owner: chengong
+                spec:
+                  target: vendor.pur/purchase-order-clerk@^1.2
+                  instructions:
+                    append: |
+                      本公司规定：金额超过 10 万元的请购单草稿，提交前必须向用户展示供应商、数量与金额并取得人工确认。
+                      采购订单交付出现问题、需要从备选供应商补货时，调用 alternative-supplier-lookup 技能并传入订单号 poId：
+                      技能会查询订单缺口和现货足够的认证备选供应商，有现货时按协议价创建请购单草稿（提交前会请用户确认），
+                      没有现货时建议对物料发起询价流程。不要直接调用 purchase_requisition_draft_create，
+                      请购数量、协议价和金额由技能按订单缺口与备选记录计算。
+                  tools:
+                    add:
+                      - api:
+                          source: vendor.erp.tools/demo-erp-bo
+                          tools: [purchase_requisition_draft_create]
+                  skills:
+                    add: [tenant.t001.skills/alternative-supplier-lookup]
+                  constraints:
+                    append: [PUR-R-008]
+                  approvals:
+                    add:
+                      - tool: purchase_requisition_draft_create
+                        policy: require-confirmation
+                        when: "input.amount > 100000"
+                        description: 金额超过 10 万元的请购单草稿须人工确认（本公司大额请购规定）
+                  evals:
+                    suites: [tenant.t001.evals/purchase-clerk-ext-smoke]
+          evalSuite:
+            name: purchase-clerk-ext-smoke
+            yaml: |
+              apiVersion: eab.dev/v1
+              kind: EvalSuite
+              metadata:
+                name: purchase-clerk-ext-smoke
+                namespace: tenant.t001.evals
+                version: 1.0.0
+                displayName: 采购订单处理扩展 · 冒烟集
+                owner: chengong
+              spec:
+                target: tenant.t001.pur/purchase-order-clerk-ext
+                visibility: internal
+                tier: smoke
+                minPassRate: 1
+                cases:
+                  - id: alternative-requisition
+                    user: zhangmin
+                    question: 百润精密这批货到不了，帮我从备选供应商里找有现货的下单
+                    assertions:
+                      - { type: calledTool, tool: alternative-supplier-lookup, description: 走备选供应商补货技能 }
+                      - { type: contains, text: 请购单草稿, description: 回复说明请购单草稿的处理结果；评测里确认点被拒绝时说明原因 }

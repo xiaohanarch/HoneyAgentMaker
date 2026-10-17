@@ -120,6 +120,7 @@ public final class PolicyInputs {
         Map<String, Object> toolMap = new LinkedHashMap<>();
         toolMap.put("name", ctx.toolName());
         toolMap.put("declared", tool != null);
+        toolMap.put("type", tool == null || tool.type() == null ? "" : tool.type());
         toolMap.put("writeLevel", tool == null || tool.writeLevel() == null ? "" : tool.writeLevel());
         toolMap.put("category", tool == null || tool.category() == null ? "" : tool.category());
         toolMap.put("approvalPolicy", policy);

@@ -48,7 +48,7 @@ interface Recommendation {
 
 ## 首页与能力清单
 
-- `GET /studio/home` → `{ drafts: DraftView['draft'][], agents: {ref, name, version, environments: {dev?: string, test?: string, prod?: string}}[], devRequests: {ref, originalText, requester, status, createdAt}[] }`
+- `GET /studio/home` → `{ drafts: DraftView['draft'][], agents: {ref, name, version, environments: {dev?: string, test?: string, prod?: string}}[], devRequests: {ref, displayName, originalText, requester, status, createdAt}[] }`（devRequests 只列最近 10 条，从新到旧）
 - `GET /studio/catalog` → `{processes, agents, semanticPacks, knowledge, skills, tools, channels, profiles}`
 
 ## 草稿与向导
@@ -184,6 +184,46 @@ interface SkillView { ref: string; version: string; name: string; layer: string;
 - `PUT /studio/drafts/{id}/skill-steps` body `{steps}` → `DraftView`：替换步骤列表，其余字段在 YAML 编辑模式里改。
 - `POST /studio/drafts/{id}/skill-test` body `{input, asUser?}`（默认 zhangmin）→ `{status: 'ok'|'failed'|'confirmation', output, error, pending, steps, runId, traceId}`。以测试用户的身份直接执行技能，不经过模型；`steps` 是每一步的 `{id, name, type, status, input, output, error, durationMs}`，输入输出截断到 2000 字。
 - `POST /studio/drafts/{id}/skill-publish` → `{ref, version, unchanged}`：写入注册中心并签名发布，内容变化时升补丁版本。
+
+## 扩展需求与意图生成（P9）
+
+统一入口“提交扩展需求”的 `POST /dev-requests` 增加 `supplement`（提出人的补充说明，最长 2000 字，存进 `spec.supplements`）；服务端按需求文本在本租户可见的语义包里检索相关的业务对象与规则（各取前 3 条），存进 `spec.context`。响应 `{ref, status, semanticObjects, rules, message}`，提出人由此知道哪些口径被带给了开发者。
+
+需求处理的闭环在 Studio，接口都要求租户开发者或租户管理员：
+
+- `GET /studio/requests/{namespace}/{name}` → `RequestView`
+- `POST /studio/requests/{namespace}/{name}/plan` → `RequestPlan`（生成六步方案卡；首次生成时需求状态从 `submitted` 变为 `in-progress`）
+- `PUT /studio/requests/{namespace}/{name}/plan` body `{plan}` → `RequestPlan`（保存修改后的方案卡）
+- `POST /studio/requests/{namespace}/{name}/adopt` → `{drafts: {id, kind, ref, name}[]}`（把方案里的资产草稿落成 Studio 工作区草稿，评测集草稿挂到扩展草稿上；重复采纳返回同一批草稿）
+- `POST /studio/requests/{namespace}/{name}/deliver` body `{summary?}` → `{status}`（发布完成后把需求标记为 `delivered`，并向提出人发通知，请他重新提问）
+- `POST /studio/requests/{namespace}/{name}/reject` body `{reason?}` → `{status}`（拒绝需求并通知提出人）
+
+```ts
+interface RequestView {
+  ref: string; originalText: string; requester: string; requesterName: string
+  status: 'submitted' | 'in-progress' | 'delivered' | 'rejected'
+  createdAt: string; updatedAt: string
+  supplements: string[]            // 提出人的补充说明
+  context: { assistant: string | null, semanticObjects: string[], rules: string[] }
+  plan: RequestPlan | null
+}
+
+interface RequestPlan {
+  decidedBy: 'model' | 'retrieval'   // 模型生成，或模型不可用时的检索兜底
+  generatedAt: string
+  clarifications: { question: string, options: string[] }[]     // 卡1 意图澄清，最多 3 条
+  fitGap: {                                                       // 卡2 意图分析与 fit-gap
+    verdict: 'satisfied' | 'extend' | 'new'                       // 标品已满足 / 扩展标品即可 / 需要新建
+    score: number                                                 // 匹配度 0~1
+    matched: { ref: string, reason: string }[]                    // 匹配到的已有能力
+    reason: string                                                // 三档结论的依据
+  }
+  summary: { user: string, scenario: string, metrics: string[], boundaries: string }  // 卡3 需求摘要
+  assets: { action: 'reuse' | 'create', kind: string, ref: string, note: string }[]   // 卡4 技术规格
+  drafts: { kind: 'Skill' | 'AgentExtension', yaml: string }[]    // 卡5 资产草稿，YAML 里带 metadata
+  evalSuite: { name: string, yaml: string } | null                // 卡6 评测集草稿
+}
+```
 
 ## 接入外部 Agent（P7）
 

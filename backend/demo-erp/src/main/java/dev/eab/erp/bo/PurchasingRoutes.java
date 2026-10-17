@@ -60,6 +60,9 @@ public final class PurchasingRoutes {
                 supplierGet(),
                 rfqList(),
                 purchaseOrderList(),
+                purchaseOrderGet(),
+                supplierAlternativeList(),
+                requisitionDraftCreate(),
                 changeDeliveryDate(),
                 approveChange(),
                 deliveryList());
@@ -226,6 +229,207 @@ public final class PurchasingRoutes {
                             ctx.listBody(items),
                             firstNonNull(in.query("supplierName"), "采购订单"),
                             "返回 " + items.size() + " 张订单");
+                });
+    }
+
+    private BoRoute purchaseOrderGet() {
+        return BoRoute.get("purchase_order_get", "/bo/v1/purchase-orders/{poId}")
+                .summary("查询单张采购订单")
+                .description("订单头、订单行与交付进度，每个订单行带已交付数量与未交付数量，用于评估缺口。逾期口径与采购订单查询一致。")
+                .params(Param.string("poId").describe("采购订单号，例如 PO-2026-0117"))
+                .handler((ctx, in) -> {
+                    String poId = in.param("poId");
+                    var po = Queries.findPurchaseOrder(db, ctx.tenantId(), poId)
+                            .filter(p -> ctx.inScope(p.get("purchasingOrg")))
+                            .orElseThrow(() -> notFound("采购订单 " + poId));
+                    var names = Queries.supplierNames(db, ctx.tenantId());
+                    Map<String, Map<String, Object>> materials = new LinkedHashMap<>();
+                    for (var m : Rows.list(db.jdbc(), "SELECT * FROM materials WHERE tenant_id = ?", ctx.tenantId())) {
+                        materials.put(Rows.str(m, "id"), m);
+                    }
+                    var lines = Rows.list(
+                            db.jdbc(),
+                            "SELECT * FROM po_lines WHERE tenant_id = ? AND po_id = ? ORDER BY line_no",
+                            ctx.tenantId(),
+                            poId);
+                    var deliveries = Rows.list(
+                            db.jdbc(),
+                            "SELECT * FROM deliveries WHERE tenant_id = ? AND po_id = ?",
+                            ctx.tenantId(),
+                            poId);
+                    List<Map<String, Object>> lineItems = new ArrayList<>();
+                    for (var line : lines) {
+                        double deliveredQty = deliveries.stream()
+                                .filter(d -> line.get("id").equals(d.get("poLineId")))
+                                .mapToDouble(d -> Rows.num(d, "quantity"))
+                                .sum();
+                        var material = materials.get(Rows.str(line, "materialId"));
+                        Map<String, Object> lineItem = new LinkedHashMap<>(line);
+                        lineItem.put("materialName", material == null ? line.get("materialId") : material.get("name"));
+                        lineItem.put("unit", material == null ? "" : material.get("unit"));
+                        lineItem.put("deliveredQuantity", JsNumbers.normalize(Math.round(deliveredQty * 100) / 100.0));
+                        lineItem.put(
+                                "remainingQuantity",
+                                JsNumbers.normalize(
+                                        Math.round((Rows.num(line, "quantity") - deliveredQty) * 100) / 100.0));
+                        lineItems.add(lineItem);
+                    }
+                    var s = Queries.deliveryStatus(db, ctx.tenantId(), List.of(poId), clock.instant())
+                            .get(poId);
+                    Map<String, Object> item = new LinkedHashMap<>(po);
+                    item.put(
+                            "supplierName", names.getOrDefault(Rows.str(po, "supplierId"), Rows.str(po, "supplierId")));
+                    item.put("purchasingOrgName", Queries.orgName(ctx.tenantId(), Rows.str(po, "purchasingOrg")));
+                    item.put("overdueDays", s == null ? 0L : s.overdueDays());
+                    item.put("nextPlannedDate", s == null ? null : s.nextPlannedDate());
+                    item.put("lines", lineItems);
+                    Map<String, Object> body = new LinkedHashMap<>();
+                    body.put("item", item);
+                    body.put("filtered", ctx.scope().filtered());
+                    body.put("visibleScope", ctx.scope().names());
+                    return Outcome.ok(body, poId, "订单 " + poId + "，" + lineItems.size() + " 个订单行");
+                });
+    }
+
+    private BoRoute supplierAlternativeList() {
+        return BoRoute.get("supplier_alternative_list", "/bo/v1/supplier-alternatives")
+                .summary("查询物料的备选供应商")
+                .description("每个物料已认证的备选供应商，带协议单价、现货数量与备货周期，按当前用户的采购组织过滤。"
+                        + "stockQtyGte 传需要的数量时只返回现货足够的备选；结果按现货从多到少、单价从低到高排列。")
+                .query(
+                        Param.string("materialId").describe("物料编号，例如 M-0007"),
+                        Param.string("materialName").describe("物料名称，模糊匹配"),
+                        Param.number("stockQtyGte", 0.0, null).describe("只返回现货数量不小于该值的备选"),
+                        Param.limit())
+                .handler((ctx, in) -> {
+                    Map<String, Map<String, Object>> suppliers = new LinkedHashMap<>();
+                    for (var s : Rows.list(db.jdbc(), "SELECT * FROM suppliers WHERE tenant_id = ?", ctx.tenantId())) {
+                        suppliers.put(Rows.str(s, "id"), s);
+                    }
+                    Map<String, Map<String, Object>> materials = new LinkedHashMap<>();
+                    for (var m : Rows.list(db.jdbc(), "SELECT * FROM materials WHERE tenant_id = ?", ctx.tenantId())) {
+                        materials.put(Rows.str(m, "id"), m);
+                    }
+                    Double stockQtyGte = in.queryNumber("stockQtyGte");
+                    var items = scoped(db, ctx, "supplier_alternatives", "purchasing_org", null).stream()
+                            .map(a -> {
+                                var supplier = suppliers.get(Rows.str(a, "supplierId"));
+                                var material = materials.get(Rows.str(a, "materialId"));
+                                Map<String, Object> item = new LinkedHashMap<>(a);
+                                item.put("supplierName", supplier == null ? a.get("supplierId") : supplier.get("name"));
+                                item.put("supplierRating", supplier == null ? null : supplier.get("rating"));
+                                item.put("materialName", material == null ? a.get("materialId") : material.get("name"));
+                                item.put(
+                                        "purchasingOrgName",
+                                        Queries.orgName(ctx.tenantId(), Rows.str(a, "purchasingOrg")));
+                                return item;
+                            })
+                            .filter(a -> equalsIfSet(a.get("materialId"), in.query("materialId"))
+                                    && contains(a.get("materialName"), in.query("materialName")))
+                            .filter(a -> stockQtyGte == null || Rows.num(a, "stockQty") >= stockQtyGte)
+                            .sorted(Comparator.comparingDouble((Map<String, Object> a) -> Rows.num(a, "stockQty"))
+                                    .reversed()
+                                    .thenComparingDouble(a -> Rows.num(a, "unitPrice")))
+                            .limit(in.limit())
+                            .toList();
+                    return Outcome.ok(
+                            ctx.listBody(items),
+                            firstNonNull(in.query("materialId"), in.query("materialName"), "备选供应商"),
+                            "返回 " + items.size() + " 条备选供应商");
+                });
+    }
+
+    private BoRoute requisitionDraftCreate() {
+        return BoRoute.post("purchase_requisition_draft_create", "/bo/v1/purchase-requisitions")
+                .summary("创建请购单草稿")
+                .description("从物料的备选供应商中选中一家，生成一张请购单草稿（状态 draft，线下审批后才能转采购订单）。"
+                        + "供应商必须是该物料的备选供应商，单价按备选记录里的协议价，金额必须等于数量×单价。写操作级别 L2，支持 Idempotency-Key。")
+                .body(
+                        Param.string("supplierId").mandatory().describe("备选供应商编号，例如 S-0009"),
+                        Param.string("materialId").mandatory().describe("物料编号，例如 M-0007"),
+                        Param.number("quantity", 0.01, null).mandatory().describe("请购数量"),
+                        Param.number("unitPrice", 0.01, null).mandatory().describe("协议单价，与备选供应商查询一致"),
+                        Param.number("amount", 0.01, null).mandatory().describe("金额，必须等于数量×单价"),
+                        Param.string("sourcePoId").describe("来源采购订单号，例如 PO-2026-0117"),
+                        Param.string("note").describe("备注"))
+                .handler((ctx, in) -> {
+                    String supplierId = in.body("supplierId");
+                    String materialId = in.body("materialId");
+                    var supplier = Rows.one(
+                                    db.jdbc(),
+                                    "SELECT * FROM suppliers WHERE tenant_id = ? AND id = ?",
+                                    ctx.tenantId(),
+                                    supplierId)
+                            .filter(s -> ctx.inScope(s.get("purchasingOrg")))
+                            .orElseThrow(() -> notFound("供应商 " + supplierId));
+                    Rows.one(
+                                    db.jdbc(),
+                                    "SELECT * FROM materials WHERE tenant_id = ? AND id = ?",
+                                    ctx.tenantId(),
+                                    materialId)
+                            .orElseThrow(() -> notFound("物料 " + materialId));
+                    var alternative = Rows.one(
+                            db.jdbc(),
+                            "SELECT * FROM supplier_alternatives WHERE tenant_id = ? AND material_id = ? AND supplier_id = ?",
+                            ctx.tenantId(),
+                            materialId,
+                            supplierId);
+                    if (alternative.isEmpty()) {
+                        throw new BoError(
+                                422,
+                                "NOT_ALTERNATIVE",
+                                "供应商 " + supplierId + " 不是物料 " + materialId + " 的认证备选供应商",
+                                "先用备选供应商查询该物料的认证备选，从中选择");
+                    }
+                    double quantity = in.bodyNumber("quantity");
+                    double unitPrice = in.bodyNumber("unitPrice");
+                    double amount = in.bodyNumber("amount");
+                    double listPrice = Rows.num(alternative.get(), "unitPrice");
+                    if (Math.abs(unitPrice - listPrice) >= 0.01) {
+                        throw new BoError(
+                                422,
+                                "PRICE_MISMATCH",
+                                "单价 " + JsNumbers.format(unitPrice) + " 与备选供应商 " + supplierId + " 的协议价 "
+                                        + JsNumbers.format(listPrice) + " 不一致",
+                                "按备选供应商查询里返回的协议价下单");
+                    }
+                    if (Math.abs(quantity * unitPrice - amount) >= 0.01) {
+                        throw new BoError(
+                                422,
+                                "INVALID_AMOUNT",
+                                "金额 " + JsNumbers.format(amount) + " 与数量×单价 "
+                                        + JsNumbers.format(Math.round(quantity * unitPrice * 100) / 100.0) + " 不一致",
+                                "核对数量、单价与金额");
+                    }
+                    long n = db.jdbc()
+                                    .sql("SELECT COUNT(*) FROM purchase_requisitions WHERE tenant_id = ?")
+                                    .param(ctx.tenantId())
+                                    .query(Long.class)
+                                    .single()
+                            + 1;
+                    Map<String, Object> requisition = new LinkedHashMap<>();
+                    requisition.put("id", "PR-2026-" + String.format("%04d", n));
+                    requisition.put("tenantId", ctx.tenantId());
+                    requisition.put("materialId", materialId);
+                    requisition.put("supplierId", supplierId);
+                    requisition.put("purchasingOrg", supplier.get("purchasingOrg"));
+                    requisition.put("sourcePoId", in.body("sourcePoId"));
+                    requisition.put("quantity", quantity);
+                    requisition.put("unitPrice", unitPrice);
+                    requisition.put("amount", amount);
+                    requisition.put("currency", "CNY");
+                    requisition.put("status", "draft");
+                    requisition.put("note", in.body("note"));
+                    requisition.put("requestedBy", ctx.user().id());
+                    requisition.put("requestedVia", ctx.agent());
+                    requisition.put("createdAt", IsoTime.now(clock));
+                    Rows.insert(db.jdbc(), "purchase_requisitions", requisition);
+                    return new Outcome(
+                            201,
+                            Map.of("item", requisition),
+                            (String) requisition.get("id"),
+                            "创建请购单草稿 " + requisition.get("id") + "：物料 " + materialId + "，供应商 " + supplier.get("name")
+                                    + "，金额 " + JsNumbers.format(amount) + " CNY");
                 });
     }
 

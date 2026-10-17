@@ -48,6 +48,28 @@ export function WriteLevelBadge({ level, className }: WriteLevelBadgeProps): Rea
   )
 }
 
+/** 通用状态标签的色调：沿用各专用标签的颜色令牌，页面里不另写颜色。 */
+export type BadgeTone = 'neutral' | 'info' | 'pending' | 'allow' | 'deny'
+
+const TONE_STYLES: Readonly<Record<BadgeTone, string>> = {
+  neutral: 'bg-surface-sunken text-ink-muted ring-line-strong',
+  info: 'bg-info-soft text-info ring-info/25',
+  pending: 'bg-pending-soft text-pending ring-pending/30',
+  allow: 'bg-allow-soft text-allow ring-allow/25',
+  deny: 'bg-deny-soft text-deny ring-deny/25',
+}
+
+interface ToneBadgeProps {
+  tone: BadgeTone
+  className?: string
+  children: ReactNode
+}
+
+/** 带色调的通用标签：给状态、结论档位这类领域叫法用，文本由调用方给出 */
+export function ToneBadge({ tone, className, children }: ToneBadgeProps): ReactNode {
+  return <span className={cn(BASE, TONE_STYLES[tone], className)}>{children}</span>
+}
+
 /** 鉴权与守卫的裁决结果。 */
 export type DecisionOutcome = 'allow' | 'deny' | 'confirm' | 'skipped'
 
