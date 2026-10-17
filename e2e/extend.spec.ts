@@ -83,13 +83,18 @@ test('故事 B：扩展标品 Agent，评测后发布，王芳在统一入口用
   await assistant.getByLabel('输入问题').fill('本月有哪些高风险交易异常')
   await assistant.getByLabel('输入问题').press('Enter')
   const result = assistant.getByTestId('result-card')
-  // 扩展加了两个确认点：发 IM 通知前、结果钩子创建跟进任务前。确认后按钮在运行恢复期间是禁用的，只点可用的按钮
+  // 扩展加了两个确认点：发 IM 通知前、结果钩子创建跟进任务前。确认后要等卡片换成下一个确认点
+  // （data-key 变了）或结果卡出现，不能等“确认按钮清零”——那只是运行恢复期间按钮暂时禁用的短窗口
   const confirm = assistant.getByRole('button', { name: '确认执行', disabled: false })
+  const card = assistant.getByTestId('confirmation-card')
   for (let i = 0; i < 5; i++) {
     await expect(confirm.or(result).first()).toBeVisible(WAIT)
     if ((await result.count()) > 0) break
+    const key = await card.getAttribute('data-key')
     await confirm.first().click()
-    await expect(confirm).toHaveCount(0, WAIT)
+    await expect
+      .poll(async () => (await result.count()) > 0 || (await card.getAttribute('data-key')) !== key, WAIT)
+      .toBeTruthy()
   }
   await expect(result).toContainText('责任部门', WAIT)
 })

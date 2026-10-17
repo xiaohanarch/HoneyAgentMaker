@@ -98,6 +98,7 @@ export function ConfirmationCard({
   return (
     <section
       data-testid="confirmation-card"
+      data-key={pending.key}
       className="rounded-lg border border-pending/40 bg-pending-soft/40 px-3.5 py-3"
     >
       <header className="flex items-center gap-2 text-sm font-medium">

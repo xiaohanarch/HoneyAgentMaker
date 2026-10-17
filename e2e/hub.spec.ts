@@ -75,13 +75,22 @@ test('经验回流：王芳在结果卡片上点“结论有误”提交理由�
   await page.getByLabel('输入问题').fill('本月有哪些高风险交易异常')
   await page.getByRole('button', { name: '发送' }).click()
   const result = page.getByTestId('result-card')
-  // 故事 B 的扩展发布后（e2e/extend.spec.ts 先运行），回答前要确认 IM 通知和跟进任务；只点可用的确认按钮
+  // 故事 B 的扩展发布后（e2e/extend.spec.ts 先运行），回答前要确认 IM 通知和跟进任务；只点可用的确认按钮。
+  // 两个确认点先后出现在同一张卡上：确认后要等卡片换成下一个确认点（data-key 变了）或结果卡出现，
+  // 不能等“确认按钮清零”——那只是运行恢复期间按钮暂时禁用的短窗口，轮询容易错过
   const confirm = page.getByRole('button', { name: '确认执行', disabled: false })
+  const card = page.getByTestId('confirmation-card')
   for (let i = 0; i < 5; i++) {
     await expect(confirm.or(result).first()).toBeVisible(RUN_TIMEOUT)
     if ((await result.count()) > 0) break
+    const key = await card.getAttribute('data-key')
     await confirm.first().click()
-    await expect(confirm).toHaveCount(0, RUN_TIMEOUT)
+    await expect
+      .poll(
+        async () => (await result.count()) > 0 || (await card.getAttribute('data-key')) !== key,
+        RUN_TIMEOUT,
+      )
+      .toBeTruthy()
   }
   await expect(result).toBeVisible(RUN_TIMEOUT)
   await result.getByRole('button', { name: '结论有误' }).click()
