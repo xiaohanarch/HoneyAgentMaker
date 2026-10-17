@@ -1,5 +1,5 @@
 {
-  "version": "2026.10.1",
+  "version": "2026.10.2",
   "rules": [
     {
       "id": "ENTRY-001",
@@ -116,9 +116,9 @@
     {
       "id": "TOOL-010",
       "checkpoint": "tool",
-      "description": "L2 写操作落库前需要用户确认",
+      "description": "L2 写操作落库前需要用户确认；技能调用本身不确认，确认落在技能内部的写操作或确认步骤上",
       "effect": "confirm",
-      "when": "input.tool.writeLevel == 'L2'",
+      "when": "input.tool.writeLevel == 'L2' && input.tool.type != 'skill'",
       "reason": "{{tool.name}} 是需确认的写操作（L2）"
     },
     {

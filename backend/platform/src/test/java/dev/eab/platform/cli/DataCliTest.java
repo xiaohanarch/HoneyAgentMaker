@@ -21,7 +21,7 @@ class DataCliTest {
     static final Clock CLOCK = Clock.fixed(Instant.parse("2026-10-15T08:00:00Z"), ZoneOffset.UTC);
 
     @Test
-    @DisplayName("重置清空审计、事件、委托、租户设置，并重新预置演示委托")
+    @DisplayName("重置清空审计、事件、委托、租户设置、扩展需求与方案，并重新预置演示委托")
     void resetClearsRuntimeData(@TempDir Path dataDir) {
         try (PlatformDb db = PlatformDb.open(dataDir.resolve("platform.db").toString())) {
             db.jdbc()
@@ -31,11 +31,31 @@ class DataCliTest {
             var delegations = new DelegationStore(db.jdbc(), CLOCK);
             PlatformServices.ensureDemoDefaults(delegations, CLOCK);
             delegations.revoke(PlatformServices.DEMO_DELEGATION_ID, "zhaoadmin");
+            db.jdbc()
+                    .sql("INSERT INTO assets (kind, namespace, name, version, layer, tenant_id, status, content_yaml,"
+                            + " content_json, content_hash, created_by, created_at, updated_at)"
+                            + " VALUES ('DevRequest', 'tenant.t001.requests', 'req-x', '1.0.0', 'tenant', 't001',"
+                            + " 'draft', 'x', '{}', 'h', 'zhangmin', '2026-10-15T08:00:00Z', '2026-10-15T08:00:00Z')")
+                    .update();
+            db.jdbc()
+                    .sql("INSERT INTO request_plans (tenant_id, request_ref, plan, adopted, created_at, updated_at)"
+                            + " VALUES ('t001', 'tenant.t001.requests/req-x', '{}', '[]', 'x', 'x')")
+                    .update();
         }
         ResetDemo.reset(dataDir, CLOCK);
         try (PlatformDb db = PlatformDb.open(dataDir.resolve("platform.db").toString())) {
             assertThat(db.jdbc()
                             .sql("SELECT COUNT(*) FROM tenant_settings")
+                            .query(Long.class)
+                            .single())
+                    .isZero();
+            assertThat(db.jdbc()
+                            .sql("SELECT COUNT(*) FROM request_plans")
+                            .query(Long.class)
+                            .single())
+                    .isZero();
+            assertThat(db.jdbc()
+                            .sql("SELECT COUNT(*) FROM assets WHERE kind = 'DevRequest'")
                             .query(Long.class)
                             .single())
                     .isZero();

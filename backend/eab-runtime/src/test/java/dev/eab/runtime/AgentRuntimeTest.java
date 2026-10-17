@@ -219,7 +219,7 @@ class AgentRuntimeTest {
     class Confirmation {
 
         @Test
-        @DisplayName("L2 技能先挂起；序列化后恢复，确认后写入一次，技能内部不重复询问，已推送的事件不再重复")
+        @DisplayName("L2 技能在自己的确认步骤挂起；序列化后恢复，确认后写入一次，确认后的写操作不再逐个询问，已推送的事件不再重复")
         void approve() {
             var rt = new TestRuntime(SCRIPTS);
             rt.boResponder = call -> new Ports.BoResponse(201, Map.of("item", Map.of("id", "TASK-2026-0001")));
@@ -229,7 +229,7 @@ class AgentRuntimeTest {
                     .contains("confirmation_required", "suspended")
                     .doesNotContain("final");
             var pending = first.result().pending();
-            assertThat(pending.title()).contains("create-followup-task");
+            assertThat(pending.title()).contains("PO-2026-0117", "跟进任务", "催交");
             assertThat(rt.boCalls).isEmpty();
             assertThat(rt.spans(first.traceId())).anyMatch(s -> s.status() == SpanStatus.suspended);
 
@@ -258,7 +258,7 @@ class AgentRuntimeTest {
             var first = rt.run(ANALYST, "为 PO-2026-0117 建个跟进任务");
             var second = rt.resume(first, "为 PO-2026-0117 建个跟进任务", false);
             assertThat(second.result().status()).isEqualTo("completed");
-            assertThat(second.result().text()).startsWith("没有创建：用户拒绝执行 create-followup-task");
+            assertThat(second.result().text()).startsWith("没有创建：用户拒绝：为 PO-2026-0117 创建跟进任务");
             assertThat(rt.boCalls).isEmpty();
         }
 

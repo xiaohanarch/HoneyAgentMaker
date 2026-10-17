@@ -156,6 +156,44 @@ public class RunController {
                 events);
     }
 
+    @GetMapping("/runs")
+    @Operation(summary = "最近的运行列表（本人；租户开发者和租户管理员看本租户全部），可按 Agent 过滤")
+    public ApiResponse<List<Map<String, Object>>> list(
+            HttpServletRequest request,
+            @RequestParam(required = false) String agent,
+            @RequestParam(required = false, defaultValue = "20") Integer limit) {
+        Principal principal = principals.require(request);
+        if (!(principal.viewer() instanceof Viewer.Tenant tenant)) {
+            throw new ApiException(403, "FORBIDDEN", "只有租户用户可以查看运行列表");
+        }
+        if (agent != null && !agent.isBlank() && !AGENT_REF.matcher(agent).matches()) {
+            throw new ApiException(400, "BAD_REQUEST", "请求参数不合法：agent 写作 namespace/name");
+        }
+        if (limit == null || limit < 1 || limit > 100) {
+            throw new ApiException(400, "BAD_REQUEST", "请求参数不合法：limit 在 1 到 100 之间");
+        }
+        boolean listAll = principal.user().roles().stream()
+                .anyMatch(r -> r.equals("tenant-admin") || r.equals("tenant-developer"));
+        List<RunRecord> runs = runtime.runs().list(tenant.tenantId(), agent == null ? null : agent.strip(), limit);
+        List<Map<String, Object>> data = new ArrayList<>();
+        for (RunRecord run : runs) {
+            if (!listAll && !run.userId().equals(principal.user().id())) continue;
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("runId", run.id());
+            item.put("traceId", run.traceId());
+            item.put("sessionId", run.sessionId());
+            item.put("userId", run.userId());
+            item.put("agent", run.agent());
+            item.put("mode", run.mode());
+            item.put("status", run.status());
+            item.put("utterance", run.utterance());
+            item.put("createdAt", run.createdAt());
+            item.put("updatedAt", run.updatedAt());
+            data.add(item);
+        }
+        return ApiResponse.success(data);
+    }
+
     @GetMapping("/runs/{id}")
     @Operation(summary = "查看运行状态与结果")
     public ApiResponse<Map<String, Object>> get(HttpServletRequest request, @PathVariable String id) {

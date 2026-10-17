@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { DecisionBadge, SourceBadge, WriteLevelBadge } from './badges'
+import { DecisionBadge, SourceBadge, ToneBadge, WriteLevelBadge } from './badges'
 import { ASSET_SOURCES, SOURCE_STYLES, resolveAssetSource } from './sources'
 
 describe('resolveAssetSource', () => {
@@ -41,5 +41,11 @@ describe('badges', () => {
     const html = renderToStaticMarkup(<DecisionBadge outcome="deny" checkpoint="鉴权点 3" />)
     expect(html).toContain('鉴权点 3')
     expect(html).toContain('拒绝')
+  })
+
+  it('通用色调标签渲染传入的文本，色调映射到对应的颜色令牌', () => {
+    const html = renderToStaticMarkup(<ToneBadge tone="pending">待处理</ToneBadge>)
+    expect(html).toContain('待处理')
+    expect(html).toContain('bg-pending-soft')
   })
 })

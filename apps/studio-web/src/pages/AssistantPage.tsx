@@ -12,7 +12,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@eab/ui'
 import { useIdentity } from '../identity/identity-context'
-import { postJson } from '../assist/api'
+import { submitDevRequest, type DevRequestResult } from '../assist/api'
 import {
   ClarifyCard,
   ConfirmationCard,
@@ -46,7 +46,7 @@ interface TurnItemProps {
   onSelect: () => void
   onConfirm: (runId: string, approved: boolean) => void
   onAsk: (question: string, target?: string) => void
-  onDevRequest: (text: string, assistant: string) => Promise<string>
+  onDevRequest: (text: string, assistant: string, supplement: string) => Promise<DevRequestResult>
 }
 
 function TurnItem({
@@ -102,8 +102,12 @@ function TurnItem({
         {view.gap !== undefined && (
           <GapCard
             gap={view.gap}
-            onSubmit={() =>
-              onDevRequest(view.gap?.originalText ?? turn.question, view.gap?.assistant ?? '')
+            onSubmit={(supplement) =>
+              onDevRequest(
+                view.gap?.originalText ?? turn.question,
+                view.gap?.assistant ?? '',
+                supplement,
+              )
             }
           />
         )}
@@ -174,8 +178,11 @@ function AssistantWorkspace(): ReactNode {
     send(input)
     setInput('')
   }
-  const devRequest = async (text: string, assistant: string): Promise<string> =>
-    (await postJson<{ message: string }>('/dev-requests', token, { text, assistant })).message
+  const devRequest = (
+    text: string,
+    assistant: string,
+    supplement: string,
+  ): Promise<DevRequestResult> => submitDevRequest(token, { text, assistant, supplement })
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_340px] gap-5">

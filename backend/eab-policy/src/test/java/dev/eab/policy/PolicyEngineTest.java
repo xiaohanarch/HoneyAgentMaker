@@ -77,7 +77,8 @@ class PolicyEngineTest {
                         "tools",
                         List.of(
                                 Map.of("api", Map.of("source", "vendor.erp.tools/demo-erp-bo")),
-                                Map.of("skill", "vendor.fin.skills/invoice-lookup")))
+                                Map.of("skill", "vendor.fin.skills/invoice-lookup"),
+                                Map.of("skill", "vendor.fin.skills/bulk-apply")))
                 .spec(
                         "approvals",
                         List.of(Map.of(
@@ -98,7 +99,12 @@ class PolicyEngineTest {
                         List.of(ext),
                         List.of(Fixtures.platformRules()),
                         InMemoryAssetResolver.published(
-                                agent, Fixtures.semanticPack(), Fixtures.skill(), Fixtures.toolSource(), boSource),
+                                agent,
+                                Fixtures.semanticPack(),
+                                Fixtures.skill(),
+                                Fixtures.skill(with().name("bulk-apply").spec("writeLevel", "L2")),
+                                Fixtures.toolSource(),
+                                boSource),
                         null))
                 .definition();
     }
@@ -298,6 +304,12 @@ class PolicyEngineTest {
             var decision = tool("notify_im");
             assertThat(decision.outcome()).isEqualTo("confirm");
             assertThat(decision.requirements().stream().map(r -> r.ruleId())).containsExactly("TOOL-010", "TOOL-011");
+        }
+
+        @Test
+        @DisplayName("技能型工具不在调用层触发 TOOL-010：确认落在技能内部的写工具或确认步骤上")
+        void skillTypeToolSkipsCallLayerConfirmation() {
+            assertThat(tool("bulk-apply").outcome()).isEqualTo("allow");
         }
 
         @Test

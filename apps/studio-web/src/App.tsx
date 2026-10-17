@@ -13,6 +13,7 @@ import { VendorAgentsPage } from './studio/extend/VendorAgentsPage'
 import { SkillEditorPage } from './studio/skills/SkillEditorPage'
 import { ToolCenterPage } from './studio/tools/ToolCenterPage'
 import { ExternalAgentPage } from './studio/external/ExternalAgentPage'
+import { RequestDetailPage } from './studio/requests/RequestDetailPage'
 
 const router = createBrowserRouter([
   {
@@ -28,6 +29,7 @@ const router = createBrowserRouter([
       { path: 'studio/drafts/:id/:step', element: <DraftPage /> },
       { path: 'studio/vendor-agents', element: <VendorAgentsPage /> },
       { path: 'studio/extensions/:id', element: <ExtensionPage /> },
+      { path: 'studio/requests/:namespace/:name', element: <RequestDetailPage /> },
       { path: 'studio/tools', element: <ToolCenterPage /> },
       { path: 'studio/skills/:id', element: <SkillEditorPage /> },
       { path: 'studio/external/new', element: <ExternalAgentPage /> },

@@ -12,8 +12,8 @@ public final class Seeder {
     private Seeder() {}
 
     /** 运行期产生的数据，重置时一并清空 */
-    private static final List<String> RUNTIME_TABLES =
-            List.of("delivery_date_changes", "followup_tasks", "idempotency_keys", "access_log");
+    private static final List<String> RUNTIME_TABLES = List.of(
+            "delivery_date_changes", "followup_tasks", "purchase_requisitions", "idempotency_keys", "access_log");
 
     public static boolean isSeeded(ErpDb db) {
         return db.jdbc().sql("SELECT COUNT(*) FROM suppliers").query(Long.class).single() > 0;

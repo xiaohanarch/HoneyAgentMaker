@@ -13,6 +13,7 @@ import dev.eab.platform.studio.StudioStores;
 import dev.eab.policy.PolicyEngine;
 import dev.eab.policy.PolicyEngine.Decision;
 import dev.eab.policy.PolicyInputs;
+import dev.eab.runtime.AgentRuntime;
 import dev.eab.runtime.RunEvents;
 import dev.eab.runtime.RunEvents.RunEvent;
 import dev.eab.runtime.ToolGateway.ToolOutcome;
@@ -313,6 +314,7 @@ public final class AssistService {
                             null,
                             routing),
                     sink);
+            emitCapabilityGap(sink, request, assistant, target, outcome.result());
             return new AssistOutcome(
                     "run",
                     outcome.runId(),
@@ -361,6 +363,27 @@ public final class AssistService {
     }
 
     private static final Pattern PO = Pattern.compile("PO-\\d{4}-\\d{4}");
+
+    /**
+     * Agent 的结构化输出标记了能力缺口时，在运行事件里补一张“提交扩展需求”卡片：Agent 自己的回复已经说明了缺什么，
+     * 卡片把原话和岗位助手带给扩展需求的提交入口（主提示词第 15 节故事 E）。
+     */
+    private static void emitCapabilityGap(
+            RunEvents.Sink sink, AssistRequest request, Entry assistant, Entry target, AgentRuntime.RunResult result) {
+        if (result == null || result.output() == null) return;
+        if (!Boolean.TRUE.equals(result.output().get("capabilityGap"))) return;
+        String missing = String.valueOf(result.output().getOrDefault("missingCapability", ""));
+        sink.accept(event(
+                "gap",
+                "message",
+                target.displayName() + " 还没有完成这件事的能力" + (missing.isBlank() ? "" : "：" + missing),
+                "suggestion",
+                "可以提交扩展需求，由开发者评估后扩展能力。",
+                "originalText",
+                request.message(),
+                "assistant",
+                assistant == null ? "" : assistant.ref()));
+    }
 
     /** 导航型交互：找到用户问的单据或供应商，返回 DemoERP 只读页面的深链接卡片（带 10 分钟有效的页面令牌） */
     @SuppressWarnings("unchecked")

@@ -1,6 +1,7 @@
 package dev.eab.platform.studio;
 
 import dev.eab.common.IsoTime;
+import dev.eab.spec.Json;
 import java.time.Clock;
 import java.util.List;
 import java.util.Optional;
@@ -114,6 +115,57 @@ public final class StudioStores {
                             .params(id, tenantId)
                             .update()
                     > 0;
+        }
+    }
+
+    // ── 需求方案卡 ──
+
+    /**
+     * 意图驱动生成的六步方案卡（主提示词 10.3 节）。方案是 DevRequest 的工作材料，存在 Studio 工作区表里，
+     * 采纳后落成的草稿、发布后的资产才是注册中心里的东西。
+     *
+     * @param plan 方案卡 JSON
+     * @param adopted 采纳时创建的草稿 id，重复采纳返回同一批
+     */
+    public record RequestPlanRow(
+            String tenantId, String requestRef, String plan, List<String> adopted, String updatedAt) {}
+
+    public static final class RequestPlanStore {
+        private final JdbcClient jdbc;
+        private final Clock clock;
+
+        public RequestPlanStore(JdbcClient jdbc, Clock clock) {
+            this.jdbc = jdbc;
+            this.clock = clock;
+        }
+
+        public Optional<RequestPlanRow> get(String tenantId, String requestRef) {
+            return jdbc.sql("SELECT * FROM request_plans WHERE tenant_id = ? AND request_ref = ?")
+                    .params(tenantId, requestRef)
+                    .query((rs, i) -> new RequestPlanRow(
+                            rs.getString("tenant_id"),
+                            rs.getString("request_ref"),
+                            rs.getString("plan"),
+                            Json.MAPPER.readValue(rs.getString("adopted"), List.class),
+                            rs.getString("updated_at")))
+                    .optional();
+        }
+
+        public RequestPlanRow save(String tenantId, String requestRef, String plan) {
+            String now = IsoTime.now(clock);
+            jdbc.sql(
+                            "INSERT INTO request_plans (tenant_id, request_ref, plan, adopted, created_at, updated_at)"
+                                    + " VALUES (?, ?, ?, '[]', ?, ?)"
+                                    + " ON CONFLICT (tenant_id, request_ref) DO UPDATE SET plan = excluded.plan, updated_at = excluded.updated_at")
+                    .params(tenantId, requestRef, plan, now, now)
+                    .update();
+            return get(tenantId, requestRef).orElseThrow();
+        }
+
+        public void markAdopted(String tenantId, String requestRef, List<String> draftIds) {
+            jdbc.sql("UPDATE request_plans SET adopted = ?, updated_at = ? WHERE tenant_id = ? AND request_ref = ?")
+                    .params(Json.MAPPER.writeValueAsString(draftIds), IsoTime.now(clock), tenantId, requestRef)
+                    .update();
         }
     }
 

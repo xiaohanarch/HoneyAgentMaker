@@ -127,9 +127,10 @@ export interface HomeView {
   }[]
   devRequests: {
     ref: string
+    displayName: string
     originalText: string
     requester: string
-    status: string
+    status: RequestStatus
     createdAt: string
   }[]
 }
@@ -249,11 +250,87 @@ export interface PromoteResult {
   gates: Gate[]
 }
 
+// ── 扩展需求与意图生成（P9，docs/studio-api.md 的 P9 一节） ──
+
+export type RequestStatus = 'submitted' | 'in-progress' | 'delivered' | 'rejected'
+
+/** fit-gap 的三档结论 */
+export type FitGapVerdict = 'satisfied' | 'extend' | 'new'
+
+/** 技术规格里对每个资产的动作 */
+export type PlanAssetAction = 'reuse' | 'create'
+
+/** 方案里资产草稿的种类 */
+export type PlanDraftKind = 'Skill' | 'AgentExtension'
+
+/** 意图生成的六步方案卡 */
+export interface RequestPlan {
+  decidedBy: 'model' | 'retrieval'
+  generatedAt: string
+  clarifications: { question: string; options: string[] }[]
+  fitGap: {
+    verdict: FitGapVerdict
+    score: number
+    matched: { ref: string; reason: string }[]
+    reason: string
+  }
+  summary: { user: string; scenario: string; metrics: string[]; boundaries: string }
+  assets: { action: PlanAssetAction; kind: string; ref: string; note: string }[]
+  drafts: { kind: PlanDraftKind; yaml: string }[]
+  evalSuite: { name: string; yaml: string } | null
+}
+
+/** 扩展需求：提出人的原话与补充说明、自动附带的口径，以及生成的方案 */
+export interface RequestView {
+  ref: string
+  originalText: string
+  requester: string
+  requesterName: string
+  status: RequestStatus
+  createdAt: string
+  updatedAt: string
+  supplements: string[]
+  context: { assistant: string | null; semanticObjects: string[]; rules: string[] }
+  plan: RequestPlan | null
+}
+
+/** 采纳方案后落到工作区的草稿 */
+export interface AdoptedDraft {
+  id: string
+  kind: PlanDraftKind
+  ref: string
+  name: string
+}
+
 const enc = encodeURIComponent
 
 export function studioApi(token: string | undefined) {
   return {
     home: () => getJson<HomeView>('/studio/home', token),
+    request: (namespace: string, name: string) =>
+      getJson<RequestView>(`/studio/requests/${enc(namespace)}/${enc(name)}`, token),
+    planRequest: (namespace: string, name: string) =>
+      postJson<RequestPlan>(`/studio/requests/${enc(namespace)}/${enc(name)}/plan`, token, {}),
+    putRequestPlan: (namespace: string, name: string, plan: RequestPlan) =>
+      putJson<RequestPlan>(`/studio/requests/${enc(namespace)}/${enc(name)}/plan`, token, { plan }),
+    adoptRequest: (namespace: string, name: string) =>
+      postJson<{ drafts: AdoptedDraft[] }>(
+        `/studio/requests/${enc(namespace)}/${enc(name)}/adopt`,
+        token,
+        {},
+      ),
+    deliverRequest: (namespace: string, name: string, summary?: string) =>
+      postJson<{ status: RequestStatus }>(
+        `/studio/requests/${enc(namespace)}/${enc(name)}/deliver`,
+        token,
+        { summary },
+      ),
+    rejectRequest: (namespace: string, name: string, reason?: string) =>
+      postJson<{ status: RequestStatus }>(
+        `/studio/requests/${enc(namespace)}/${enc(name)}/reject`,
+        token,
+        { reason },
+      ),
     catalog: () => getJson<StudioCatalog>('/studio/catalog', token),
     createDraft: (intent: string) => postJson<DraftView>('/studio/drafts', token, { intent }),
     draft: (id: string) => getJson<DraftView>(`/studio/drafts/${enc(id)}`, token),

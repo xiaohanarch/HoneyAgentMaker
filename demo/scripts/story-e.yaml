@@ -1,0 +1,46 @@
+# 故事 E 的演示剧本：业务用户要的事标品 Agent 办不了（能力缺口），租户扩展发布后办得了。
+# 扩展发布前走 story-e-clerk-gap：标品剧本如实说明缺少的能力，结构化输出 capabilityGap 置 true，
+# 统一入口据此补“提交扩展需求”卡片。扩展发布后（备选供应商补货技能可用，match.tools 优先匹配）
+# 走 story-e-alternative-order：技能内部查缺口、查备选、超 10 万元请购先确认，草稿号与金额来自工具结果。
+# “这批货”按演示语境指张敏在跟的 PO-2026-0117（绩效剧本里逾期 120 天、零交付的那张）：种子数据里
+# 它的物料 M-0007 在华东有现货足够的认证备选 S-0009，2000 件按协议价 56 元共 112000 元，恰好超过 10 万元。
+scripts:
+  - id: story-e-clerk-gap
+    description: 张敏请从备选供应商补货：标品 Agent 查明订单逾期后如实说明缺少的能力，没有拼凑替代方案
+    agent: vendor.pur/purchase-order-clerk
+    match:
+      all: [备选供应商]
+    steps:
+      - thought: 先确认百润精密的订单情况
+        calls:
+          - { tool: purchase_order_list, args: { supplierName: 百润精密, overdueDaysGt: 0 } }
+      - reply: |
+          查到百润精密有 {{tools.purchase_order_list.total}} 张逾期订单，最严重的是 {{tools.purchase_order_list.items.0.id}}，已逾期 {{tools.purchase_order_list.items.0.overdueDays}} 天（采购组织：{{tools.purchase_order_list.items.0.purchasingOrgName}}）。
+
+          我目前只能办理交期变更、变更单审批这类订单事务，没有查询物料认证备选供应商的能力，也没有创建请购单的能力，不能直接从备选供应商下单。要办成这件事还需要：物料的认证备选供应商与协议价、现货数量，以及在本公司创建请购单草稿的权限。可以在下面的卡片里提交扩展需求，由开发者评估后补充这些能力。
+        output:
+          capabilityGap: true
+          missingCapability: 从备选供应商查询现货并创建请购单草稿
+
+  - id: story-e-alternative-order
+    description: 扩展发布后：对张敏在跟的订单调用备选供应商补货技能（超 10 万元先确认）→ 回复草稿号、供应商与金额
+    agent: vendor.pur/purchase-order-clerk
+    match:
+      all: [备选供应商]
+      tools: [alternative-supplier-lookup]
+    vars:
+      po: PO-2026-0117
+    steps:
+      - thought: 张敏说的这批货是她一直在跟的订单 {{vars.po}}（百润精密，逾期 120 天且完全没有交付）；按本公司规定，金额超过 10 万元的请购单草稿提交前会先请她确认
+        calls:
+          - tool: alternative-supplier-lookup
+            args: { poId: '{{vars.po}}' }
+      - reply: |
+          {{#tools.alternative_supplier_lookup.error}}没有创建请购单草稿：{{tools.alternative_supplier_lookup.error.reason}}。需要补货时可以再试一次，或者走询价流程。{{/tools.alternative_supplier_lookup.error}}{{^tools.alternative_supplier_lookup.error}}{{#tools.alternative_supplier_lookup.requisitionCreated}}已按备选供应商 {{tools.alternative_supplier_lookup.supplierName}}（{{tools.alternative_supplier_lookup.supplierId}}）的协议价创建请购单草稿 {{tools.alternative_supplier_lookup.requisitionId}}：{{tools.alternative_supplier_lookup.materialName}}（{{tools.alternative_supplier_lookup.materialId}}）× {{tools.alternative_supplier_lookup.quantity}}{{tools.alternative_supplier_lookup.unit}}，单价 {{tools.alternative_supplier_lookup.unitPrice}} 元，金额 {{tools.alternative_supplier_lookup.amount}} {{tools.alternative_supplier_lookup.currency}}。
+
+          原订单 {{tools.alternative_supplier_lookup.sourcePoId}}（{{tools.alternative_supplier_lookup.originalSupplier}}）交付存在缺口，本次按认证备选补货；按本公司规定，金额超过 10 万元的请购单草稿已向你展示供应商、数量与金额并经确认。草稿当前状态为 {{tools.alternative_supplier_lookup.status}}，线下审批后可转采购订单。{{/tools.alternative_supplier_lookup.requisitionCreated}}{{^tools.alternative_supplier_lookup.requisitionCreated}}{{tools.alternative_supplier_lookup.suggestion}}{{/tools.alternative_supplier_lookup.requisitionCreated}}{{/tools.alternative_supplier_lookup.error}}
+        output:
+          capabilityGap: false
+          requisitionCreated: '=has(tools.alternative_supplier_lookup.requisitionCreated) && tools.alternative_supplier_lookup.requisitionCreated'
+          requisitionId: '{{tools.alternative_supplier_lookup.requisitionId}}'
+          amount: '=has(tools.alternative_supplier_lookup.amount) ? tools.alternative_supplier_lookup.amount : null'

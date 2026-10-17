@@ -134,6 +134,57 @@ class RepoRegistryTest {
     }
 
     @Test
+    @DisplayName("验收：采购订单处理 Agent + t001 备选供应商扩展组装成功，技能工具、请购工具与大额确认规则生效")
+    void clerkWithAlternativeSupplierExtension() {
+        var outcome = (EffectiveAssembly.Outcome.Ok) EffectiveAssembly.assemble(
+                services.registry(), T001, EffectiveAssembly.Request.of("vendor.pur/purchase-order-clerk", "t001"));
+        assertThat(outcome.issues()).isEmpty();
+        var definition = outcome.definition();
+        assertThat(definition.provenance().resolvedTarget().version()).isEqualTo("1.2.0");
+        assertThat(definition.provenance().extensions())
+                .containsExactly("tenant.t001.pur/purchase-order-clerk-ext@1.0.0");
+
+        var skill = definition.tools().stream()
+                .filter(t -> t.name().equals("alternative-supplier-lookup"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(skill.type()).isEqualTo("skill");
+        assertThat(skill.layer().name()).isEqualTo("tenant");
+        assertThat(skill.writeLevel()).isEqualTo("L2");
+
+        var draft = definition.tools().stream()
+                .filter(t -> t.name().equals("purchase_requisition_draft_create"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(draft.layer().name()).isEqualTo("tenant");
+        assertThat(draft.writeLevel()).isEqualTo("L2");
+
+        // 标品的两个确认点保留，扩展追加大额请购确认点
+        assertThat(definition.approvals()).hasSize(3);
+        assertThat(definition.approvals())
+                .filteredOn(a -> a.tool().equals("purchase_requisition_draft_create"))
+                .singleElement()
+                .satisfies(a -> {
+                    assertThat(a.policy()).isEqualTo("require-confirmation");
+                    assertThat(a.when()).isEqualTo("input.amount > 100000");
+                    assertThat(a.layer().name()).isEqualTo("tenant");
+                });
+
+        // 扩展指令与语义规则在租户层生效，标品指令对租户仍然保密
+        assertThat(outcome.view().toString()).contains("PUR-R-008");
+        var confidential =
+                definition.segments().stream().filter(s -> s.confidential()).toList();
+        assertThat(confidential).isNotEmpty();
+        for (var segment : confidential) {
+            segment.text()
+                    .lines()
+                    .map(String::trim)
+                    .filter(l -> l.length() >= 8)
+                    .forEach(l -> assertThat(outcome.view().toString()).doesNotContain(l));
+        }
+    }
+
+    @Test
     @DisplayName("租户视角的有效定义里找不到任何一段标品指令或平台规则原文")
     void noConfidentialLeak() {
         var outcome = (EffectiveAssembly.Outcome.Ok) EffectiveAssembly.assemble(

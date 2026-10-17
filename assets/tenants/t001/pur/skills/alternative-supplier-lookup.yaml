@@ -1,0 +1,81 @@
+apiVersion: eab.dev/v1
+kind: Skill
+metadata:
+  name: alternative-supplier-lookup
+  namespace: tenant.t001.skills
+  version: 1.0.0
+  displayName: 备选供应商补货
+  description: 按采购订单的未交付缺口查询现货足够的认证备选供应商，有现货时按协议价创建请购单草稿，没有时建议走询价流程
+  owner: chengong
+spec:
+  writeLevel: L2
+  agentOnly: false
+  inputSchema:
+    type: object
+    required: [poId]
+    properties:
+      poId: { type: string, description: 采购订单号，例如 PO-2026-0117 }
+  outputSchema:
+    type: object
+    properties:
+      requisitionCreated: { type: boolean, description: 是否创建了请购单草稿 }
+      requisitionId: { type: string, description: 请购单草稿号 }
+      amount: { type: number, description: 请购金额 }
+      suggestion: { type: string, description: 没有创建草稿时的建议 }
+  steps:
+    - id: order
+      type: tool
+      name: 查询订单与缺口
+      tool: purchase_order_get
+      source: vendor.erp.tools/demo-erp-bo
+      with: { poId: input.poId }
+      output: order
+    - id: has-gap
+      type: condition
+      name: 有没有未交付的缺口
+      if: 'order.item.lines.exists(l, l.remainingQuantity > 0)'
+      then:
+        - id: shortage
+          type: transform
+          name: 取第一个未交付完的订单行
+          expression: 'order.item.lines.filter(l, l.remainingQuantity > 0)[0]'
+        - id: alternatives
+          type: tool
+          name: 查询现货足够的认证备选
+          tool: supplier_alternative_list
+          source: vendor.erp.tools/demo-erp-bo
+          with: { materialId: shortage.materialId, stockQtyGte: shortage.quantity }
+          output: candidates
+        - id: has-stock
+          type: condition
+          name: 有没有现货足够的备选
+          if: 'candidates.items.size() > 0'
+          then:
+            - id: draft
+              type: tool
+              name: 按协议价创建请购单草稿，金额超过 10 万元须人工确认
+              tool: purchase_requisition_draft_create
+              source: vendor.erp.tools/demo-erp-bo
+              with:
+                supplierId: 'candidates.items[0].supplierId'
+                materialId: 'shortage.materialId'
+                quantity: 'shortage.quantity'
+                unitPrice: 'candidates.items[0].unitPrice'
+                amount: 'shortage.quantity * candidates.items[0].unitPrice'
+                sourcePoId: 'order.item.id'
+                note: "'订单 ' + order.item.id + ' 交付存在缺口，按备选供应商 ' + candidates.items[0].supplierName + ' 的协议价补货'"
+              output: draft
+            - id: summary
+              type: transform
+              name: 汇总请购结果
+              expression: "{'requisitionCreated': true, 'requisitionId': draft.item.id, 'materialId': draft.item.materialId, 'materialName': shortage.materialName, 'unit': shortage.unit, 'quantity': draft.item.quantity, 'supplierId': draft.item.supplierId, 'supplierName': candidates.items[0].supplierName, 'unitPrice': draft.item.unitPrice, 'amount': draft.item.amount, 'currency': draft.item.currency, 'status': draft.item.status, 'sourcePoId': draft.item.sourcePoId, 'originalSupplier': order.item.supplierName}"
+          else:
+            - id: rfq
+              type: transform
+              name: 没有现货足够的备选，建议询价
+              expression: "{'requisitionCreated': false, 'materialId': shortage.materialId, 'materialName': shortage.materialName, 'quantity': shortage.quantity, 'sourcePoId': order.item.id, 'suggestion': '没有现货足够的认证备选供应商，建议对物料 ' + shortage.materialId + ' 发起询价流程'}"
+      else:
+        - id: no-gap
+          type: transform
+          name: 订单没有缺口
+          expression: "{'requisitionCreated': false, 'sourcePoId': order.item.id, 'suggestion': '订单 ' + order.item.id + ' 已全部交付，没有需要补货的缺口'}"

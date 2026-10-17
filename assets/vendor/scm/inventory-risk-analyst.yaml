@@ -3,7 +3,7 @@ kind: Agent
 metadata:
   name: inventory-risk-analyst
   namespace: vendor.scm
-  version: 1.0.1
+  version: 1.0.2
   displayName: 库存经营分析 Agent
   description: 识别库存风险、洞察根因、给出处置建议。对应灯塔场景“库存经营 Agent”。
   owner: scm-team
@@ -36,10 +36,6 @@ spec:
     - { type: event, event: inventory.below_safety_stock }
   channels: [assistant-web, im]
   writePolicy: { maxLevel: L2 }
-  approvals:
-    - tool: create-followup-task
-      policy: require-confirmation
-      description: 创建跟进任务前由用户确认
   output:
     schema:
       riskLevel: { type: string, enum: [low, medium, high] }

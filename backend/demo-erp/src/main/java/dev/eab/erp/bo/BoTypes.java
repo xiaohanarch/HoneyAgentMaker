@@ -34,6 +34,9 @@ public final class BoTypes {
         map.put("supplier_get", new OperationSpec(Dimension.purchasingOrg, "L0"));
         map.put("rfq_list", new OperationSpec(Dimension.purchasingOrg, "L0"));
         map.put("purchase_order_list", new OperationSpec(Dimension.purchasingOrg, "L0"));
+        map.put("purchase_order_get", new OperationSpec(Dimension.purchasingOrg, "L0"));
+        map.put("supplier_alternative_list", new OperationSpec(Dimension.purchasingOrg, "L0"));
+        map.put("purchase_requisition_draft_create", new OperationSpec(Dimension.purchasingOrg, "L2"));
         map.put("purchase_order_change_delivery_date", new OperationSpec(Dimension.purchasingOrg, "L2"));
         map.put("purchase_order_change_approve", new OperationSpec(Dimension.purchasingOrg, "L2"));
         map.put("delivery_list", new OperationSpec(Dimension.purchasingOrg, "L0"));

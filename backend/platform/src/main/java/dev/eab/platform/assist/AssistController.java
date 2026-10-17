@@ -9,6 +9,7 @@ import dev.eab.platform.http.Principals.Principal;
 import dev.eab.platform.http.RateLimiter;
 import dev.eab.platform.http.SseRuns;
 import dev.eab.platform.runtime.RuntimeService;
+import dev.eab.platform.studio.SemanticContexts;
 import dev.eab.runtime.RunEvents;
 import dev.eab.runtime.RunEvents.RunEvent;
 import dev.eab.spec.Json;
@@ -133,15 +134,19 @@ public class AssistController {
         return SseRuns.start(SSE_TIMEOUT_MILLIS, "ASSIST_FAILED", work::apply);
     }
 
-    // ── 能力缺口：提交扩展需求（需求的评审与交付在 P9） ──
+    // ── 能力缺口：提交扩展需求（P9：需求自动附带业务上下文，处理闭环在 Studio） ──
 
-    public record DevRequestBody(String text, String assistant) {}
+    /** supplement 是张敏在缺口卡片上补的那句话，和需求一起交给开发者（故事 E） */
+    public record DevRequestBody(String text, String assistant, String supplement) {}
+
+    private static final int MAX_SUPPLEMENT = 2000;
+    private static final int MAX_INTENT_PREVIEW = 30;
 
     private static final DateTimeFormatter STAMP =
             DateTimeFormatter.ofPattern("yyyyMMddHHmmss").withZone(ZoneOffset.UTC);
 
     @PostMapping("/dev-requests")
-    @Operation(summary = "提交扩展需求：在本租户的 requests 命名空间里创建一份 DevRequest 草稿")
+    @Operation(summary = "提交扩展需求：在本租户的 requests 命名空间里创建一份 DevRequest 草稿，并附带按需求文本检索到的语义对象与规则")
     public ApiResponse<Map<String, Object>> submit(HttpServletRequest request, @RequestBody DevRequestBody body) {
         Principal principal = tenantUser(request);
         if (body == null
@@ -155,6 +160,9 @@ public class AssistController {
                 && !body.assistant().matches("^[a-z][a-z0-9.-]*/[a-z][a-z0-9-]*$")) {
             throw new ApiException(400, "BAD_REQUEST", "请求参数不合法：assistant 写作 namespace/name");
         }
+        if (body.supplement() != null && body.supplement().length() > MAX_SUPPLEMENT) {
+            throw new ApiException(400, "BAD_REQUEST", "请求参数不合法：supplement 最长 " + MAX_SUPPLEMENT + " 字");
+        }
         limiter.check("dev-request:" + principal.user().id());
         String tenant = principal.user().tenantId();
         String name = "req-" + STAMP.format(services.clock().instant()) + "-"
@@ -165,16 +173,25 @@ public class AssistController {
         metadata.put("version", "0.1.0");
         metadata.put(
                 "displayName",
-                body.text().strip().length() > 30
-                        ? body.text().strip().substring(0, 30) + "…"
+                body.text().strip().length() > MAX_INTENT_PREVIEW
+                        ? body.text().strip().substring(0, MAX_INTENT_PREVIEW) + "…"
                         : body.text().strip());
         metadata.put("description", "统一入口提交的扩展需求");
         metadata.put("owner", principal.user().id());
+        // 业务上下文：按需求原文加补充说明检索本租户可见的语义对象与规则，开发者不用从头猜口径（主提示词 10.3 节）
+        String query = body.text().strip()
+                + (body.supplement() == null ? "" : " " + body.supplement().strip());
+        SemanticContexts.Context semantic = SemanticContexts.attach(services.registry(), tenant, query);
         Map<String, Object> context = new LinkedHashMap<>();
         if (body.assistant() != null && !body.assistant().isBlank()) context.put("assistant", body.assistant());
+        context.put("semanticObjects", semantic.semanticObjects());
+        context.put("rules", semantic.rules());
         Map<String, Object> spec = new LinkedHashMap<>();
         spec.put("requester", principal.user().id());
         spec.put("originalText", body.text().strip());
+        if (body.supplement() != null && !body.supplement().isBlank()) {
+            spec.put("supplements", List.of(body.supplement().strip()));
+        }
         spec.put("context", context);
         spec.put("status", "submitted");
         Map<String, Object> asset = new LinkedHashMap<>();
@@ -186,9 +203,16 @@ public class AssistController {
                 services.registry().put(Viewer.tenant(tenant), Json.MAPPER.writeValueAsString(asset), "统一入口提交的扩展需求");
         if (!result.ok()) throw new ApiException(400, "INVALID_REQUEST", "扩展需求没有保存：" + result);
         return ApiResponse.success(Map.of(
-                "ref", "tenant." + tenant + ".requests/" + name,
-                "status", "submitted",
-                "message", "扩展需求已提交，开发者会在 Studio 的需求列表里看到它"));
+                "ref",
+                "tenant." + tenant + ".requests/" + name,
+                "status",
+                "submitted",
+                "semanticObjects",
+                semantic.semanticObjects(),
+                "rules",
+                semantic.rules(),
+                "message",
+                "扩展需求已提交，开发者会在 Studio 的需求列表里看到它"));
     }
 
     // ── 通知区 ──
