@@ -61,5 +61,5 @@ README「声明」一节写明本项目与 SAP 没有关系、是参照公开资
 
 ## 复核记录
 
-- 2026-10-19，本地：`pnpm lint`、`pnpm typecheck`、`pnpm test`（Vitest 加 Maven verify）、`pnpm test:e2e` 全量、`pnpm eval:smoke` 计时、`pnpm assets:validate`、重置后 `pnpm demo` 加 `scripts/acceptance-p2.mjs` 到 `acceptance-p10.mjs` 与 `acceptance-procode.mjs` 逐个通过。冒烟评测合计用时 10.4 秒（预算 180 秒，含进程启动整条命令 34 秒）。
-- 2026-10-19，ECS 主机（真实模型）：部署 feat/p10-demo-docs 后走查 `demo/DEMO.md` 主线（控制台重置、故事 A、B、D、F、架构视图回放），`scripts/acceptance-p10.mjs` 与抽样 p2、p4、p8 通过。「（复核时填写）」
+- 2026-10-19，本地：`pnpm lint`、`pnpm typecheck`、`pnpm test`（Vitest 加 Maven verify）、`pnpm test:e2e` 全量、`pnpm eval:smoke` 计时、`pnpm assets:validate`、重置后 `pnpm demo` 加 `scripts/acceptance-p2.mjs` 到 `acceptance-p10.mjs` 与 `acceptance-procode.mjs` 逐个通过，`scripts/demo-walkthrough.mjs` 整段走查通过（脚本化模型，含 D-1 两个能力示例相近时路由先澄清、按讲解词点选后重问）。冒烟评测合计用时 10.4 秒（预算 180 秒，含进程启动整条命令 34 秒）。
+- 2026-10-19，ECS 主机：部署 feat/p10-demo-docs（3a85b3b）时在 Linux 上重跑单元测试、lint、typecheck、资产校验与 Maven verify，全量端到端 39 项通过，部署后恢复真实模型配置、健康检查通过并留存数据快照。真实模型下按 `scripts/demo-walkthrough.mjs` 的检查项走查 `demo/DEMO.md` 主线（分故事 D、故事 F 两段执行，断言只看路由、工具调用、约束触发与审计裁决）：控制台重置与委托重建，故事 D 的同问按数据范围过滤（华东、华南）、集成账号对照、交期变更经 L2 确认提交变更单、审批本人变更单被职责分离拒绝、审计反查定位运行，故事 F 的升级回归暴露扩展钩子用例失败并通知管理员（真实模型下单次约 9 分钟）、经验回流经审核写入租户语义包后重新提问生效、架构视图回放数据就绪，全部通过。随后切脚本化模型窗口重跑 `scripts/acceptance-p10.mjs` 与抽样 p2、p4、p8（p8 依赖的扩展由故事 F 起点快照就位），收尾 `pnpm seed:reset` 并恢复真实模型，复核后的数据快照拉回本地。
