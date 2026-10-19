@@ -274,3 +274,17 @@ interface RequestPlan {
 | `studio_run_evals` | `draftId`（必填） | 运行草稿的评测集（评测里确认点一律自动拒绝） |
 | `studio_deploy_draft` | `draftId`（必填）、`note`（可选） | 发布草稿：Agent 发布到 dev；扩展与技能发布后对本租户即时生效 |
 | `studio_promote` | `ref`、`version`、`environment`（必填，test 或 prod） | 把租户 Agent 晋级到 test 或 prod，门禁不过时报错并列出门禁 |
+
+## 演示控制台（P10）
+
+演示控制台是界面右上角的隐藏菜单（主提示词 17 节），供演示走查：重置、跳到各故事起点、一键生成完成态、触发业务事件、发布标品新版本、切换演示身份、集成账号对照。演示状态的三个接口只在演示模式下开放（未开启时 404），且只对租户管理员开放（403），按用户限流每分钟 10 次。
+
+- `POST /demo/v1/reset` → `{erpReset: true, delegation: "DLG-0001"}`。与 `pnpm seed:reset` 等价：先让 DemoERP 按今天重新生成业务数据，再清空平台的运行期数据（运行、追踪、审计、业务事件、委托、通知、需求与治理数据），撤回演示过程中发布的租户资产并重建演示委托。DemoERP 不可达时返回 502（`ERP_UNREACHABLE`）或 `ERP_RESET_FAILED`，平台数据不动。
+- `POST /demo/v1/story-start` body `{story}` → `{story, published: string[]}`。跳到某个故事的起点，`story` 只能是 A 到 F，否则 400。A 到 E 为纯重置；F 在重置之上发布完成态快照（`tenants/<租户>` 下的扩展、技能与评测集），快照是该租户完成态的唯一权威，发布前先清空该租户已发布资产，避免与演示中途发布的扩展同名冲突。发布失败时 500 `SEED_FAILED`，`error.details` 列出失败文件与原因。
+- `POST /demo/v1/complete` → `{published: string[], history: {runs, metricPoints}}`。完成态在故事 F 起点之上再叠加 30 天模拟历史（数据带模拟标记，重置时一并清掉），治理中心与架构视图有趋势数据可看。
+
+其余操作复用既有接口：触发业务事件用 `POST /demo/v1/events`（演示模式下任意租户用户）；模拟发布标品新版本用 `POST /hub/demo/upgrade`（要求租户管理员）；集成账号对照用 `GET /hub/demo/integration-compare?user=<用户>`（演示模式下任意租户用户）；切换身份是纯前端行为，复用身份切换器的演示用户列表。
+
+架构视图（顶部第四个导航项）用 `GET /runs` 选运行（租户管理员可见本租户全部运行）、`GET /traces/{traceId}` 取 span 时间线做回放，都是既有接口，没有新增。
+
+DemoERP 侧的重置端点 `POST /demo/v1/reset`（DemoERP 端口上，不经前端代理）只接受平台内部调用：请求头 `x-eab-internal-token` 匹配时按当天重新生成种子数据并返回 202，其余返回 401。平台先重置 DemoERP、成功后才动自己的数据。

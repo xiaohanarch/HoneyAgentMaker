@@ -162,9 +162,10 @@ export interface Span {
   startTime: string
   endTime: string | null
   status: 'ok' | 'error' | 'suspended'
-  statusMessage: string | null
+  /** 服务端在字段为空时直接省略，两种都要防 */
+  statusMessage?: string | null
   attributes: Record<string, unknown> | null
-  promptSegments:
+  promptSegments?:
     | {
         id: string
         kind: string

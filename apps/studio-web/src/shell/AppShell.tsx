@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { NavLink, Outlet } from 'react-router'
 import { ASSET_SOURCES, SourceBadge, cn } from '@eab/ui'
 import { IdentitySwitcher } from '../identity/IdentitySwitcher'
+import { DemoConsole } from '../console/DemoConsole'
 import { ThemeToggle } from '../theme/ThemeToggle'
 import { ServiceStatus } from './ServiceStatus'
 
@@ -9,6 +10,7 @@ const WORKSPACES = [
   { to: '/assistant', label: '统一入口', hint: '最终用户' },
   { to: '/studio', label: 'Studio', hint: '开发态' },
   { to: '/hub', label: '治理中心', hint: '管理者' },
+  { to: '/architecture', label: '架构视图', hint: '讲解' },
 ] as const
 
 function Mark(): ReactNode {
@@ -60,6 +62,7 @@ export function AppShell(): ReactNode {
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
+            <DemoConsole />
             <ThemeToggle />
             <span aria-hidden className="h-6 w-px bg-line" />
             <IdentitySwitcher />

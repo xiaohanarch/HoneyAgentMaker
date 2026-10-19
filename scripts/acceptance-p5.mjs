@@ -2,7 +2,7 @@
 // P5 验收：对正在运行的演示环境（pnpm demo）走一遍故事 A，只用 HTTP 接口。
 //   node scripts/acceptance-p5.mjs
 // 默认模型提供方是脚本化模型，断网、没有 API Key 也能通过。会新建草稿、发布价格谈判助手并晋级到 prod，
-// 之后可以运行 pnpm seed:reset 恢复（草稿、部署、评测记录清空；注册中心里的版本保留，未部署时不进入统一入口）。
+// 之后可以运行 pnpm seed:reset 恢复（草稿、部署、评测记录与已发布的租户 Agent 一并清空，重新走一遍即可重演）。
 const PLATFORM = process.env.EAB_PLATFORM_URL ?? 'http://127.0.0.1:4000'
 const INTENT = '帮采购经理制定和供应商的降价谈判策略'
 const AGENT = 'tenant.t001.agents/price-negotiation-assistant'

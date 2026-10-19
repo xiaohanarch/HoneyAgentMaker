@@ -19,6 +19,24 @@ export interface Timeline {
 
 const MIN_WIDTH = 0.5
 
+/** span 种类的条形颜色，完整类名写死，不拼接（链路追踪与架构视图的时间线共用） */
+export const SPAN_BAR_STYLES: Record<string, string> = {
+  run: 'bg-ink/70',
+  routing: 'bg-info',
+  assemble: 'bg-vendor',
+  pipeline: 'bg-ink-faint',
+  model: 'bg-external',
+  policy: 'bg-allow',
+  tool: 'bg-tenant',
+  skill: 'bg-tenant',
+  workflow: 'bg-tenant',
+  agent: 'bg-platform',
+  guard: 'bg-pending',
+  hook: 'bg-platform',
+  confirmation: 'bg-pending',
+  memory: 'bg-ink-faint',
+}
+
 function time(value: string | null): number | null {
   if (value === null) return null
   const parsed = Date.parse(value)

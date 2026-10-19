@@ -3,26 +3,8 @@ import { useQuery } from '@tanstack/react-query'
 import { EyeOff, ShieldAlert, Waypoints } from 'lucide-react'
 import { cn } from '@eab/ui'
 import type { Span } from '../api'
-import { formatDuration, layoutTimeline, type TimelineRow } from '../trace-layout'
+import { formatDuration, layoutTimeline, SPAN_BAR_STYLES, type TimelineRow } from '../trace-layout'
 import { errorText, useStudioApi } from '../use-studio'
-
-/** span 种类的条形颜色，完整类名写死，不拼接 */
-const BAR_STYLES: Record<string, string> = {
-  run: 'bg-ink/70',
-  routing: 'bg-info',
-  assemble: 'bg-vendor',
-  pipeline: 'bg-ink-faint',
-  model: 'bg-external',
-  policy: 'bg-allow',
-  tool: 'bg-tenant',
-  skill: 'bg-tenant',
-  workflow: 'bg-tenant',
-  agent: 'bg-platform',
-  guard: 'bg-pending',
-  hook: 'bg-platform',
-  confirmation: 'bg-pending',
-  memory: 'bg-ink-faint',
-}
 
 function Row({
   row,
@@ -65,7 +47,7 @@ function Row({
           <span
             className={cn(
               'absolute inset-y-0 rounded-sm',
-              BAR_STYLES[span.kind] ?? 'bg-ink-faint',
+              SPAN_BAR_STYLES[span.kind] ?? 'bg-ink-faint',
               span.status === 'error' && 'bg-deny',
             )}
             style={{ left: `${row.offset}%`, width: `${row.width}%` }}
@@ -86,6 +68,7 @@ function value(v: unknown): string {
 /** 选中 span 的详情：状态、属性、提示词片段（租户视角下标品指令显示为占位） */
 export function SpanDetail({ span }: { span: Span }): ReactNode {
   const attributes = Object.entries(span.attributes ?? {})
+  const segments = span.promptSegments ?? []
   return (
     <div className="space-y-2 text-xs" data-testid="span-detail">
       <p className="flex flex-wrap items-center gap-2">
@@ -102,9 +85,7 @@ export function SpanDetail({ span }: { span: Span }): ReactNode {
           {span.status}
         </span>
       </p>
-      {span.statusMessage !== null && span.statusMessage !== '' && (
-        <p className="text-deny">{span.statusMessage}</p>
-      )}
+      {(span.statusMessage ?? '') !== '' && <p className="text-deny">{span.statusMessage}</p>}
       {attributes.length > 0 && (
         <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-3 gap-y-0.5">
           {attributes.map(([k, v]) => (
@@ -115,9 +96,9 @@ export function SpanDetail({ span }: { span: Span }): ReactNode {
           ))}
         </dl>
       )}
-      {span.promptSegments !== null && span.promptSegments.length > 0 && (
+      {segments.length > 0 && (
         <ol className="space-y-1">
-          {span.promptSegments.map((seg) => (
+          {segments.map((seg) => (
             <li
               key={seg.id}
               className={cn(
