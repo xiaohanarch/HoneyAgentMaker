@@ -53,6 +53,6 @@ push 逐资产找回（或新建）同一条草稿，再整份替换 YAML。理�
 ## 影响
 
 - 新增 `pnpm eab`（`scripts/java-cli.mjs` 增加 eab-cli 模块入口）；验收脚本 `scripts/acceptance-procode.mjs` 幂等，不发布资产，重复运行不破坏演示状态。
-- ResetDemo 显式撤回 pro-code 演示发布的故事 E 完成态资产（`tenant.t001.pur/purchase-order-clerk-ext`、`tenant.t001.skills/alternative-supplier-lookup`、`tenant.t001.evals/purchase-clerk-ext-smoke`）：这些命名空间不在启动入库范围，`pnpm seed:reset` 不撤回就会残留，故事 E 的缺口演示就恢复不回去。
+- ResetDemo 显式撤回 pro-code 演示发布的故事 E 完成态资产（`tenant.t001.pur/purchase-order-clerk-ext`、`tenant.t001.skills/alternative-supplier-lookup`、`tenant.t001.evals/purchase-clerk-ext-smoke`）：这些命名空间不在启动入库范围，`pnpm seed:reset` 不撤回就会残留，故事 E 的缺口演示就恢复不回去。（2026-10-18 更新：P10 起撤回范围扩大为除基础设施外的全部租户资产，见 0015。）
 - 实录见 `docs/pro-code.md`，接口契约见 `docs/studio-api.md` 的"专业代码通道"一节。
 - 建稿、评测、发布接口被 CLI 与 MCP 复用，改这些接口时要同时考虑两个入口（EabCliEndToEndTest 与 StudioMcpEndToEndTest 会拦住破坏）。

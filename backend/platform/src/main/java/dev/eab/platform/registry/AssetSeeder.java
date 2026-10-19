@@ -37,8 +37,12 @@ public final class AssetSeeder {
 
     private record Staged(String file, Asset asset) {}
 
-    /** 租户的基础设施资产：连接、工具来源、工作流（P6），以及登记的外部 Agent（P7），启动时入库 */
-    static final List<String> TENANT_INFRA = List.of("connections", "tools", "wf", "remote");
+    /**
+     * 租户的基础设施资产：连接、工具来源、工作流（P6），以及登记的外部 Agent（P7），启动时入库。
+     * 也是 ResetDemo 撤回演示资产时整组保留的命名空间：故事 B 的扩展引用工具来源，
+     * 故事 C 依赖登记的远程 Agent，重置后这些必须仍然可用。
+     */
+    public static final List<String> TENANT_INFRA = List.of("connections", "tools", "wf", "remote");
 
     /** 启动时入库的子目录：platform、vendor，以及 tenants/<租户> 下的 connections、tools、wf、remote */
     public static List<String> startupDirectories(Path assetsRoot) {

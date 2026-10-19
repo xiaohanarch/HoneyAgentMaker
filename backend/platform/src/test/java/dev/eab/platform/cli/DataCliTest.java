@@ -21,7 +21,7 @@ class DataCliTest {
     static final Clock CLOCK = Clock.fixed(Instant.parse("2026-10-15T08:00:00Z"), ZoneOffset.UTC);
 
     @Test
-    @DisplayName("重置清空审计、事件、委托、租户设置、扩展需求与方案，并重新预置演示委托")
+    @DisplayName("重置清空运行数据，撤回演示发布的租户资产并保留基础设施，重新预置演示委托")
     void resetClearsRuntimeData(@TempDir Path dataDir) {
         try (PlatformDb db = PlatformDb.open(dataDir.resolve("platform.db").toString())) {
             db.jdbc()
@@ -41,6 +41,21 @@ class DataCliTest {
                     .sql("INSERT INTO request_plans (tenant_id, request_ref, plan, adopted, created_at, updated_at)"
                             + " VALUES ('t001', 'tenant.t001.requests/req-x', '{}', '[]', 'x', 'x')")
                     .update();
+            // 演示残留：故事 B 经 Studio 发布的扩展；以及启动入库的基础设施（工具来源）
+            db.jdbc()
+                    .sql(
+                            "INSERT INTO assets (kind, namespace, name, version, layer, tenant_id, status, content_yaml,"
+                                    + " content_json, content_hash, created_by, created_at, updated_at)"
+                                    + " VALUES ('Extension', 'tenant.t001.extensions', 'demo-ext', '0.1.0', 'tenant', 't001',"
+                                    + " 'published', 'x', '{}', 'h', 'zhangmin', '2026-10-15T08:00:00Z', '2026-10-15T08:00:00Z')")
+                    .update();
+            db.jdbc()
+                    .sql(
+                            "INSERT INTO assets (kind, namespace, name, version, layer, tenant_id, status, content_yaml,"
+                                    + " content_json, content_hash, created_by, created_at, updated_at)"
+                                    + " VALUES ('ToolSource', 'tenant.t001.tools', 'notify-im', '1.0.0', 'tenant', 't001',"
+                                    + " 'published', 'x', '{}', 'h', 'chengong', '2026-10-15T08:00:00Z', '2026-10-15T08:00:00Z')")
+                    .update();
         }
         ResetDemo.reset(dataDir, CLOCK);
         try (PlatformDb db = PlatformDb.open(dataDir.resolve("platform.db").toString())) {
@@ -59,6 +74,16 @@ class DataCliTest {
                             .query(Long.class)
                             .single())
                     .isZero();
+            assertThat(db.jdbc()
+                            .sql("SELECT COUNT(*) FROM assets WHERE namespace = 'tenant.t001.extensions'")
+                            .query(Long.class)
+                            .single())
+                    .isZero();
+            assertThat(db.jdbc()
+                            .sql("SELECT COUNT(*) FROM assets WHERE namespace = 'tenant.t001.tools'")
+                            .query(Long.class)
+                            .single())
+                    .isEqualTo(1);
             var status = new DelegationStore(db.jdbc(), CLOCK).status(PlatformServices.DEMO_DELEGATION_ID);
             assertThat(status.active()).isTrue();
         }

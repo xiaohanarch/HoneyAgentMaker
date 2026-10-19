@@ -19,7 +19,8 @@ pnpm assets:validate  校验 assets/ 下全部资产：schema、静态检查、�
 pnpm assets:assemble vendor.fin/transaction-anomaly-analyst --tenant t001 --as tenant|vendor
                       打印有效定义，租户视角下标品指令为占位块；加 --json 输出 JSON
 pnpm spec:json-schema 修改 eab-spec 的 schema 后重新生成 schemas/ 下的 JSON Schema（有测试检查同步）
-pnpm seed:reset       重置演示数据：DemoERP 重新生成，平台清空审计、事件、委托、扩展需求与运行期数据（标品资产与密钥保留）
+pnpm seed:reset       重置演示数据：DemoERP 重新生成，平台清空审计、事件、委托、扩展需求与运行期数据，
+                      撤回演示中发布的租户资产（连接、工具来源、工作流、远程 Agent 保留，标品资产与密钥保留）
 pnpm data:backup      数据快照：data/backups/eab-data-<时间>.tar.gz，保留最近 10 份
 pnpm data:simulate    生成 30 天演示历史（运行、流程与业务指标），供治理中心展示趋势
 pnpm eval:smoke [--tier full] [--tenant t001] [--verbose]

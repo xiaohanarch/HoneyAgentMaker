@@ -8,6 +8,7 @@ import { ImChannelPage } from './pages/ImChannelPage'
 import { NewAgentPage } from './pages/NewAgentPage'
 import { StudioPage } from './pages/StudioPage'
 import { AppShell } from './shell/AppShell'
+import { ArchitecturePage } from './pages/ArchitecturePage'
 import { ExtensionPage } from './studio/extend/ExtensionPage'
 import { VendorAgentsPage } from './studio/extend/VendorAgentsPage'
 import { SkillEditorPage } from './studio/skills/SkillEditorPage'
@@ -34,6 +35,7 @@ const router = createBrowserRouter([
       { path: 'studio/skills/:id', element: <SkillEditorPage /> },
       { path: 'studio/external/new', element: <ExternalAgentPage /> },
       { path: 'hub', element: <HubPage /> },
+      { path: 'architecture', element: <ArchitecturePage /> },
       { path: '*', element: <Navigate to="/assistant" replace /> },
     ],
   },

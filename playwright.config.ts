@@ -8,6 +8,9 @@ export default defineConfig({
   testDir: './e2e',
   timeout: 60_000,
   fullyParallel: false,
+  // spec 之间存在状态依赖（重置、委托撤销、语义包写入按文件顺序衔接），文件之间也必须串行，
+  // 不能让默认的多 worker 按文件并行互踩
+  workers: 1,
   retries: process.env.CI ? 1 : 0,
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {

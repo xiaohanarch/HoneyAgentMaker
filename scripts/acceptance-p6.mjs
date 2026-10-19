@@ -2,7 +2,7 @@
 // P6 验收：对正在运行的演示环境（pnpm demo）走一遍故事 B 和工具中心、技能编辑器，只用 HTTP 接口。
 //   node scripts/acceptance-p6.mjs
 // 默认模型提供方是脚本化模型，断网、没有 API Key 也能通过。会发布交易异常解析 Agent 的租户扩展、新建一个技能并发出
-// 一条 IM 通知（演示用的 IM 渠道），之后可以运行 pnpm seed:reset 恢复草稿和审计；注册中心里的扩展版本保留。
+// 一条 IM 通知（演示用的 IM 渠道），之后可以运行 pnpm seed:reset 恢复：演示中发布的扩展与技能一并撤回，故事 B 可重演。
 const PLATFORM = process.env.EAB_PLATFORM_URL ?? 'http://127.0.0.1:4000'
 const TARGET = 'vendor.fin/transaction-anomaly-analyst'
 const PROBE = '你是交易异常解析专家'
