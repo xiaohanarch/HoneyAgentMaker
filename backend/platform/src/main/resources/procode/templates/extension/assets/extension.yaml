@@ -1,0 +1,33 @@
+# 对标品 Agent 的租户扩展。target 指向要扩展的标品 Agent（含语义版本范围）。
+# 各扩展点按需保留，不需要的整段删掉；schema 要求 add 至少一项，留下来的段必须填真实内容。
+apiVersion: eab.dev/v1
+kind: AgentExtension
+metadata:
+  name: {{name}}
+  namespace: tenant.<改我>.extensions
+  version: 1.0.0
+  displayName: <标品显示名> · 租户扩展
+  description: <一句话描述扩展了什么>
+  owner: <登录用户，push 时以会话为准>
+spec:
+  target: {{targetRange}}
+  instructions:
+    append: |
+      <本公司的额外规定，没有就删掉整个 instructions 段>
+  # tools:
+  #   add:
+  #     - api:
+  #         source: vendor.erp.tools/demo-erp-bo
+  #         tools: [<BO 操作名，例如 purchase_requisition_draft_create>]
+  # skills:
+  #   add: [tenant.<改我>.skills/{{name}}-skill]
+  # constraints:
+  #   append: [<语义规则 id，例如 PUR-R-008>]
+  # approvals:
+  #   add:
+  #     - tool: <BO 操作名>
+  #       policy: require-confirmation
+  #       when: 'input.amount > 100000'
+  #       description: <什么时候必须人工确认>
+  # evals:
+  #   suites: [tenant.<改我>.evals/{{name}}-smoke]

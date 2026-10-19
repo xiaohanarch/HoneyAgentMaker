@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Lock } from 'lucide-react'
 import { SourceBadge, cn } from '@eab/ui'
 import type { DraftView } from '../api'
+import { ExportProjectButton } from '../ExportProjectButton'
 import { errorText, useDraft } from '../use-studio'
 import { TestStep } from '../wizard/TestStep'
 import { YamlPanel } from '../wizard/YamlPanel'
@@ -202,9 +203,12 @@ export function ExtensionPage(): ReactNode {
             {draft?.draft.intent ?? '扩展标品 Agent'}
           </h1>
         </div>
-        {draft?.draft.publishedVersion != null && (
-          <span className="ml-auto text-xs text-ink-muted">{`已发布 ${draft.draft.publishedVersion}`}</span>
-        )}
+        <div className="ml-auto flex items-center gap-3">
+          {draft?.draft.publishedVersion != null && (
+            <span className="text-xs text-ink-muted">{`已发布 ${draft.draft.publishedVersion}`}</span>
+          )}
+          {draft !== undefined && <ExportProjectButton view={draft} />}
+        </div>
       </header>
       {error !== null && <p className="text-xs text-deny">读取草稿失败：{errorText(error)}</p>}
       {draft !== undefined && <Editor view={draft} setDraft={setDraft} />}

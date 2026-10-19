@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// pnpm 命令到 Java 命令行工具的映射：assets:validate、assets:assemble、seed:reset、data:backup、tools:import-bo、agent:run、eval:smoke、data:simulate。
+// pnpm 命令到 Java 命令行工具的映射：assets:validate、assets:assemble、seed:reset、data:backup、tools:import-bo、agent:run、eval:smoke、eab、data:simulate。
 //   node scripts/java-cli.mjs assets:validate
 // jar 比 backend/ 下的源码旧时先用 Maven Wrapper 打包，再用 Spring Boot 的 PropertiesLauncher 运行指定的主类。
 import { execFileSync } from 'node:child_process'
@@ -19,6 +19,7 @@ const COMMANDS = {
   'tools:import-bo': [['platform', 'dev.eab.platform.cli.ImportBoTools']],
   'agent:run': [['eab-cli', 'dev.eab.cli.AgentRun']],
   'eval:smoke': [['eab-cli', 'dev.eab.cli.EvalSmoke']],
+  'eab': [['eab-cli', 'dev.eab.cli.Eab']],
   'data:simulate': [['platform', 'dev.eab.platform.cli.SimulateHistory']],
   'seed:golden': [['demo-erp', 'dev.eab.erp.cli.WriteSeedGolden']],
   'seed:reset': [
@@ -65,6 +66,9 @@ function main() {
     return 2
   }
   ensureJars([...new Set(steps.map(([module]) => module))])
+  // eab 的 --dir 默认是“当前目录”：在仓库外经 pnpm 调用时，Java 进程的 cwd 会落在仓库根，
+  // 而 pnpm 把用户实际所在目录放在 INIT_CWD，用它才能让“在工程目录里运行 eab”成立
+  const cwd = command === 'eab' && process.env.INIT_CWD !== undefined ? process.env.INIT_CWD : ROOT
   for (const [module, mainClass] of steps) {
     try {
       execFileSync(
@@ -80,7 +84,7 @@ function main() {
         ],
         // Windows 上 Java 用 ANSI 代码页解码命令行参数，中文会变成乱码；参数同时经环境变量（UTF-16）传一份
         {
-          cwd: ROOT,
+          cwd,
           stdio: 'inherit',
           env: { ...process.env, EAB_CLI_ARGS: JSON.stringify(args) },
         },

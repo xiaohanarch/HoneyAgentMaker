@@ -17,6 +17,7 @@ import dev.eab.spec.Json;
 import dev.eab.spec.Viewer;
 import dev.eab.spec.testing.Fixtures;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -210,6 +211,61 @@ class RegistryApiTest {
             JsonNode data = r.json().get("data");
             assertThat(data.get("valid").asBoolean()).isFalse();
             assertThat(data.get("lint").get(0).get("rule").asString()).isEqualTo("extension-point-declared");
+        }
+
+        @Test
+        @DisplayName("validate-batch：同批资产互相引用在叠加层里解析，坏 YAML 只影响自己")
+        void validateBatch() throws Exception {
+            // 这份 Agent 引用了还没发布的技能，单独校验过不了 reference-resolvable
+            String agent = yamlOf(Fixtures.agent(
+                    with().version("9.9.9").spec("tools", List.of(Map.of("skill", "vendor.fin.skills/batch-skill")))));
+            String skill = yamlOf(Fixtures.skill(with().name("batch-skill")));
+            Response alone =
+                    call(as(post("/registry/validate").contentType(YAML).content(agent), "vendor"));
+            assertThat(alone.json().get("data").get("valid").asBoolean()).isFalse();
+            assertThat(alone.json().get("data").get("lint").get(0).get("rule").asString())
+                    .isEqualTo("reference-resolvable");
+
+            Response batch = call(as(
+                    post("/registry/validate-batch")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(Json.MAPPER.writeValueAsString(Map.of("assets", List.of(agent, skill)))),
+                    "vendor"));
+            JsonNode results = batch.json().get("data");
+            assertThat(results.size()).isEqualTo(2);
+            assertThat(results.get(0).get("valid").asBoolean()).isTrue();
+            assertThat(results.get(1).get("valid").asBoolean()).isTrue();
+
+            // 坏 YAML 只拖垮自己，不影响同批其他资产
+            Response mixed = call(as(
+                    post("/registry/validate-batch")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(Json.MAPPER.writeValueAsString(Map.of("assets", List.of("key: [未闭合", skill)))),
+                    "vendor"));
+            JsonNode mixedResults = mixed.json().get("data");
+            assertThat(mixedResults.get(0).get("valid").asBoolean()).isFalse();
+            assertThat(mixedResults.get(0).get("issues").size()).isPositive();
+            assertThat(mixedResults.get(1).get("valid").asBoolean()).isTrue();
+        }
+
+        @Test
+        @DisplayName("validate-batch：空数组和超过 20 份都返回 400")
+        void validateBatchBounds() throws Exception {
+            assertThat(call(as(
+                                    post("/registry/validate-batch")
+                                            .contentType(MediaType.APPLICATION_JSON)
+                                            .content("{\"assets\":[]}"),
+                                    "vendor"))
+                            .status())
+                    .isEqualTo(400);
+            List<String> tooMany = Collections.nCopies(21, yamlOf(Fixtures.skill(with().name("batch-skill"))));
+            assertThat(call(as(
+                                    post("/registry/validate-batch")
+                                            .contentType(MediaType.APPLICATION_JSON)
+                                            .content(Json.MAPPER.writeValueAsString(Map.of("assets", tooMany))),
+                                    "vendor"))
+                            .status())
+                    .isEqualTo(400);
         }
     }
 

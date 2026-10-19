@@ -26,8 +26,10 @@ pnpm eval:smoke [--tier full] [--tenant t001] [--verbose]
                       进程内启动平台与 DemoERP，逐个运行该租户可见的评测集，冒烟集 3 分钟内跑完
 pnpm agent:run vendor.pur/supplier-performance-analyst --user zhangmin "百润精密最近表现怎么样" [--yes]
                       进程内启动平台与 DemoERP 跑一次 Agent，打印流式事件和追踪树，断网可用
+pnpm eab <子命令>     专业代码通道 CLI（login/init/pull/push/validate/eval/deploy/logs），对运行中的平台操作，详见 docs/pro-code.md；
+                      会话存仓库外的 ~/.config/eab/cli-session.json，登录令牌 8 小时有效
 pnpm tools:import-bo  从运行中的 DemoERP 的 OpenAPI 生成 BO 工具入参 schema 并与资产比对；加 --write 写回并升版本
-node scripts/acceptance-p2.mjs … acceptance-p9.mjs   对运行中的 pnpm demo 做阶段验收（只用 HTTP）
+node scripts/acceptance-p2.mjs … acceptance-p9.mjs、acceptance-procode.mjs   对运行中的 pnpm demo 做阶段验收（只用 HTTP）
 pnpm --filter @eab/client-demo run start   模拟外部平台经 A2A 调用平台的采购助手（先演示缺少身份被拒绝）
 cd external-agents/supplier-risk-py && uv sync && uv run pytest -q   Python 外部 Agent 的测试
 ```
@@ -69,7 +71,8 @@ cd external-agents/supplier-risk-py && uv sync && uv run pytest -q   Python 外�
 
 ## 架构要点
 
-- 资产 schema 的唯一来源是 `backend/eab-spec`，平台、命令行和后续的 Studio MCP Server 都从这里取，不要另写一份类型。前端只用到命名空间分层规则（`packages/ui/src/layers.ts`）。
+- 资产 schema 的唯一来源是 `backend/eab-spec`，平台、命令行和 Studio MCP Server 都从这里取，不要另写一份类型。前端只用到命名空间分层规则（`packages/ui/src/layers.ts`）。
+- 专业代码通道（ADR 0014）：`eab` CLI 与 Studio MCP Server（`/studio-mcp`）都指向同一条 Studio 草稿链路，push 不直接写注册中心；工程模板与导出共用平台 `procode` 包（`backend/platform`），导出与 init 同构是结构性保证。模板资源里的 gitignore 存成不带点的文件名（maven-jar-plugin 底层的 plexus-archiver 按 Ant 默认排除清单跳过点开头文件），写出时才落成 `.gitignore`。
 - 运行时组装规则在 `backend/eab-assembler`，修改前先读主提示词 5.4 节，改完必须补测试。
 - Agent 运行时在 `backend/eab-runtime`（Agent 循环、工具网关、技能与工作流、监督层、模型网关），平台里的 `RuntimeService` 把它的端口接到注册中心、令牌交换和审计上。
 - 鉴权逻辑只放在 `backend/eab-policy`、平台的身份服务和 DemoERP 的 BO API 层（`BoAuthorizer`），不要散落在业务代码里。

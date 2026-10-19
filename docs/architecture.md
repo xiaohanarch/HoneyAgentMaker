@@ -436,6 +436,18 @@ Studio 的“接入外部 Agent”页面（`/studio/external/new`）读取 Agent
 
 断网演示由剧本保证：`demo/scripts/story-e.yaml` 覆盖扩展发布前后的两条回答路径（按 `match.tools` 区分），`studio.yaml` 的方案剧本按“任务：生成扩展方案”话术匹配。剧本里嵌的资产草稿和评测集与仓库里的租户资产是同一棵 YAML 树，`DemoScriptsTest` 逐字比对，防止两边漂移。
 
+## 专业代码通道（P9）
+
+接口见 `docs/studio-api.md` 的“专业代码通道”，设计取舍见 ADR 0014，端到端实录见 `docs/pro-code.md`。代码在平台的 `dev.eab.platform.procode` 包与 `backend/eab-cli` 模块。
+
+### eab 命令行与工程模型
+
+`eab`（`pnpm eab <子命令>`）是对运行中平台的 HTTP 客户端，不进程内启动平台。工程以 `eab-project.yaml` 为锚点：模板、平台地址、用户、目标 Agent 和资产清单（文件、kind、引用、draftId）。push 不直接写注册中心，而是逐资产找回（或新建）同一条 Studio 草稿再整份替换 YAML，因为评测、静态检查、MCP 审批这些门禁只存在于 Studio 的发布链路上；draftId 在 push 后回写清单，界面与文件来回切换始终找回同一条草稿。评测集不是独立资产，推到主草稿的 evalYaml 槽。四套模板（agent、extension、a2a-python、a2a-ts）与导出共用同一份生成器（`ProjectTemplates`、`ProjectExport`），草稿从界面导出的代码工程与 `eab init` 的产物同构；发布会把版本号写回草稿并规范化 YAML 格式，导出推回后语义不变。
+
+### Studio MCP Server
+
+端点 `/studio-mcp`，与 `/mcp` 同栈（Streamable HTTP 无状态传输），只对租户开发者与租户管理员开放。14 个工具分两组：`semantic_*` 四个复用业务端点的语义查询（同过鉴权点 3、写审计）；`studio_*` 十个覆盖能力目录、扩展点目录、草稿、校验、评测与发布。角色不符或令牌缺失返回 isError 的工具结果而不是 HTTP 错误，编码 Agent 能把原因读给用户；评测与部署类工具按用户限流。发布仍走 Studio 的门禁链路，MCP 工具没有特权。
+
 ## 技术选型
 
 | 方面 | 选择 | 依据 |

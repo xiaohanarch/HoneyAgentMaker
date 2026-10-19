@@ -9,6 +9,7 @@ import dev.eab.platform.http.ApiResponse.ApiError;
 import dev.eab.platform.http.Principals.Principal;
 import dev.eab.platform.http.RateLimiter;
 import dev.eab.platform.http.SseRuns;
+import dev.eab.platform.procode.ProjectExport;
 import dev.eab.platform.registry.AssetRepository.AssetFilter;
 import dev.eab.platform.runtime.RuntimeService;
 import dev.eab.platform.studio.StudioService.DraftView;
@@ -27,7 +28,9 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -258,6 +261,23 @@ public class StudioController {
         DemoUser user = developer(request);
         if (!studio.drafts().delete(user.tenantId(), id)) throw new ApiException(404, "NOT_FOUND", "草稿 " + id + " 不存在");
         return ApiResponse.success(Map.of("id", id, "deleted", true));
+    }
+
+    @GetMapping("/studio/drafts/{id}/export")
+    @Operation(summary = "导出为代码工程（zip）：与 eab init 同构，清单里带 draftId")
+    public ResponseEntity<byte[]> export(HttpServletRequest request, @PathVariable String id) {
+        DemoUser user = developer(request);
+        Draft draft = draft(user, id);
+        byte[] zip;
+        try {
+            zip = ProjectExport.zip(draft);
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(400, "BAD_REQUEST", e.getMessage());
+        }
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("application/zip"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + draft.name() + "-project.zip\"")
+                .body(zip);
     }
 
     public record StepBody(String step, Map<String, Object> value) {}

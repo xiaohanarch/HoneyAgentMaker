@@ -52,7 +52,7 @@ public final class EvalSmoke {
 
     static int run(Args args, PrintStream out) throws Exception {
         long start = System.currentTimeMillis();
-        try (var env = new AgentRun.Environment()) {
+        try (var env = new DemoEnvironment()) {
             Path assets = env.platform.getBean(PlatformProperties.class).resolvedAssetsDir();
             var seeded = AssetSeeder.seed(env.services().registry(), assets, tenantDirectories(assets));
             seeded.failed().forEach(f -> out.println(AgentRun.Ansi.red("资产入库失败 " + f.file() + "：" + f.message())));

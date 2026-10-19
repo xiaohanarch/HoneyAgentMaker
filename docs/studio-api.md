@@ -59,6 +59,7 @@ interface Recommendation {
 - `POST /studio/drafts/{id}/apply` body `{step, value}` → `DraftView`
 - `PUT /studio/drafts/{id}/yaml` body `{yaml}` → `DraftView`（YAML 编辑模式；有 schema 问题时仍保存，issues 里列出）
 - `DELETE /studio/drafts/{id}`
+- `GET /studio/drafts/{id}/export` → `application/zip` 附件（文件名 `<资产名>-project.zip`）：草稿导出为代码工程（专业代码通道，ADR 0014），文件集与 `eab init` 的产物同构，`eab-project.yaml` 清单里带 `draftId` 与资产引用，推回平台（`pnpm eab push`）时据此找回同一条草稿。支持 Agent、AgentExtension、Skill 草稿；评测集草稿非空时一并导出到 `evals/`。
 
 ## 测试（私有环境）
 
@@ -233,3 +234,43 @@ interface RequestPlan {
 - `POST /studio/external/test` body `{cardUrl, message}` → 连通性测试：发一条消息，返回回复，以及 A2A 请求与响应的原文（令牌显示为 `Bearer ***`）
 - `POST /studio/external/publish` body `{cardUrl, displayName, …}` → 把接入配置发布为 `tenant.<租户>.remote` 下的 RemoteAgent 资产，发布后进入能力目录
 - `GET /studio/external` → 本租户已接入的外部 Agent，以及平台对外暴露的 A2A Agent（岗位助手和 Agent 需要声明 `{type: agent}` 触发器才对外暴露）
+
+## 专业代码通道（P9）
+
+设计取舍见 ADR 0014。专业开发者以 YAML 文件为中心工作：`eab` 命令行把资产工程拉到本地、放进 Git、再推回平台，草稿随时可以从界面导出为同构的代码工程（`GET /studio/drafts/{id}/export`）；Studio MCP Server 让 Claude Code 这类编码 Agent 查到业务上下文并直接校验、评测、发布。界面与文件是同一份数据的两种视图，工程清单 `eab-project.yaml` 里的 `draftId` 保证来回切换找回的是同一条草稿。
+
+### eab 命令行
+
+`pnpm eab <子命令>`。公共参数：`--url` 平台地址（默认读会话，再默认 `http://127.0.0.1:4000`）、`--session` 会话文件（默认 `~/.config/eab/cli-session.json`）、`--dir` 工程目录（默认当前目录）。登录令牌 8 小时有效，过期后重新 login。退出码 0 成功、1 失败、2 用法不对。
+
+| 子命令 | 行为 | 串起来的接口 |
+|---|---|---|
+| `login --user <用户> [--print-token]` | 登录并保存会话；`--print-token` 输出裸令牌，供 MCP 客户端的 Authorization 头 | `POST /identity/v1/login` |
+| `init --template agent\|extension\|a2a-python\|a2a-ts --name <名称> [--target <标品Agent>]` | 本地解包模板建工程，不访问平台 | 无 |
+| `pull <namespace/name>[@版本]` 或 `--draft <草稿编号>` | 把资产或草稿拉成本地工程；资产走租户视角（标品指令为占位） | `GET /registry/assets/{ns}/{name}`、`GET /studio/drafts/{id}` |
+| `push` | 逐资产找回（或新建）同一条草稿并整份替换 YAML；评测集推到主草稿的 evalYaml；draftId 回写清单 | `GET /studio/home`、`POST /studio/drafts`、`POST /studio/extensions`、`POST /studio/skills`、`PUT /studio/drafts/{id}/yaml`、`PUT /studio/drafts/{id}/evals`（扩展走 `/extension/evals`） |
+| `validate` | 平台侧批量校验工程里的资产；工程内资产相互引用（扩展引用还没发布的评测集与技能）时在叠加层里一起解析，不写入 | `POST /registry/validate-batch` body `{assets: string[]}`，一次最多 20 份，返回逐份的 `{valid, issues, lint}` |
+| `eval [--generate] [--user <测试用户>]` | 先 push，再按草稿类型生成（可选）与运行评测；失败退出 1 | `POST /studio/drafts/{id}/evals/generate`、`POST /studio/drafts/{id}/evals/run`、`POST /studio/drafts/{id}/extension/evals/run` |
+| `deploy [--note <说明>] [--promote test\|prod]` | 先 push 再发布；Agent 可接着晋级；a2a 工程先探测本地 Agent，经接入通道登记为远程 Agent | `POST /studio/drafts/{id}/publish`、`/extension/publish`、`/skill-publish`、`POST /studio/deployments/promote`、`POST /studio/external/inspect`、`POST /studio/external/publish` |
+| `logs [--agent <namespace/name>] [--limit 20] [--trace <追踪编号>]` | 运行记录与追踪树 | `GET /runs`、`GET /traces/{traceId}` |
+
+### Studio MCP Server
+
+端点 `/studio-mcp`，与 `/mcp` 同栈：Streamable HTTP 无状态传输（ADR 0002），每次调用独立鉴权，Bearer 用户令牌，角色必须是租户开发者或租户管理员；角色不符或令牌缺失返回 isError 的工具结果而不是 HTTP 错误。工具的返回值是 JSON 序列化后的文本。评测与部署类工具按用户限流（每分钟 30 次）。
+
+| 工具 | 参数 | 行为 |
+|---|---|---|
+| `semantic_describe_object` | `object`（必填，业务对象，如 `erp.pur.Supplier` 或 供应商） | 语义包查询，与 `/mcp` 端点相同，按当前用户的权限执行并写审计 |
+| `semantic_get_metric` | `name`（必填，指标名或显示名） | 同上 |
+| `semantic_find_rules` | `object`、`keyword`（都可选，关键词或规则编号） | 同上 |
+| `semantic_search` | `query`（必填）、`limit`（1~20，可选） | 同上 |
+| `studio_list_capabilities` | 无 | 能力目录：流程、Agent、语义包、知识、技能、工具与模型档位 |
+| `studio_list_vendor_agents` | 无 | 可扩展的标品 Agent 清单与各自的扩展点 |
+| `studio_get_vendor_agent` | `namespace`、`name`（必填） | 一个标品 Agent 的详情与扩展点 |
+| `studio_list_drafts` | `limit`（1~100，可选，默认 30） | 本租户的草稿列表（id、类型、资产引用、意图与步骤） |
+| `studio_get_draft` | `draftId`（必填） | 草稿详情：YAML、评测集与静态检查结果 |
+| `studio_validate_asset` | `yaml`（必填）、`evalYaml`（可选，随扩展一起校验） | 校验资产 YAML（schema 与静态检查），不写入平台 |
+| `studio_generate_evals` | `draftId`（必填）、`testUser`（可选，默认 zhangmin） | 为草稿生成评测集初稿 |
+| `studio_run_evals` | `draftId`（必填） | 运行草稿的评测集（评测里确认点一律自动拒绝） |
+| `studio_deploy_draft` | `draftId`（必填）、`note`（可选） | 发布草稿：Agent 发布到 dev；扩展与技能发布后对本租户即时生效 |
+| `studio_promote` | `ref`、`version`、`environment`（必填，test 或 prod） | 把租户 Agent 晋级到 test 或 prod，门禁不过时报错并列出门禁 |

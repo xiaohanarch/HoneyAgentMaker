@@ -1,0 +1,29 @@
+# 声明式 Agent。把 <改我> 占位换成真实内容后：pnpm eab validate 校验，pnpm eab push 推回平台。
+apiVersion: eab.dev/v1
+kind: Agent
+metadata:
+  name: {{name}}
+  namespace: tenant.<改我>.agents
+  version: 1.0.0
+  displayName: <显示名>
+  description: <一句话描述这个 Agent 解决什么问题>
+  owner: <登录用户，push 时以会话为准>
+spec:
+  expertise: <Agent 的专长领域>
+  instructions: |
+    目标：<要解决的业务问题>。
+    <面向哪个角色、在什么场景下使用、成功标准是什么。>
+  constraints: []
+  model: { profile: reasoning, temperature: 0.2 }
+  tools:
+    - { builtin: calculator }
+  semanticPacks: []
+  triggers:
+    - { type: assistant }
+  channels: [assistant-web]
+  writePolicy: { maxLevel: L0 }
+  routing:
+    description: <一句话描述，供统一入口路由参考>
+    examples:
+      - <用户会怎么问>
+    direct: true
