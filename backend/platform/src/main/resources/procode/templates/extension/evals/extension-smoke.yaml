@@ -1,0 +1,22 @@
+# 扩展冒烟评测集：发布门禁要求通过。评测运行时确认点一律自动拒绝，
+# 断言要写确认被拒路径的表现（例如回复说明了原因），不要断言“等待确认”。
+apiVersion: eab.dev/v1
+kind: EvalSuite
+metadata:
+  name: {{name}}-smoke
+  namespace: tenant.<改我>.evals
+  version: 1.0.0
+  displayName: <扩展显示名> · 冒烟集
+  owner: <登录用户>
+spec:
+  target: tenant.<改我>.extensions/{{name}}
+  visibility: internal
+  tier: smoke
+  minPassRate: 1
+  cases:
+    - id: first-case
+      user: <测试用户，例如 zhangmin>
+      question: <用户会问的一句话>
+      assertions:
+        - { type: calledTool, tool: <扩展后应调用的工具或技能> }
+        - { type: contains, text: <回复里应包含的关键内容> }

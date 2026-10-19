@@ -75,6 +75,8 @@ e2e/           Playwright 端到端测试
 - 需求说明：`docs/brief/02-主提示词.md`
 - 分阶段计划：`docs/brief/03-分阶段提示词.md`
 - 架构说明：`docs/architecture.md`
+- 专业代码通道实录（CLI + MCP Server + 编码 Agent 协作开发扩展）：`docs/pro-code.md`
+- Studio 接口契约：`docs/studio-api.md`
 - 架构决策记录：`docs/decisions/`
 
 ## 许可证

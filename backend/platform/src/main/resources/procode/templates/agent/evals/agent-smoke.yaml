@@ -1,0 +1,22 @@
+# 冒烟评测集：发布 Agent 前必须通过。与资产一起 push，挂在同一条草稿上。
+# user 要是 DemoDirectory 里存在的用户；断言类型有 calledTool、notCalledTool、contains、notContains、
+# numberRange、invariant、judge。
+apiVersion: eab.dev/v1
+kind: EvalSuite
+metadata:
+  name: {{name}}-smoke
+  namespace: tenant.<改我>.evals
+  version: 1.0.0
+  displayName: <显示名> · 冒烟集
+  owner: <登录用户>
+spec:
+  target: tenant.<改我>.agents/{{name}}
+  visibility: internal
+  tier: smoke
+  minPassRate: 1
+  cases:
+    - id: first-case
+      user: <测试用户，例如 zhangmin>
+      question: <用户会问的一句话>
+      assertions:
+        - { type: contains, text: <回复里应包含的关键内容> }

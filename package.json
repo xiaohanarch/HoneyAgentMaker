@@ -33,6 +33,7 @@
     "tools:import-bo": "node scripts/java-cli.mjs tools:import-bo",
     "agent:run": "node scripts/java-cli.mjs agent:run",
     "eval:smoke": "node scripts/java-cli.mjs eval:smoke",
+    "eab": "node scripts/java-cli.mjs eab",
     "data:simulate": "node scripts/java-cli.mjs data:simulate",
     "test:java": "node scripts/mvnw.mjs -q -B verify"
   },

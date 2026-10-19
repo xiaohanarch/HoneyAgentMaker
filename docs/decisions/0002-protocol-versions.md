@@ -13,7 +13,7 @@
 | `@a2a-js/sdk` | 1.3.0 | A2A v1.0.0 | 平台的 A2A 网关（出站客户端、入站服务端）、`external-agents/fx-rate-ts` |
 | `a2a-sdk`（Python） | 1.2.2 | A2A v1.0 | `external-agents/supplier-risk-py` |
 | `langgraph`（Python） | 1.2.15 | 不涉及 | `external-agents/supplier-risk-py` 的 Agent 逻辑 |
-| `@modelcontextprotocol/sdk` | 1.32.1 | MCP 2025-11-25 | MCP 网关、平台对外 MCP 端点、Studio MCP Server、`external-agents/logistics-mcp` |
+| `@modelcontextprotocol/sdk` | 1.32.1 | MCP 2025-11-25 | MCP 网关、平台对外 MCP 端点（Studio MCP Server 后来改用 Java SDK，见下表）、`external-agents/logistics-mcp` |
 
 依赖声明使用插入号范围（例如 `^1.3.0`），由 `pnpm-lock.yaml` 锁定实际版本。
 
@@ -39,7 +39,7 @@
 | 组件 | 选用版本 | 用在哪里 |
 |---|---|---|
 | MCP Java SDK `io.modelcontextprotocol.sdk:mcp` | 2.0.0，由 `spring-ai-mcp` 2.0.1 引入（J3 实际解析到的版本） | MCP 网关接入外部 MCP Server（`HttpClientStreamableHttpTransport`） |
-| Spring AI `mcp-spring-webmvc` | 2.0.1 | 平台对外 MCP 端点 `/mcp`，用无状态的 Streamable HTTP 传输（`WebMvcStatelessServerTransport`） |
+| Spring AI `mcp-spring-webmvc` | 2.0.1 | 平台对外 MCP 端点 `/mcp` 与 Studio MCP 端点 `/studio-mcp`（P9），都用无状态的 Streamable HTTP 传输（`WebMvcStatelessServerTransport`） |
 | A2A Java SDK `org.a2aproject.sdk` | 1.4.0.Final | A2A 网关的出站与入站 |
 
 平台对外的 MCP 端点选用无状态传输：每个请求独立鉴权（Bearer 用户令牌经传输上下文传给工具处理函数），不需要服务端保存会话，多实例部署也不用粘性会话。端点只暴露只读工具，调用时以 `agent:platform/mcp-endpoint` 的身份做令牌交换。

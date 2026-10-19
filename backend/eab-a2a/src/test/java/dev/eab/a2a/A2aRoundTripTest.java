@@ -36,6 +36,10 @@ class A2aRoundTripTest {
     String base;
     AgentCard card;
 
+    /** 流式调用的等待上限：本机在构建与杀毒软件争用时，回环连接上的首个请求偶发超过 10 秒的停顿，给足余量；
+     *  超时转异步的行为由 timeoutBecomesAsync 用 300 毫秒单独验证 */
+    static final Duration WAIT = Duration.ofSeconds(30);
+
     static AgentExecutor executor() {
         return (context, emitter) -> {
             String text = context.getUserInput();
@@ -158,8 +162,7 @@ class A2aRoundTripTest {
         var fetched = A2aOutbound.fetchCard(base, null, Map.of());
         assertThat(fetched.card().name()).isEqualTo("测试 Agent");
         assertThat(fetched.json()).contains("测试 Agent");
-        var outcome =
-                A2aOutbound.send(fetched.card(), "token-x", "百润精密最近有没有风险", null, null, Duration.ofSeconds(10), null);
+        var outcome = A2aOutbound.send(fetched.card(), "token-x", "百润精密最近有没有风险", null, null, WAIT, null);
         assertThat(outcome.state()).isEqualTo("completed");
         assertThat(outcome.text()).contains("风险等级 中");
         assertThat(outcome.exchanges())
@@ -170,11 +173,10 @@ class A2aRoundTripTest {
     @Test
     @DisplayName("多轮：对方追问时返回 input-required，带着 contextId 和 taskId 回答后完成")
     void multiTurn() {
-        var first = A2aOutbound.send(card, null, "最近有没有风险", null, null, Duration.ofSeconds(10), null);
+        var first = A2aOutbound.send(card, null, "最近有没有风险", null, null, WAIT, null);
         assertThat(first.state()).isEqualTo("input-required");
         assertThat(first.text()).contains("供应商名称");
-        var second =
-                A2aOutbound.send(card, null, "百润精密", first.contextId(), first.taskId(), Duration.ofSeconds(10), null);
+        var second = A2aOutbound.send(card, null, "百润精密", first.contextId(), first.taskId(), WAIT, null);
         assertThat(second.state()).isEqualTo("completed");
         assertThat(second.taskId()).isEqualTo(first.taskId());
     }
@@ -282,14 +284,13 @@ class A2aRoundTripTest {
                 .skills(card.skills())
                 .supportedInterfaces(card.supportedInterfaces())
                 .build();
-        var done = A2aOutbound.send(blocking, "token", "百润精密", null, null, Duration.ofSeconds(10), null);
+        var done = A2aOutbound.send(blocking, "token", "百润精密", null, null, WAIT, null);
         assertThat(done.state()).isEqualTo("completed");
         assertThat(done.text()).contains("风险等级 中");
         assertThat(done.exchanges()).anyMatch(e -> e.body() != null && e.body().contains("SendMessage"));
-        var ask = A2aOutbound.send(blocking, null, "有风险吗", null, null, Duration.ofSeconds(10), null);
+        var ask = A2aOutbound.send(blocking, null, "有风险吗", null, null, WAIT, null);
         assertThat(ask.state()).isEqualTo("input-required");
-        var resumed =
-                A2aOutbound.send(blocking, null, "百润精密", ask.contextId(), ask.taskId(), Duration.ofSeconds(10), null);
+        var resumed = A2aOutbound.send(blocking, null, "百润精密", ask.contextId(), ask.taskId(), WAIT, null);
         assertThat(resumed.state()).isEqualTo("completed");
         var slow = A2aOutbound.send(
                 blocking,

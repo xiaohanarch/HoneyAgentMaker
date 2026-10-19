@@ -1,7 +1,15 @@
 /**
  * Studio 调用的平台接口（docs/studio-api.md）。请求都带当前身份的 Bearer 令牌，经同源的 /api 转发到平台。
  */
-import { deleteJson, getJson, postJson, putJson, streamPost, type RunEvent } from '../assist/api'
+import {
+  ApiError,
+  deleteJson,
+  getJson,
+  postJson,
+  putJson,
+  streamPost,
+  type RunEvent,
+} from '../assist/api'
 
 export type StepKey =
   | 'purpose'
@@ -304,6 +312,28 @@ export interface AdoptedDraft {
 
 const enc = encodeURIComponent
 
+/** 下载二进制（导出代码工程的 zip）；失败时响应体是 JSON 信封，读出来转成 ApiError */
+async function getBlob(path: string, token: string | undefined): Promise<Blob> {
+  const headers: Record<string, string> = {}
+  if (token !== undefined) headers.authorization = `Bearer ${token}`
+  const response = await fetch(`/api${path}`, { headers })
+  if (!response.ok) {
+    let error: ApiError | undefined
+    try {
+      const body = (await response.json()) as {
+        error: { code: string; message: string; details?: unknown } | null
+      }
+      if (body.error !== null) {
+        error = new ApiError(body.error.code, body.error.message, body.error.details)
+      }
+    } catch {
+      // 响应体不是 JSON 时退回到 HTTP 状态
+    }
+    throw error ?? new ApiError(`HTTP_${response.status}`, `请求失败：HTTP ${response.status}`)
+  }
+  return await response.blob()
+}
+
 export function studioApi(token: string | undefined) {
   return {
     home: () => getJson<HomeView>('/studio/home', token),
@@ -335,6 +365,8 @@ export function studioApi(token: string | undefined) {
     createDraft: (intent: string) => postJson<DraftView>('/studio/drafts', token, { intent }),
     draft: (id: string) => getJson<DraftView>(`/studio/drafts/${enc(id)}`, token),
     deleteDraft: (id: string) => deleteJson<void>(`/studio/drafts/${enc(id)}`, token),
+    /** 导出为代码工程（zip，与 pnpm eab init 的模板同构，可经 pnpm eab push 推回同一条草稿） */
+    exportProject: (id: string) => getBlob(`/studio/drafts/${enc(id)}/export`, token),
     recommend: (id: string, step: StepKey) =>
       postJson<Recommendation>(`/studio/drafts/${enc(id)}/recommend`, token, { step }),
     apply: (id: string, step: StepKey, value: Record<string, unknown>) =>

@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft } from 'lucide-react'
 import { cn } from '@eab/ui'
 import { Avatar } from '../studio/Avatar'
+import { ExportProjectButton } from '../studio/ExportProjectButton'
 import { identityOf } from '../studio/draft-values'
 import { STEPS, stepAt, stepIndex } from '../studio/steps'
 import { draftKey, errorText, useDraft } from '../studio/use-studio'
@@ -51,9 +52,12 @@ export function DraftPage(): ReactNode {
           </h1>
           <p className="truncate text-xs text-ink-muted">{draft.draft.intent}</p>
         </div>
-        <span className="ml-auto text-xs text-ink-faint">
-          {`第 ${index + 1} / ${STEPS.length} 步 · ${current.hint}`}
-        </span>
+        <div className="ml-auto flex items-center gap-3">
+          <span className="text-xs text-ink-faint">
+            {`第 ${index + 1} / ${STEPS.length} 步 · ${current.hint}`}
+          </span>
+          <ExportProjectButton view={draft} />
+        </div>
       </header>
 
       <div

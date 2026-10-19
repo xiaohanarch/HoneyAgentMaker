@@ -1,9 +1,6 @@
 package dev.eab.cli;
 
 import dev.eab.directory.DemoDirectory;
-import dev.eab.erp.DemoErpApplication;
-import dev.eab.platform.PlatformApplication;
-import dev.eab.platform.PlatformServices;
 import dev.eab.platform.runtime.RuntimeService;
 import dev.eab.runtime.RunEvents.RunEvent;
 import dev.eab.spec.Json;
@@ -13,17 +10,13 @@ import dev.eab.tracing.TraceView;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
-import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.function.BooleanSupplier;
-import org.springframework.boot.builder.SpringApplicationBuilder;
-import org.springframework.context.ConfigurableApplicationContext;
 
 /**
  * pnpm agent:run vendor.pur/supplier-performance-analyst --user zhangmin "百润精密最近表现怎么样" [--yes]
@@ -62,65 +55,6 @@ public final class AgentRun {
     static final String USAGE =
             "用法：pnpm agent:run <namespace/name> --user <用户> \"<话术>\" [--yes] [--delegation <委托编号>]\n"
                     + "例如：pnpm agent:run vendor.pur/supplier-performance-analyst --user zhangmin \"百润精密最近表现怎么样\"";
-
-    /** 进程内的演示环境：平台和 DemoERP 各自监听随机端口 */
-    static final class Environment implements AutoCloseable {
-        final ConfigurableApplicationContext platform;
-        final ConfigurableApplicationContext erp;
-
-        Environment() throws Exception {
-            int erpPort;
-            try (ServerSocket socket = new ServerSocket(0)) {
-                erpPort = socket.getLocalPort();
-            }
-            String secret = UUID.randomUUID().toString();
-            // 两个应用的 application.yml 都在类路径上，这里不读配置文件，全部用参数给出
-            platform = new SpringApplicationBuilder(PlatformApplication.class)
-                    .logStartupInfo(false)
-                    .run(
-                            "--spring.config.name=eab-cli",
-                            "--spring.threads.virtual.enabled=true",
-                            "--logging.level.root=error",
-                            "--spring.main.banner-mode=off",
-                            "--server.port=0",
-                            "--server.address=127.0.0.1",
-                            "--eab.db-path=:memory:",
-                            "--eab.ephemeral-keys=true",
-                            "--eab.seed-assets=true",
-                            "--eab.demo-mode=true",
-                            "--eab.internal-secret=" + secret,
-                            "--eab.demo-erp-url=http://127.0.0.1:" + erpPort);
-            String platformUrl = "http://127.0.0.1:" + platform.getEnvironment().getProperty("local.server.port");
-            erp = new SpringApplicationBuilder(DemoErpApplication.class)
-                    .logStartupInfo(false)
-                    .run(
-                            "--spring.config.name=eab-cli",
-                            "--spring.threads.virtual.enabled=true",
-                            "--logging.level.root=error",
-                            "--spring.main.banner-mode=off",
-                            "--server.port=" + erpPort,
-                            "--server.address=127.0.0.1",
-                            "--eab.db-path=:memory:",
-                            "--eab.seed-data=true",
-                            "--eab.platform-url=" + platformUrl,
-                            "--eab.internal-secret=" + secret,
-                            "--eab.delegation-cache-millis=0");
-        }
-
-        PlatformServices services() {
-            return platform.getBean(PlatformServices.class);
-        }
-
-        RuntimeService runtime() {
-            return platform.getBean(RuntimeService.class);
-        }
-
-        @Override
-        public void close() {
-            erp.close();
-            platform.close();
-        }
-    }
 
     /** 运行事件的终端输出 */
     static void print(PrintStream out, RunEvent event) {
@@ -193,7 +127,7 @@ public final class AgentRun {
             return 2;
         }
         out.println(Ansi.dim("正在启动进程内的平台与 DemoERP…"));
-        try (Environment env = new Environment()) {
+        try (DemoEnvironment env = new DemoEnvironment()) {
             String token = env.services().identity().login(user.id()).token();
             RuntimeService runtime = env.runtime();
             var outcome = runtime.start(

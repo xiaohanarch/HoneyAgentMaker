@@ -12,7 +12,7 @@
 
   <artifactId>eab-cli</artifactId>
   <name>命令行</name>
-  <description>pnpm agent:run：在进程内启动平台和 DemoERP，跑一次 Agent，打印流式结果和追踪树</description>
+  <description>pnpm agent:run、pnpm eval:smoke，以及专业代码通道的 pnpm eab（login/init/pull/push/validate/eval/deploy/logs）</description>
 
   <dependencies>
     <dependency>
@@ -24,6 +24,14 @@
       <groupId>dev.eab</groupId>
       <artifactId>demo-erp</artifactId>
       <version>${project.version}</version>
+    </dependency>
+    <!-- RepoPaths（仓库资产路径）与测试夹具以 test-jar 复用 -->
+    <dependency>
+      <groupId>dev.eab</groupId>
+      <artifactId>eab-spec</artifactId>
+      <version>${project.version}</version>
+      <type>test-jar</type>
+      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>

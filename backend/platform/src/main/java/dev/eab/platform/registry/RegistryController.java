@@ -15,9 +15,11 @@ import dev.eab.spec.Layers;
 import dev.eab.spec.Lint;
 import dev.eab.spec.Versions;
 import dev.eab.spec.Viewer;
+import dev.eab.spec.model.Asset;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -149,6 +151,46 @@ public class RegistryController {
         var lint = Lint.lint(parsed.asset(), registry.resolverFor(viewer));
         return ApiResponse.success(
                 new Validation(lint.stream().noneMatch(i -> i.severity().equals("error")), List.of(), lint));
+    }
+
+    public record BatchBody(List<String> assets) {}
+
+    /** 一次最多校验的资产数：一个代码工程最多几份资产，取个宽松上限 */
+    static final int MAX_BATCH = 20;
+
+    @PostMapping("/registry/validate-batch")
+    @Operation(summary = "批量校验一组资产 YAML，不写入：同一工程的资产（扩展、评测集、技能）相互引用时在叠加层里一起解析")
+    public ApiResponse<List<Validation>> validateBatch(HttpServletRequest request, @RequestBody BatchBody body) {
+        Viewer viewer = principals.require(request).viewer();
+        if (body == null || body.assets() == null || body.assets().isEmpty()) {
+            throw new ApiException(400, "BAD_REQUEST", "请求参数不合法：缺少 assets 数组");
+        }
+        if (body.assets().size() > MAX_BATCH) {
+            throw new ApiException(400, "BAD_REQUEST", "请求参数不合法：一次最多校验 " + MAX_BATCH + " 份资产");
+        }
+        List<AssetParser.ParseResult> parsed = new ArrayList<>();
+        for (String yaml : body.assets()) {
+            if (yaml == null || yaml.isBlank()) {
+                throw new ApiException(400, "BAD_REQUEST", "请求参数不合法：assets 里出现了空 YAML");
+            }
+            parsed.add(AssetParser.parseYaml(yaml));
+        }
+        // 解析成功的资产一起进叠加层：新工程的扩展引用还没发布的评测集与技能，也能在工程内部解析
+        List<Asset> overlay = parsed.stream()
+                .filter(AssetParser.ParseResult::ok)
+                .map(AssetParser.ParseResult::asset)
+                .toList();
+        var resolver = new OverlayResolver(registry.resolverFor(viewer), overlay);
+        List<Validation> results = new ArrayList<>();
+        for (AssetParser.ParseResult one : parsed) {
+            if (!one.ok()) {
+                results.add(new Validation(false, one.issues(), List.of()));
+                continue;
+            }
+            List<Lint.LintIssue> lint = Lint.lint(one.asset(), resolver);
+            results.add(new Validation(lint.stream().noneMatch(i -> i.severity().equals("error")), List.of(), lint));
+        }
+        return ApiResponse.success(results);
     }
 
     public record EffectiveResponse(Object definition, Object issues) {}

@@ -14,6 +14,8 @@ export default tseslint.config(
       'docs/brief/**',
       '**/target/**',
       '**/.venv/**',
+      // 后端是 Java（ADR 0006），backend 下的 TS 只是工程模板资源，带 {{占位符}} 不是合法语法
+      'backend/**',
     ],
   },
   js.configs.recommended,

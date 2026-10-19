@@ -43,13 +43,17 @@ public final class ResetDemo {
 
     /**
      * 演示过程中写进注册中心、重新演示前要撤回的资产：模拟的标品升级（故事 F）、经验回流写入的租户语义包扩展、
-     * 治理中心生成的方案、扩展需求（故事 E）。其他资产保留。
+     * 治理中心生成的方案、扩展需求（故事 E），以及 pro-code 演示发布的故事 E 完成态资产（扩展、技能、评测集，
+     * 这些命名空间不在启动入库范围）。其他资产保留。
      */
     static final List<String> DEMO_ASSETS = List.of(
             "DELETE FROM assets WHERE namespace = 'vendor.fin' AND name = 'transaction-anomaly-analyst' AND version = '1.3.0'",
             "DELETE FROM assets WHERE namespace LIKE 'tenant.%.semantic'",
             "DELETE FROM assets WHERE namespace LIKE 'tenant.%.solutions'",
-            "DELETE FROM assets WHERE kind = 'DevRequest'");
+            "DELETE FROM assets WHERE kind = 'DevRequest'",
+            "DELETE FROM assets WHERE namespace = 'tenant.t001.pur' AND name = 'purchase-order-clerk-ext'",
+            "DELETE FROM assets WHERE namespace = 'tenant.t001.skills' AND name = 'alternative-supplier-lookup'",
+            "DELETE FROM assets WHERE namespace = 'tenant.t001.evals' AND name = 'purchase-clerk-ext-smoke'");
 
     public static void reset(Path dataDir, Clock clock) {
         try (PlatformDb db = PlatformDb.open(dataDir.resolve("platform.db").toString())) {
