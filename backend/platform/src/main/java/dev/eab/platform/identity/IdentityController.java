@@ -148,6 +148,45 @@ public class IdentityController {
                 return ResponseEntity.badRequest()
                         .body(Map.of("error", "unsupported_grant_type", "error_description", "令牌交换只在平台内部进行"));
             }
+            // 受限回调交换（ADR 0014）：外部 Agent 用平台出站调用的服务令牌换只读委托令牌，受众固定 eab-platform
+            if (IdentityService.TokenType.SERVICE.equals(body.get("subject_token_type"))) {
+                if (!TokenService.Audience.PLATFORM.equals(body.get("audience"))) {
+                    return ResponseEntity.badRequest()
+                            .body(Map.of(
+                                    "error",
+                                    "invalid_request",
+                                    "error_description",
+                                    "服务令牌只能换取受众为 eab-platform 的受限回调令牌"));
+                }
+                if (body.get("actor_token") != null) {
+                    return ResponseEntity.badRequest()
+                            .body(Map.of("error", "invalid_request", "error_description", "服务令牌交换不需要 actor_token"));
+                }
+                if (body.get("subject_token") == null) {
+                    return ResponseEntity.badRequest()
+                            .body(Map.of("error", "invalid_request", "error_description", "缺少 subject_token"));
+                }
+                String restrictedScope = body.get("scope");
+                var restricted = services.identity()
+                        .exchangeRestricted(
+                                body.get("subject_token"),
+                                restrictedScope == null
+                                        ? null
+                                        : Arrays.stream(restrictedScope.split(" "))
+                                                .filter(s -> !s.isEmpty())
+                                                .toList());
+                return ResponseEntity.ok(Map.of(
+                        "access_token",
+                        restricted.accessToken(),
+                        "issued_token_type",
+                        IdentityService.TokenType.ACCESS_TOKEN,
+                        "token_type",
+                        "Bearer",
+                        "expires_in",
+                        restricted.expiresIn(),
+                        "scope",
+                        String.join(" ", restricted.scope())));
+            }
             for (String field : List.of("subject_token", "subject_token_type", "actor_token", "audience")) {
                 if (body.get(field) == null) {
                     return ResponseEntity.badRequest()

@@ -234,7 +234,8 @@ check(
 const after = await ask('wangfang', anomalyQuestion)
 check(
   '重新提问，结论按新规则改变',
-  after.text.startsWith('按规则 T001-R-') && after.text !== before.text,
+  // 各回合的叙述拼进最终回复，租户规则的说明在其中
+  after.text.includes('按规则 T001-R-') && after.text !== before.text,
   after.text.slice(0, 60),
 )
 const trace = (await call('GET', `/traces/${after.data?.traceId}`, 'wangfang')).body?.data

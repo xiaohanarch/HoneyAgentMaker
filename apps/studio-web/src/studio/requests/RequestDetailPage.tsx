@@ -240,7 +240,11 @@ export function RequestDetailPage(): ReactNode {
         </section>
       ) : (
         <div className="space-y-3">
-          <p className="text-xs text-ink-faint" data-testid="plan-meta" data-generated={plan.generatedAt}>
+          <p
+            className="text-xs text-ink-faint"
+            data-testid="plan-meta"
+            data-generated={plan.generatedAt}
+          >
             {`${PLAN_DECIDED_BY_LABELS[plan.decidedBy]} · 生成于 ${formatTime(plan.generatedAt)}`}
           </p>
           <PlanCards plan={plan} edits={edits} readOnly={readOnly} onEdit={setEdits} />

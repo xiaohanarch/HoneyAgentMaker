@@ -1,6 +1,7 @@
 package dev.eab.assembler;
 
 import dev.cel.common.values.NullValue;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -8,7 +9,7 @@ import java.util.List;
 import java.util.Map;
 import tools.jackson.databind.JsonNode;
 
-/** JSON 值与 CEL 运行时值之间的转换：整数用 long，小数用 double，null 用 CEL 的 NullValue */
+/** JSON 值与 CEL 运行时值之间的转换：整数用 long，小数用 double（BigDecimal 也折算成 double），null 用 CEL 的 NullValue */
 final class CelValues {
 
     private CelValues() {}
@@ -19,6 +20,7 @@ final class CelValues {
         if (value instanceof Integer i) return i.longValue();
         if (value instanceof Short s) return s.longValue();
         if (value instanceof Float f) return f.doubleValue();
+        if (value instanceof BigDecimal d) return d.doubleValue();
         if (value instanceof Map<?, ?> map) {
             Map<String, Object> out = new LinkedHashMap<>();
             map.forEach((k, v) -> out.put(String.valueOf(k), toCel(v)));

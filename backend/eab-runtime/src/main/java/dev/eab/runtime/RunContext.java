@@ -42,8 +42,11 @@ public record RunContext(
         }
     }
 
-    /** 调用 BO API 的主体：用户令牌（代用户操作），或者委托编号（受托自主运行），二者只能有一个 */
-    public record Subject(String userToken, String delegationId) {}
+    /**
+     * 调用 BO API 的主体：用户令牌（代用户操作）、委托编号（受托自主运行）或受限回调令牌（/mcp 的外部 Agent，
+     * ADR 0014），三者只能有一个
+     */
+    public record Subject(String userToken, String delegationId, String restrictedToken) {}
 
     public boolean delegated() {
         return "delegated".equals(mode);

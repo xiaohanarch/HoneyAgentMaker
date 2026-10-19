@@ -3,7 +3,7 @@ kind: ToolSource
 metadata:
   name: demo-erp-bo
   namespace: vendor.erp.tools
-  version: 1.3.0
+  version: 1.4.0
   displayName: DemoERP 业务对象 API
   description: 面向业务对象的 BO API，按用户与 Agent 的双重身份授权并做数据权限过滤。P3 起改为从 OpenAPI 自动生成。
   owner: platform-team
@@ -195,7 +195,7 @@ spec:
           'required': ['changeId'],
         }
     - name: delivery_list
-      description: 查询交付记录，包含计划交付日期、实际交付日期与逾期天数
+      description: 查询交付记录，包含计划交付日期、实际交付日期与逾期天数；summary 给出命中条数、逾期条数与逾期交付率，在 limit 截断之前计算，回答比率类问题不用逐行数
       writeLevel: L0
       category: query
       operation: { method: GET, path: /bo/v1/deliveries }
@@ -242,7 +242,7 @@ spec:
             },
         }
     - name: inventory_balance_list
-      description: 查询各仓库的库存余额、库龄与呆滞标识
+      description: 查询各仓库的库存余额、库龄与呆滞标识；summary 是口径范围的库存概览（总金额、呆滞金额与占比、低于安全库存的记录数），不受 slowMoving 与 belowSafetyStock 行筛选影响，回答金额与占比类问题不用逐行加总
       writeLevel: L0
       category: query
       operation: { method: GET, path: /bo/v1/inventory-balances }
@@ -332,7 +332,7 @@ spec:
             },
         }
     - name: transaction_anomaly_list
-      description: 查询交易异常记录，可按严重程度、期间、公司主体筛选
+      description: 查询交易异常记录，可按严重程度、期间、公司主体筛选；summary 给出命中条数与金额合计，在 limit 截断之前计算，金额合计不用逐行相加
       writeLevel: L0
       category: query
       operation: { method: GET, path: /bo/v1/transaction-anomalies }

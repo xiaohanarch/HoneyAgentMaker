@@ -39,7 +39,7 @@ push 逐资产找回（或新建）同一条草稿，再整份替换 YAML。理�
 
 每次调用独立鉴权（Bearer 用户令牌），角色不符或令牌缺失返回 isError 的工具结果而不是 HTTP 错误，编码 Agent 能把原因读给用户；评测与部署类工具按用户限流（每分钟 30 次）。发布仍走 Studio 的门禁链路，MCP 工具没有特权。
 
-### ADR 0012 的回调设计（只设计，不实现）
+### ADR 0012 的回调设计（P11 实现）
 
 代码 Agent 回调平台查数据时，不把用户令牌交给外部进程。设计：
 
@@ -48,7 +48,12 @@ push 逐资产找回（或新建）同一条草稿，再整份替换 YAML。理�
 3. `/mcp` 端点扩展接受该令牌类型：按 act.sub 记审计，调用仍过鉴权点 3，数据范围按 sub 用户。
 4. 委托令牌不能换写操作，不能再次交换，没有用户身份时拒绝；不存在任何退回技术账号的路径。
 
-先不实现的原因：演示里的代码 Agent（A2A 模板）不回调平台也能讲清协作关系，回调链路没有对应的故事。设计落在这里，实现排到有真实需求时。
+2026-10-19 实现：`IdentityService.exchangeRestricted` 走 `/identity/v1/token`（subject_token_type 为
+urn:eab:params:oauth:token-type:service，audience 固定 eab-platform，scope 可收窄），签出的受限令牌
+（kind restricted）只能在 `/mcp` 用，调用记 `identity.token-exchange` 与 `mcp.restricted-call` 两条审计，
+BO 侧令牌交换按受限范围发委托令牌。scope 上限是注册中心里 BO 工具来源的 L0 操作与用户业务权限的交集，
+没有交集时拒绝（EMPTY_SCOPE）。a2a-ts 模板带完整示例（src/callback.ts）：MCP 官方 TypeScript SDK
+1.32.1 的 Streamable HTTP 客户端，executor 里演示「查订单」回查并如实报告失败。
 
 ## 影响
 

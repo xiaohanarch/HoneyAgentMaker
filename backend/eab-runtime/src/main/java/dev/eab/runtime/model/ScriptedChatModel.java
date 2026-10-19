@@ -20,6 +20,7 @@ import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.model.tool.ToolCallingChatOptions;
+import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
@@ -41,7 +42,11 @@ public final class ScriptedChatModel implements ChatModel {
 
     public static final String PROPERTY_SCRIPT = "eab.scriptId";
 
-    private static final JsonMapper JSON = JsonMapper.builder().build();
+    // 工具结果里的大金额解析成 BigDecimal：Double.toString 对 10 的 7 次方以上的数用科学计数法，
+    // 演示话术里会渲染成 1.83599256E7；BigDecimal 的 toString 是普通十进制。
+    private static final JsonMapper JSON = JsonMapper.builder()
+            .enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+            .build();
 
     private final List<Script> scripts;
     private final Supplier<String> today;

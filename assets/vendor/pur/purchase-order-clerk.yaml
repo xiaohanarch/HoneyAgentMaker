@@ -3,7 +3,7 @@ kind: Agent
 metadata:
   name: purchase-order-clerk
   namespace: vendor.pur
-  version: 1.2.0
+  version: 1.3.0
   displayName: 采购订单处理 Agent
   description: 处理采购订单的日常变更，例如提交交期变更单。写入前由用户确认，变更单需他人审批
   owner: pur-team
@@ -28,7 +28,8 @@ spec:
   tools:
     - api:
         source: vendor.erp.tools/demo-erp-bo
-        tools: [purchase_order_list, purchase_order_change_delivery_date, purchase_order_change_approve]
+        tools:
+          [purchase_order_list, purchase_order_change_delivery_date, purchase_order_change_approve]
   semanticPacks: [vendor.pur/procurement]
   triggers:
     - { type: assistant }
@@ -48,7 +49,13 @@ spec:
       description: 审批交期变更单前由用户确认；提交人不能审批自己提交的变更单（职责分离由策略引擎和 BO API 拦截）
   routing:
     description: 修改采购订单的交期，提交交期变更单
-    examples: [把 PO-2026-0117 的交期改到下月 15 号, 帮我把这张订单的交期往后推两周, 把交期变更单 DC-2026-0001 审批通过, 百润精密这批货到不了，帮我从备选供应商里找有现货的下单]
+    examples:
+      [
+        把 PO-2026-0117 的交期改到下月 15 号,
+        帮我把这张订单的交期往后推两周,
+        把交期变更单 DC-2026-0001 审批通过,
+        百润精密这批货到不了，帮我从备选供应商里找有现货的下单,
+      ]
   extensionPoints:
     - type: instructions.append
       description: 追加本企业的采购规定，例如大额请购须人工审批

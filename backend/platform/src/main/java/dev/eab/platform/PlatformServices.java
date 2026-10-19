@@ -18,6 +18,10 @@ import dev.eab.platform.registry.RegistryService;
 import dev.eab.platform.registry.Signer;
 import dev.eab.policy.PolicyEngine;
 import dev.eab.policy.PolicyEngine.PolicyRuleSet;
+import dev.eab.spec.AssetRef;
+import dev.eab.spec.AssetResolver;
+import dev.eab.spec.Viewer;
+import dev.eab.spec.model.Asset.ToolSourceAsset;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
@@ -87,7 +91,7 @@ public record PlatformServices(
                 registry,
                 tokens,
                 new Principals(tokens),
-                new IdentityService(tokens, delegations, clients, audit),
+                new IdentityService(tokens, delegations, clients, audit, () -> l0BoOperations(registry)),
                 delegations,
                 clients,
                 new TenantSettingsStore(db.jdbc(), clock),
@@ -98,6 +102,18 @@ public record PlatformServices(
 
     /** 演示用的预置委托编号，故事 D 中由赵管理员撤销 */
     public static final String DEMO_DELEGATION_ID = "DLG-0001";
+
+    /** 只读 BO 操作（写级别 L0），以已发布的 BO 工具来源为准；受限回调令牌的 scope 上限（ADR 0014） */
+    private static List<String> l0BoOperations(RegistryService registry) {
+        return registry.resolverFor(Viewer.PLATFORM)
+                .resolveOfKind(
+                        AssetRef.key("vendor.erp.tools", "demo-erp-bo"), ToolSourceAsset.class, AssetResolver.PUBLISHED)
+                .map(source -> source.spec().tools().stream()
+                        .filter(tool -> "L0".equals(tool.writeLevel()))
+                        .map(tool -> tool.name())
+                        .toList())
+                .orElse(List.of());
+    }
 
     /**
      * 预置演示数据：孙库管把库存只读操作委托给库存经营分析 Agent，用于受托自主运行（主提示词 7.2 节）。

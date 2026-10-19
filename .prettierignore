@@ -8,5 +8,6 @@ docs/brief
 *.md
 packages/spec/json-schema
 backend/**/target
+backend/platform/src/main/resources/procode/templates
 schemas
 **/.venv

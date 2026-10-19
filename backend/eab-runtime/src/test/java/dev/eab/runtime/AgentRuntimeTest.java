@@ -26,6 +26,22 @@ class AgentRuntimeTest {
                   - calls: [{ tool: purchase_order_list, args: { supplierName: 百润精密, overdueDaysGt: 30 } }]
                   - reply: '百润精密有 {{tools.purchase_order_list.total}} 张逾期订单：{{#tools.purchase_order_list.items}}{{id}} {{/tools.purchase_order_list.items}}'
                     output: { supplier: 百润精密 }
+              - id: narrate
+                agent: vendor.pur/analyst
+                match: { all: [边查边说] }
+                steps:
+                  - thought: 我先确认供应商
+                    calls: [{ tool: supplier-lookup, args: { supplierName: 百润精密 } }]
+                  - thought: 再看逾期订单
+                    calls: [{ tool: purchase_order_list, args: { supplierName: 百润精密, overdueDaysGt: 30 } }]
+                  - reply: '汇总：共 {{tools.purchase_order_list.total}} 张'
+              - id: narrate-followup
+                agent: vendor.pur/analyst
+                match: { all: [先说明再建] }
+                steps:
+                  - thought: 我来创建跟进任务
+                    calls: [{ tool: create-followup-task, args: { title: 催交, assignee: 采购部, relatedObject: PO-2026-0117 } }]
+                  - reply: '{{#tools.create_followup_task.item}}已创建 {{id}}{{/tools.create_followup_task.item}}'
               - id: empty
                 agent: vendor.pur/analyst
                 match: { all: [空回复] }
@@ -120,7 +136,7 @@ class AgentRuntimeTest {
             var run = rt.run(ANALYST, "百润精密最近表现怎么样");
 
             assertThat(run.result().status()).isEqualTo("completed");
-            assertThat(run.result().text()).isEqualTo("百润精密有 1 张逾期订单：PO-2026-0117");
+            assertThat(run.result().text()).isEqualTo("先确认供应商\n\n百润精密有 1 张逾期订单：PO-2026-0117");
             assertThat(run.result().output()).containsEntry("supplier", "百润精密");
             assertThat(run.types())
                     .startsWith("run_started", "step", "tool_call", "tool_result")
@@ -212,6 +228,30 @@ class AgentRuntimeTest {
             var run = rt.run(ANALYST, "今天天气");
             assertThat(run.result().text()).contains("（脚本化模型）").contains("百润精密最近表现怎么样");
         }
+
+        @Test
+        @DisplayName("模型边查边说时，各回合正文按顺序拼进最终回复，不只取最后一段（真实模型的常见行为）")
+        void spokenTextAccumulates() {
+            var rt = new TestRuntime(SCRIPTS);
+            rt.boResponder = call -> new Ports.BoResponse(
+                    200,
+                    call.operation().equals("purchase_order_list")
+                            ? orders("PO-2026-0117")
+                            : Map.of(
+                                    "items",
+                                    List.of(Map.of("id", "S-0001", "name", "百润精密")),
+                                    "filtered",
+                                    true,
+                                    "visibleScope",
+                                    List.of("华东")));
+            var run = rt.run(ANALYST, "边查边说");
+            assertThat(run.result().text()).isEqualTo("我先确认供应商\n\n再看逾期订单\n\n汇总：共 1 张");
+            // 每段正文照常作为 step 事件推送，前端思考过程面板仍能看到
+            assertThat(run.events().stream()
+                            .filter(e -> e.type().equals("step"))
+                            .map(e -> e.data().get("text")))
+                    .containsExactly("我先确认供应商", "再看逾期订单");
+        }
     }
 
     @Nested
@@ -260,6 +300,22 @@ class AgentRuntimeTest {
             assertThat(second.result().status()).isEqualTo("completed");
             assertThat(second.result().text()).startsWith("没有创建：用户拒绝：为 PO-2026-0117 创建跟进任务");
             assertThat(rt.boCalls).isEmpty();
+        }
+
+        @Test
+        @DisplayName("确认点前后都有正文时，恢复后仍按顺序拼进最终回复，已推送的正文事件不因重放重复")
+        void resumedRunKeepsSpokenText() {
+            var rt = new TestRuntime(SCRIPTS);
+            rt.boResponder = call -> new Ports.BoResponse(201, Map.of("item", Map.of("id", "TASK-2026-0002")));
+            var first = rt.run(ANALYST, "先说明再建一条");
+            assertThat(first.result().status()).isEqualTo("suspended");
+            var second = rt.resume(first, "先说明再建一条", true);
+            assertThat(second.result().status()).isEqualTo("completed");
+            assertThat(second.result().text()).isEqualTo("我来创建跟进任务\n\n已创建 TASK-2026-0002");
+            long spokenEvents = java.util.stream.Stream.concat(first.events().stream(), second.events().stream())
+                    .filter(e -> e.type().equals("step"))
+                    .count();
+            assertThat(spokenEvents).isEqualTo(1);
         }
 
         @Test
@@ -360,6 +416,16 @@ class AgentRuntimeTest {
         void referenceCheck() {
             var check = Supervisor.checkReferences("2026-06-17 计划交付，2026 年第 3 季度，PO-2026-0117 共 3 行", "PO-2026-0117");
             assertThat(check.unverified()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("引用核对：证据里科学计数法的大金额与回复里的普通写法按数值比对")
+        void scientificNotationEvidence() {
+            var check = Supervisor.checkReferences(
+                    "本月库存总金额 18359925.6，呆滞库存 10726378.3",
+                    "{\"summary\":{\"totalValue\":1.83599256E7,\"slowMovingValue\":1.07263783E7}}");
+            assertThat(check.unverified()).isEmpty();
+            assertThat(check.text()).doesNotContain("未经核实");
         }
     }
 }

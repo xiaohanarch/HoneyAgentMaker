@@ -157,10 +157,7 @@ check(
 // ── 收尾重置：回到首次启动状态，可重复运行 ──
 
 const trailing = await call('POST', '/demo/v1/reset', 'zhaoadmin', {})
-check(
-  '收尾重置成功',
-  trailing.status === 200 && trailing.body?.data?.erpReset === true,
-)
+check('收尾重置成功', trailing.status === 200 && trailing.body?.data?.erpReset === true)
 const after = (await call('GET', '/runs?limit=5', 'zhaoadmin')).body?.data ?? []
 check('重置后运行列表为空', after.length === 0, `${after.length} runs`)
 

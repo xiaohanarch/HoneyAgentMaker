@@ -8,7 +8,12 @@ import { delegatedPrelude, mapSpan } from '../architecture/mapSpan'
 import { Diagram } from '../architecture/Diagram'
 import { listRuns, type RunSummary } from '../architecture/api'
 import { ReplayControls } from '../architecture/ReplayControls'
-import { formatDuration, layoutTimeline, SPAN_BAR_STYLES, type TimelineRow } from '../studio/trace-layout'
+import {
+  formatDuration,
+  layoutTimeline,
+  SPAN_BAR_STYLES,
+  type TimelineRow,
+} from '../studio/trace-layout'
 import { SpanDetail } from '../studio/wizard/TraceTimeline'
 import type { Span } from '../studio/api'
 import { useStudioApi } from '../studio/use-studio'
@@ -94,7 +99,9 @@ function RunStrip({
             data-testid="strip-span"
             className={cn(
               'grid w-full grid-cols-[minmax(0,13rem)_minmax(0,1fr)_4rem] items-center gap-2 rounded px-1.5 py-0.5 text-left text-[11px] transition-colors',
-              row.span.spanId === selected ? 'bg-surface-sunken ring-1 ring-line' : 'hover:bg-surface-sunken',
+              row.span.spanId === selected
+                ? 'bg-surface-sunken ring-1 ring-line'
+                : 'hover:bg-surface-sunken',
             )}
           >
             <span className="truncate" style={{ paddingLeft: `${Math.min(row.depth, 8) * 10}px` }}>
@@ -171,7 +178,13 @@ function RunPlayback({ run }: { run: RunSummary }): ReactNode {
     (msValue: number): number =>
       spanWindow === null
         ? 0
-        : Math.min(Math.max(OPENING + ((msValue - spanWindow.begin) / spanWindow.total) * (1 - OPENING), OPENING), 1),
+        : Math.min(
+            Math.max(
+              OPENING + ((msValue - spanWindow.begin) / spanWindow.total) * (1 - OPENING),
+              OPENING,
+            ),
+            1,
+          ),
     [spanWindow],
   )
   /** 回放进度 → 真实时间；末尾回退半毫秒，让最后一段 span 保持点亮 */
@@ -179,7 +192,10 @@ function RunPlayback({ run }: { run: RunSummary }): ReactNode {
     (p: number): number => {
       if (spanWindow === null) return 0
       if (p <= OPENING) return spanWindow.begin - 1
-      return Math.min(spanWindow.begin + ((p - OPENING) / (1 - OPENING)) * spanWindow.total, spanWindow.finish - 0.5)
+      return Math.min(
+        spanWindow.begin + ((p - OPENING) / (1 - OPENING)) * spanWindow.total,
+        spanWindow.finish - 0.5,
+      )
     },
     [spanWindow],
   )
@@ -220,7 +236,9 @@ function RunPlayback({ run }: { run: RunSummary }): ReactNode {
     }
     const latest = activeSpans.reduce<Span | undefined>(
       (acc, s) =>
-        acc === undefined || (parseTime(s.startTime) ?? 0) > (parseTime(acc.startTime) ?? 0) ? s : acc,
+        acc === undefined || (parseTime(s.startTime) ?? 0) > (parseTime(acc.startTime) ?? 0)
+          ? s
+          : acc,
       undefined,
     )
     const suffix = !isPlaying && progress >= 1 ? ' · 回放结束' : ''
@@ -228,7 +246,8 @@ function RunPlayback({ run }: { run: RunSummary }): ReactNode {
   }, [spanWindow, opening, delegated, activeSpans, isPlaying, progress])
 
   const timeline = useMemo(() => (spans.length === 0 ? undefined : layoutTimeline(spans)), [spans])
-  const selectedSpan = selectedSpanId === null ? undefined : spans.find((s) => s.spanId === selectedSpanId)
+  const selectedSpan =
+    selectedSpanId === null ? undefined : spans.find((s) => s.spanId === selectedSpanId)
   const playhead = opening || spanWindow === null ? 0 : ((progress - OPENING) / (1 - OPENING)) * 100
 
   const step = (delta: 1 | -1): void => {
@@ -287,7 +306,8 @@ function RunPlayback({ run }: { run: RunSummary }): ReactNode {
               onPick={(span, offsetRatio) => {
                 setPlaying(false)
                 setSelectedSpanId(span.spanId)
-                if (spanWindow !== null) setProgress(toProgress(spanWindow.begin + offsetRatio * spanWindow.total))
+                if (spanWindow !== null)
+                  setProgress(toProgress(spanWindow.begin + offsetRatio * spanWindow.total))
               }}
             />
           )}

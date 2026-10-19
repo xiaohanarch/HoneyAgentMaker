@@ -3,14 +3,7 @@
  * 不要改名；label 与 description 是图上的展示文案。zone 决定组件画在哪个区块、用什么来源色。
  */
 export type ArchZone =
-  | 'ux'
-  | 'orchestration'
-  | 'app'
-  | 'knowledge'
-  | 'capability'
-  | 'auth-wing'
-  | 'ops-wing'
-  | 'dev'
+  'ux' | 'orchestration' | 'app' | 'knowledge' | 'capability' | 'auth-wing' | 'ops-wing' | 'dev'
 
 export interface ArchComponent {
   id: string
@@ -37,8 +30,18 @@ export const COMPONENTS: readonly ArchComponent[] = [
   { id: 'ux-a2a-in', label: '外部调用方', description: '外部平台 A2A 调用', zone: 'ux' },
   // ② Agent 编排层
   { id: 'orc-router', label: '路由器', description: '意图识别与选择', zone: 'orchestration' },
-  { id: 'orc-assistant', label: '岗位助手', description: '面向岗位的轻助手', zone: 'orchestration' },
-  { id: 'orc-workflow', label: '工作流引擎', description: '技能与工作流步骤', zone: 'orchestration' },
+  {
+    id: 'orc-assistant',
+    label: '岗位助手',
+    description: '面向岗位的轻助手',
+    zone: 'orchestration',
+  },
+  {
+    id: 'orc-workflow',
+    label: '工作流引擎',
+    description: '技能与工作流步骤',
+    zone: 'orchestration',
+  },
   { id: 'orc-confirm', label: '人工确认', description: '写操作确认点', zone: 'orchestration' },
   { id: 'orc-sod', label: 'SoD 检查', description: '职责分离检查', zone: 'orchestration' },
   // ③ 应用层（按来源分色）
@@ -67,7 +70,12 @@ export const COMPONENTS: readonly ArchComponent[] = [
   { id: 'wing-lifecycle', label: '生命周期', description: '版本晋级与回滚', zone: 'ops-wing' },
   { id: 'wing-audit', label: '审计查询', description: '事后可追溯', zone: 'ops-wing' },
   // 开发态贯穿带
-  { id: 'dev-studio', label: 'Studio · CLI · MCP', description: '开发态走同一条草稿链路', zone: 'dev' },
+  {
+    id: 'dev-studio',
+    label: 'Studio · CLI · MCP',
+    description: '开发态走同一条草稿链路',
+    zone: 'dev',
+  },
 ]
 
 export const COMPONENT_IDS: ReadonlySet<string> = new Set(COMPONENTS.map((c) => c.id))

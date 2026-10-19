@@ -84,9 +84,18 @@ public final class BoTypes {
 
         /** 列表响应：附带数据权限过滤说明（主提示词 6.3 节） */
         public Map<String, Object> listBody(List<?> items) {
+            return listBody(items, null);
+        }
+
+        /**
+         * 列表响应带统计摘要：计数、比率与金额合计在工具层聚合，模型不逐行数数（ADR 0009）。
+         * summary 对全部命中记录计算，items 是 limit 截断后的行，两者口径不同。
+         */
+        public Map<String, Object> listBody(List<?> items, Map<String, Object> summary) {
             Map<String, Object> body = new LinkedHashMap<>();
             body.put("items", items);
             body.put("total", items.size());
+            if (summary != null) body.put("summary", summary);
             body.put("filtered", scope.filtered());
             body.put("visibleScope", scope.names());
             body.put("scopeLabel", scope.label());

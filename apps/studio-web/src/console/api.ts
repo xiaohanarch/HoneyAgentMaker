@@ -47,6 +47,9 @@ export function upgradeVendor(token: string | undefined): Promise<Regression[]> 
 }
 
 /** 同一问题经 BO API（用户身份）与 Open API（集成账号）的数据范围对照 */
-export function fetchCompare(token: string | undefined, userId: string): Promise<IntegrationCompare> {
+export function fetchCompare(
+  token: string | undefined,
+  userId: string,
+): Promise<IntegrationCompare> {
   return getJson(`/hub/demo/integration-compare?user=${userId}`, token)
 }

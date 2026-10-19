@@ -75,9 +75,11 @@ e2e/           Playwright 端到端测试
 
 - 需求说明：`docs/brief/02-主提示词.md`
 - 分阶段计划：`docs/brief/03-分阶段提示词.md`
+- 使用指南：`docs/usage.md`
 - 演示讲解词（15 分钟操作脚本）：`demo/DEMO.md`
 - 架构说明：`docs/architecture.md`
 - 术语表：`docs/concepts.md`
+- 亮点与优势：`docs/highlights.md`
 - 与 Joule Studio 的能力对应：`docs/joule-mapping.md`
 - 部署说明：`docs/deployment.md`
 - 验收清单：`docs/acceptance.md`

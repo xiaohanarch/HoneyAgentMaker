@@ -558,7 +558,8 @@ public final class PurchasingRoutes {
     private BoRoute deliveryList() {
         return BoRoute.get("delivery_list", "/bo/v1/deliveries")
                 .summary("查询交付记录")
-                .description("查询交付记录（计划交付日期、实际交付日期、数量），未交付的订单行不出现在这里，用采购订单查询看逾期。")
+                .description("查询交付记录（计划交付日期、实际交付日期、逾期天数与数量），未交付的订单行不出现在这里，用采购订单查询看逾期。"
+                        + "summary 按语义包口径给出命中条数、逾期条数与逾期交付率，在 limit 截断之前对全部命中记录计算。")
                 .query(
                         Param.string("poId"),
                         Param.string("supplierName"),
@@ -572,7 +573,8 @@ public final class PurchasingRoutes {
                         pos.put(Rows.str(po, "id"), po);
                     String from = in.query("from");
                     String to = in.query("to");
-                    var items =
+                    String today = IsoTime.date(clock.instant());
+                    List<Map<String, Object>> matched =
                             Rows.list(db.jdbc(), "SELECT * FROM deliveries WHERE tenant_id = ?", ctx.tenantId())
                                     .stream()
                                     .filter(d -> pos.containsKey(Rows.str(d, "poId")))
@@ -591,12 +593,21 @@ public final class PurchasingRoutes {
                                             names.getOrDefault(
                                                     Rows.str(pos.get(Rows.str(d, "poId")), "supplierId"), "")))
                                     .filter(d -> contains(d.get("supplierName"), in.query("supplierName")))
-                                    .limit(in.limit())
+                                    .map(d -> with(d, "overdueDays", Summaries.deliveryOverdueDays(d, today)))
                                     .toList();
+                    // 口径同语义包 overdue_delivery_rate：逾期天数大于 0 的行数占比，对全部命中记录计算
+                    long lateCount = matched.stream()
+                            .filter(d -> ((Number) d.get("overdueDays")).longValue() > 0)
+                            .count();
+                    Map<String, Object> summary = new LinkedHashMap<>();
+                    summary.put("matched", matched.size());
+                    summary.put("lateCount", lateCount);
+                    summary.put("lateRate", Summaries.percent1(lateCount, matched.size()));
+                    var items = matched.stream().limit(in.limit()).toList();
                     return Outcome.ok(
-                            ctx.listBody(items),
+                            ctx.listBody(items, summary),
                             firstNonNull(in.query("poId"), in.query("supplierName"), "交付记录"),
-                            "返回 " + items.size() + " 条交付记录");
+                            "返回 " + items.size() + " 条交付记录，命中 " + matched.size() + " 条");
                 });
     }
 }

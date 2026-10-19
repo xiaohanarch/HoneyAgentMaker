@@ -179,7 +179,7 @@ final class TestRuntime {
                 ZHANGMIN,
                 mode,
                 delegationId,
-                new RunContext.Subject(mode.equals("delegated") ? null : "user-token", delegationId),
+                new RunContext.Subject(mode.equals("delegated") ? null : "user-token", delegationId, null),
                 agent,
                 utterance);
         var result = runtime.run(request, journal, tracer, events::add);

@@ -19,7 +19,7 @@ const COMMANDS = {
   'tools:import-bo': [['platform', 'dev.eab.platform.cli.ImportBoTools']],
   'agent:run': [['eab-cli', 'dev.eab.cli.AgentRun']],
   'eval:smoke': [['eab-cli', 'dev.eab.cli.EvalSmoke']],
-  'eab': [['eab-cli', 'dev.eab.cli.Eab']],
+  eab: [['eab-cli', 'dev.eab.cli.Eab']],
   'data:simulate': [['platform', 'dev.eab.platform.cli.SimulateHistory']],
   'seed:golden': [['demo-erp', 'dev.eab.erp.cli.WriteSeedGolden']],
   'seed:reset': [
