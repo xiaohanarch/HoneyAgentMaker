@@ -30,7 +30,9 @@ pnpm agent:run vendor.pur/supplier-performance-analyst --user zhangmin "百润�
 pnpm eab <子命令>     专业代码通道 CLI（login/init/pull/push/validate/eval/deploy/logs），对运行中的平台操作，详见 docs/pro-code.md；
                       会话存仓库外的 ~/.config/eab/cli-session.json，登录令牌 8 小时有效
 pnpm tools:import-bo  从运行中的 DemoERP 的 OpenAPI 生成 BO 工具入参 schema 并与资产比对；加 --write 写回并升版本
-node scripts/acceptance-p2.mjs … acceptance-p9.mjs、acceptance-procode.mjs   对运行中的 pnpm demo 做阶段验收（只用 HTTP）
+node scripts/acceptance-p2.mjs … acceptance-p10.mjs、acceptance-procode.mjs   对运行中的 pnpm demo 做阶段验收（只用 HTTP）
+node scripts/demo-walkthrough.mjs   对运行中的演示环境按 demo/DEMO.md 主线走查机制（只用 HTTP；断言不比对回复文字，
+                                    真实模型下升级回归耗时分钟级，起点自带重置）
 pnpm --filter @eab/client-demo run start   模拟外部平台经 A2A 调用平台的采购助手（先演示缺少身份被拒绝）
 cd external-agents/supplier-risk-py && uv sync && uv run pytest -q   Python 外部 Agent 的测试
 ```

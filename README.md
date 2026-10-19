@@ -17,7 +17,7 @@ pnpm install
 pnpm demo
 ```
 
-启动完成后终端会打印各服务地址，浏览器打开 http://localhost:5173 。顶部可以在统一入口、Studio、治理中心之间切换，右上角切换演示身份。
+启动完成后终端会打印各服务地址，浏览器打开 http://localhost:5173 。顶部可以在统一入口、Studio、治理中心、架构视图之间切换，右上角切换演示身份；滑杆图标是演示控制台，用来重置数据、跳到各故事的起点。15 分钟演示的操作脚本见 `demo/DEMO.md`。
 
 也可以用 Docker：
 
@@ -33,7 +33,7 @@ docker compose up --build      # 独立安装的旧版 Compose 用 docker-compos
 | demo-erp | 4100 | 模拟 ERP：BO API、Open API、业务事件、元数据服务 |
 | studio-web | 5173 | 前端，包含统一入口、Studio、治理中心三个入口；`/api` 转发到 platform，`/erp` 转发到 demo-erp |
 
-外部 Agent 样例（4200、4300）和第三方 MCP Server 样例（4400）在后续阶段加入。
+`pnpm demo` 还会把三个外部样例作为可选服务启动：供应商风险舆情 Agent（4200，Python、LangGraph）、汇率查询 Agent（4210，TypeScript）和物流跟踪 MCP Server（4400）。Python 样例需要 uv 安装依赖；样例起不来不影响演示主流程。
 
 ## 常用命令
 
@@ -49,7 +49,8 @@ docker compose up --build      # 独立安装的旧版 Compose 用 docker-compos
 | `pnpm data:simulate` | 生成 30 天演示历史，治理中心用它展示运行指标与业务结果的趋势 |
 | `pnpm eval:smoke` | 在进程内逐个运行评测集，冒烟集 3 分钟内跑完；可加 `--tier full` |
 | `pnpm agent:run <Agent> --user <用户> "<话术>"` | 在命令行里跑一次 Agent，打印流式结果和追踪树，断网可用 |
-| `node scripts/acceptance-p4.mjs` … `acceptance-p9.mjs` | 对运行中的演示环境做统一入口、Studio、扩展与工具中心、A2A 互通、治理与评测、扩展需求闭环的阶段验收（只用 HTTP） |
+| `node scripts/acceptance-p2.mjs` … `acceptance-p9.mjs` | 对运行中的演示环境做统一入口、Studio、扩展与工具中心、A2A 互通、治理与评测、扩展需求闭环的阶段验收（只用 HTTP） |
+| `node scripts/acceptance-p10.mjs` | 阶段验收：演示控制台、故事起点、升级回归与架构视图回放（只用 HTTP） |
 | `pnpm --filter @eab/client-demo run start` | 模拟外部平台经 A2A 调用平台的采购助手 |
 | `pnpm assets:validate` | 校验 `assets/` 下全部资产 |
 | `pnpm format` | Prettier 与 Spotless 格式化 |
@@ -65,7 +66,7 @@ packages/      前端共用的视觉规范 ui
 schemas/       由资产 schema 导出的 JSON Schema
 assets/        平台层、标品层的声明式资产（YAML），以及演示租户的完成态快照
 external-agents/  外部 Agent 与 MCP Server 样例
-demo/          脚本化模型剧本（demo/scripts）、演示讲解词
+demo/          脚本化模型剧本（demo/scripts）与 15 分钟演示讲解词（demo/DEMO.md）
 docs/          架构说明、术语、ADR；docs/brief/ 是项目的需求输入材料
 e2e/           Playwright 端到端测试
 ```
@@ -74,7 +75,12 @@ e2e/           Playwright 端到端测试
 
 - 需求说明：`docs/brief/02-主提示词.md`
 - 分阶段计划：`docs/brief/03-分阶段提示词.md`
+- 演示讲解词（15 分钟操作脚本）：`demo/DEMO.md`
 - 架构说明：`docs/architecture.md`
+- 术语表：`docs/concepts.md`
+- 与 Joule Studio 的能力对应：`docs/joule-mapping.md`
+- 部署说明：`docs/deployment.md`
+- 验收清单：`docs/acceptance.md`
 - 专业代码通道实录（CLI + MCP Server + 编码 Agent 协作开发扩展）：`docs/pro-code.md`
 - Studio 接口契约：`docs/studio-api.md`
 - 架构决策记录：`docs/decisions/`
