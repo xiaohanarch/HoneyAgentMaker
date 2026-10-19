@@ -111,7 +111,7 @@ spec:
       remedy: 交付逾期超过 90 天的供应商，不建议发起降价谈判，应先处理交付问题
       check:
         tool: purchase_order_list
-        when: "has(output.items) && output.items.exists(o, has(o.overdueDays) && o.overdueDays > 90)"
+        when: 'has(output.items) && output.items.exists(o, has(o.overdueDays) && o.overdueDays > 90)'
     - id: PUR-R-008
       ref: erp.pur.rules.requisition_amount_confirm
       severity: block
@@ -119,7 +119,7 @@ spec:
       remedy: 金额超过 10 万元的请购单草稿提交前必须向用户展示供应商、数量与金额并取得确认
       check:
         tool: purchase_requisition_draft_create
-        when: "has(output.item.amount) && output.item.amount > 100000"
+        when: 'has(output.item.amount) && output.item.amount > 100000'
   agent_instructions:
     - 引用金额时必须带币种
     - 对供应商下结论时，说明依据的时间范围

@@ -60,7 +60,7 @@ JS SDK 的 `agentCardHandler` 直接序列化内部对象，oneof 字段会带 `
 
 主提示词里的“TypeScript SDK”按 ADR 0006 改为 Java。`dev.eab.a2a.sdk` 提供 `CodeAgent`（实现一个方法即可）、`CodeAgentServer`（以 A2A 对外服务，只接受平台服务令牌）、`PlatformTokens`（按平台 JWKS 校验 EdDSA 服务令牌）和 `AgentDeclaration`（生成 RemoteAgent 资产）。代码 Agent 以独立进程运行，平台把它当作远程 Agent 调用，路由、鉴权和审计与其他外部 Agent 一样。
 
-代码 Agent 回调平台的工具网关（以用户身份查询 ERP 数据）在 P7 没有实现：服务令牌的受众是 `eab-a2a`，平台的 MCP 端点只接受用户令牌，BO API 调用又需要以用户令牌做令牌交换。要支持回调，需要一种不把用户令牌交给外部进程的交换方式（例如以服务令牌换取受限的、只读的委托令牌），放到 P9 的专业代码通道里设计。
+代码 Agent 回调平台的工具网关（以用户身份查询 ERP 数据）在 P7 没有实现：服务令牌的受众是 `eab-a2a`，平台的 MCP 端点只接受用户令牌，BO API 调用又需要以用户令牌做令牌交换。要支持回调，需要一种不把用户令牌交给外部进程的交换方式（例如以服务令牌换取受限的、只读的委托令牌），放到 P9 的专业代码通道里设计。（2026-10-19 更新：已按 ADR 0014 实现受限回调令牌，`/mcp` 接受该令牌类型。）
 
 ### Studio“接入外部 Agent”
 

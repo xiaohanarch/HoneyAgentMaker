@@ -312,7 +312,8 @@ class GovernanceEndToEndTest {
 
         Asked second = askRun("wangfang", "本月有哪些高风险交易异常");
         String after = second.text();
-        assertThat(after).startsWith("按规则 T001-R-001").doesNotContain("reversal");
+        // 各回合的叙述拼进最终回复，租户规则的说明仍在其中，被排除的记录不再出现
+        assertThat(after).contains("按规则 T001-R-001").doesNotContain("reversal");
         JsonNode trace = ok(call("GET", "/traces/" + second.traceId(), "wangfang", null));
         assertThat(trace.path("spans").toString())
                 .contains("约束 · T001-R-001 触发", "tenant.t001.semantic/finance-ext@1.0.0");

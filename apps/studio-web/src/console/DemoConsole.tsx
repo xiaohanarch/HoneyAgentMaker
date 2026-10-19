@@ -8,7 +8,14 @@ import { useIdentity } from '../identity/identity-context'
 import { ErrorLine } from '../hub/ui'
 import { useHubRole } from '../hub/use-hub'
 import type { IntegrationCompare } from '../hub/types'
-import { completeDemo, fetchCompare, resetDemo, storyStart, triggerEvent, upgradeVendor } from './api'
+import {
+  completeDemo,
+  fetchCompare,
+  resetDemo,
+  storyStart,
+  triggerEvent,
+  upgradeVendor,
+} from './api'
 
 /** 演示故事的起点（主提示词 17 节）：A–E 纯重置，F 重置后发布完成态快照 */
 const STORIES: readonly { id: string; label: string }[] = [
@@ -112,7 +119,8 @@ export function DemoConsole(): ReactNode {
 
   const event = useMutation({
     mutationFn: (type: string) => triggerEvent(token, type),
-    onSuccess: () => setMessage('事件已推送给平台，匹配的 Agent 会以受托方式运行，结果出现在委托人的通知区。'),
+    onSuccess: () =>
+      setMessage('事件已推送给平台，匹配的 Agent 会以受托方式运行，结果出现在委托人的通知区。'),
     onError: () => setMessage(null),
   })
 
@@ -198,7 +206,8 @@ export function DemoConsole(): ReactNode {
                 </div>
                 <p className="text-[11px] leading-relaxed text-ink-faint">
                   重置会清空运行数据并撤回演示中发布的租户资产（扩展、技能、评测集、语义包），连接、工具来源、
-                  工作流、远程 Agent 与标品资产保留。故事 F 与完成态在此基础上按 tenants 快照重建完成态。
+                  工作流、远程 Agent 与标品资产保留。故事 F 与完成态在此基础上按 tenants
+                  快照重建完成态。
                 </p>
               </>
             )}
@@ -310,7 +319,10 @@ export function DemoConsole(): ReactNode {
                   <span className="text-ink-muted">Open API · 集成账号</span>
                   <span className="font-mono text-deny">{`${compare.open.total} 张（未按用户过滤）`}</span>
                 </p>
-                <a className="block text-focus underline-offset-2 hover:underline" href="/hub?tab=audit">
+                <a
+                  className="block text-focus underline-offset-2 hover:underline"
+                  href="/hub?tab=audit"
+                >
                   治理中心看完整对照
                 </a>
               </div>

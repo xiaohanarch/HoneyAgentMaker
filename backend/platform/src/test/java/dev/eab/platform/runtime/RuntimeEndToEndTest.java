@@ -179,7 +179,10 @@ class RuntimeEndToEndTest {
         JsonNode done = call("POST", "/runs/" + runId + "/confirmation", login("sunkg"), Map.of("approved", true))
                 .path("data");
         assertThat(done.path("status").asString()).isEqualTo("completed");
-        assertThat(done.path("text").asString()).startsWith("已创建跟进任务 TASK-");
+        // 确认提示先说过一遍，最终回复按顺序拼接各回合说过的话（脚本化与真实模型一致）
+        assertThat(done.path("text").asString())
+                .startsWith("为 M-0007 创建补货跟进任务，写入前需要你确认")
+                .contains("已创建跟进任务 TASK-");
         assertThat(services.audit().list(AuditFilter.all().withAction("bo.access")))
                 .anyMatch(e -> "followup_task_create".equals(e.tool()) && "allow".equals(e.decision()));
         JsonNode trace = call("GET", "/traces/" + done.path("traceId").asString(), login("sunkg"), null)
@@ -194,7 +197,9 @@ class RuntimeEndToEndTest {
                         login("sunkg"),
                         Map.of("approved", false))
                 .path("data");
-        assertThat(rejected.path("text").asString()).startsWith("没有创建跟进任务：用户拒绝");
+        assertThat(rejected.path("text").asString())
+                .startsWith("为 M-0008 创建补货跟进任务，写入前需要你确认")
+                .contains("没有创建跟进任务：用户拒绝");
     }
 
     @Test
@@ -335,5 +340,109 @@ class RuntimeEndToEndTest {
         org.assertj.core.api.Assertions.assertThatThrownBy(
                         () -> McpConnections.callUrl(platformUrl + "/mcp", "supplier_list", Map.of()))
                 .hasMessageContaining("返回错误");
+    }
+
+    /** 走 HTTP 令牌端点做一次交换（与外部 Agent 的用法一致），返回原始 JSON */
+    JsonNode exchange(String subjectToken, String subjectTokenType, String actorToken, String audience, String scope)
+            throws Exception {
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("grant_type", "urn:ietf:params:oauth:grant-type:token-exchange");
+        body.put("subject_token", subjectToken);
+        body.put("subject_token_type", subjectTokenType);
+        if (actorToken != null) body.put("actor_token", actorToken);
+        body.put("audience", audience);
+        if (scope != null) body.put("scope", scope);
+        return call("POST", "/identity/v1/token", null, body);
+    }
+
+    @Test
+    @DisplayName("受限回调（ADR 0014）：外部 Agent 用服务令牌换只读令牌经 /mcp 代表用户查数据，审计走完身份链；令牌不能再交换，普通接口与越界调用一律拒绝")
+    void mcpRestrictedCallback() throws Exception {
+        String remote = "tenant.t001.remote/supplier-risk-sentiment";
+        // 平台出站调用外部 Agent 时携带的服务令牌：sub 是发起用户，target 是外部 Agent
+        String serviceToken =
+                services.tokens().issueService("zhangmin", "t001", "agent:vendor.pur/purchase-assistant", remote);
+        JsonNode exchanged = exchange(
+                serviceToken,
+                dev.eab.platform.identity.IdentityService.TokenType.SERVICE,
+                null,
+                dev.eab.platform.identity.TokenService.Audience.PLATFORM,
+                null);
+        assertThat(exchanged.has("error")).as(exchanged.toString()).isFalse();
+        String restricted = exchanged.path("access_token").asString();
+        assertThat(exchanged.path("scope").asString()).contains("purchase_order_list");
+        assertThat(exchanged.path("expires_in").asInt()).isEqualTo(300);
+
+        // 受限令牌只被 /mcp 接受：普通接口按用户令牌校验，一律拒绝
+        assertThat(call("GET", "/runs", restricted, null)
+                        .path("error")
+                        .path("code")
+                        .asString())
+                .isEqualTo("INVALID_TOKEN");
+
+        // /mcp 上代表用户调用只读工具，数据范围按 sub 用户过滤
+        var client = mcpClient(restricted);
+        try {
+            var result = client.callTool(new io.modelcontextprotocol.spec.McpSchema.CallToolRequest(
+                    "purchase_order_list", Map.of("overdueDaysGt", 30)));
+            assertThat(result.isError()).isFalse();
+            assertThat(((io.modelcontextprotocol.spec.McpSchema.TextContent)
+                                    result.content().getFirst())
+                            .text())
+                    .contains("采购组织：华东")
+                    .doesNotContain("华南");
+        } finally {
+            client.closeGracefully();
+        }
+
+        // 身份链审计：签发受限令牌（identity.token-exchange）、受限调用（mcp.restricted-call）、DemoERP 侧的 BO 访问
+        assertThat(services.audit()
+                        .list(AuditFilter.all()
+                                .withAction("identity.token-exchange")
+                                .withDecision("allow")))
+                .anyMatch(e -> "restricted".equals(e.mode()) && remote.equals(e.actor()));
+        assertThat(services.audit().list(AuditFilter.all().withAction("mcp.restricted-call")))
+                .anyMatch(e -> "purchase_order_list".equals(e.tool())
+                        && remote.equals(e.actor())
+                        && "zhangmin".equals(e.userId()));
+        assertThat(services.audit().list(AuditFilter.all().withAction("bo.access")))
+                .anyMatch(e -> "purchase_order_list".equals(e.tool())
+                        && "zhangmin".equals(e.userId())
+                        && e.agent() != null
+                        && e.agent().startsWith("platform/mcp-endpoint"));
+
+        // 受限令牌不能再次交换：把它当 subject_token 换 BO 委托令牌被拒
+        String agentToken = services.identity()
+                .issueAgentToken(
+                        "vendor.pur/supplier-performance-analyst", "1.0.0", "t001", List.of("purchase_order_list"));
+        JsonNode denied = exchange(
+                restricted,
+                dev.eab.platform.identity.IdentityService.TokenType.JWT,
+                agentToken,
+                dev.eab.platform.identity.TokenService.Audience.BO,
+                "purchase_order_list");
+        assertThat(denied.path("error").asString()).isEqualTo("invalid_grant");
+        assertThat(denied.path("error_code").asString()).isEqualTo("WRONG_TOKEN_KIND");
+
+        // 申请范围收窄到 supplier_list 后，越界操作在 BO 令牌签发处被拒（双保险的里层）
+        JsonNode narrow = exchange(
+                serviceToken,
+                dev.eab.platform.identity.IdentityService.TokenType.SERVICE,
+                null,
+                dev.eab.platform.identity.TokenService.Audience.PLATFORM,
+                "supplier_list");
+        assertThat(narrow.path("scope").asString()).isEqualTo("supplier_list");
+        var narrowClient = mcpClient(narrow.path("access_token").asString());
+        try {
+            var out = narrowClient.callTool(new io.modelcontextprotocol.spec.McpSchema.CallToolRequest(
+                    "purchase_order_list", Map.of("overdueDaysGt", 30)));
+            assertThat(out.isError()).isTrue();
+            assertThat(((io.modelcontextprotocol.spec.McpSchema.TextContent)
+                                    out.content().getFirst())
+                            .text())
+                    .contains("不在受限回调令牌的只读范围内");
+        } finally {
+            narrowClient.closeGracefully();
+        }
     }
 }

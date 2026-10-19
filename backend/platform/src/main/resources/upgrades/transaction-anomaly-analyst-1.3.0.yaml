@@ -35,7 +35,8 @@ spec:
   tools:
     - api:
         source: vendor.erp.tools/demo-erp-bo
-        tools: [transaction_anomaly_list, transaction_anomaly_get, payment_plan_list, ap_invoice_list]
+        tools:
+          [transaction_anomaly_list, transaction_anomaly_get, payment_plan_list, ap_invoice_list]
     - skill: vendor.fin.skills/invoice-lookup
     - builtin: calculator
   semanticPacks: [vendor.fin/finance]

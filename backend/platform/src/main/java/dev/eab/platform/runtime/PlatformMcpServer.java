@@ -3,6 +3,7 @@ package dev.eab.platform.runtime;
 import dev.eab.directory.DemoDirectory.DemoUser;
 import dev.eab.platform.http.ApiException;
 import dev.eab.platform.http.Principals;
+import dev.eab.platform.identity.TokenService;
 import dev.eab.runtime.ToolGateway.ToolOutcome;
 import dev.eab.spec.Json;
 import dev.eab.spec.Viewer;
@@ -94,19 +95,24 @@ public final class PlatformMcpServer {
             McpTransportContext context, RuntimeService.McpTool tool, McpSchema.CallToolRequest request) {
         DemoUser user;
         String token;
+        TokenService.RestrictedClaims restricted = null;
         try {
             String header = String.valueOf(context.get(AUTHORIZATION));
-            var principal = principals.verify(header);
+            var principal = principals.verifyMcp(header);
             if (!(principal.viewer() instanceof Viewer.Tenant)) {
                 return error("只有租户用户可以通过 MCP 访问业务数据");
             }
             user = principal.user();
             token = principal.token();
+            restricted = principal.restricted();
         } catch (ApiException e) {
-            return error("缺少或无效的用户令牌：" + e.getMessage());
+            return error("缺少或无效的令牌：" + e.getMessage());
         }
         Map<String, Object> args = request.arguments() == null ? Map.of() : request.arguments();
-        ToolOutcome outcome = runtime.callAsMcp(user, token, tool.name(), args);
+        // 受限回调（ADR 0014）：外部 Agent 代表用户调用，身份链与审计走 callAsMcpRestricted
+        ToolOutcome outcome = restricted != null
+                ? runtime.callAsMcpRestricted(restricted, token, tool.name(), args)
+                : runtime.callAsMcp(user, token, tool.name(), args);
         return new McpSchema.CallToolResult(
                 List.of(new McpSchema.TextContent(outcome.content())), !outcome.ok(), null, null);
     }

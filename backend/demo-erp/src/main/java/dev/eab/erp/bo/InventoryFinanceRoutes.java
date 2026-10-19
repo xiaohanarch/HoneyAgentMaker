@@ -74,7 +74,10 @@ public final class InventoryFinanceRoutes {
         return BoRoute.get("inventory_balance_list", "/bo/v1/inventory-balances")
                 .summary("查询库存余额")
                 .description("各仓库的库存余额、库龄与呆滞标识（none 正常、watch 库龄超过 90 天、slow 库龄超过 180 天）。"
-                        + "belowSafetyStock=true 只返回低于安全库存的记录，按缺口占安全库存的比例从大到小排列。")
+                        + "belowSafetyStock=true 只返回低于安全库存的记录，按缺口占安全库存的比例从大到小排列。"
+                        + "summary 是口径范围（物料过滤后）的库存概览：总金额、呆滞金额与占比、低于安全库存的记录数，"
+                        + "不受 slowMoving 与 belowSafetyStock 行筛选影响，单次调用即可回答呆滞与缺货的整体情况；"
+                        + "matched 是行筛选命中的条数。")
                 .query(
                         Param.string("materialId"),
                         Param.enumOf("slowMoving", "none", "watch", "slow"),
@@ -90,25 +93,57 @@ public final class InventoryFinanceRoutes {
                         warehouses.put(Rows.str(w, "id"), Rows.str(w, "name"));
                     }
                     Boolean below = in.queryBool("belowSafetyStock");
-                    var items = scoped(db, ctx, "inventory_balances", "company_id", null).stream()
-                            .map(b -> {
-                                var material = materials.get(Rows.str(b, "materialId"));
-                                Object safety = material == null ? 0L : material.get("safetyStock");
-                                Map<String, Object> item = new LinkedHashMap<>(b);
-                                item.put("materialName", material == null ? b.get("materialId") : material.get("name"));
-                                item.put("unit", material == null ? "" : material.get("unit"));
-                                item.put("safetyStock", safety);
-                                item.put("belowSafetyStock", Rows.num(b, "quantity") < ((Number) safety).doubleValue());
-                                item.put(
-                                        "warehouseName",
-                                        warehouses.getOrDefault(
-                                                Rows.str(b, "warehouseId"), Rows.str(b, "warehouseId")));
-                                item.put("companyName", Queries.companyName(ctx.tenantId(), Rows.str(b, "companyId")));
-                                return item;
-                            })
-                            .filter(b -> equalsIfSet(b.get("materialId"), in.query("materialId"))
-                                    && equalsIfSet(b.get("slowMoving"), in.query("slowMoving"))
+                    List<Map<String, Object>> enriched =
+                            scoped(db, ctx, "inventory_balances", "company_id", null).stream()
+                                    .map(b -> {
+                                        var material = materials.get(Rows.str(b, "materialId"));
+                                        Object safety = material == null ? 0L : material.get("safetyStock");
+                                        Map<String, Object> item = new LinkedHashMap<>(b);
+                                        item.put(
+                                                "materialName",
+                                                material == null ? b.get("materialId") : material.get("name"));
+                                        item.put("unit", material == null ? "" : material.get("unit"));
+                                        item.put("safetyStock", safety);
+                                        item.put(
+                                                "belowSafetyStock",
+                                                Rows.num(b, "quantity") < ((Number) safety).doubleValue());
+                                        item.put(
+                                                "warehouseName",
+                                                warehouses.getOrDefault(
+                                                        Rows.str(b, "warehouseId"), Rows.str(b, "warehouseId")));
+                                        item.put(
+                                                "companyName",
+                                                Queries.companyName(ctx.tenantId(), Rows.str(b, "companyId")));
+                                        return item;
+                                    })
+                                    .toList();
+                    // 口径范围的库存概览：物料过滤之后、行筛选（呆滞标识、低于安全库存）之前，
+                    // 口径同语义包 slow_moving_ratio 与 below_safety_stock_count
+                    List<Map<String, Object>> portfolio = enriched.stream()
+                            .filter(b -> equalsIfSet(b.get("materialId"), in.query("materialId")))
+                            .toList();
+                    double totalValue = portfolio.stream()
+                            .mapToDouble(b -> Rows.num(b, "value"))
+                            .sum();
+                    double slowMovingValue = portfolio.stream()
+                            .filter(b -> "slow".equals(b.get("slowMoving")))
+                            .mapToDouble(b -> Rows.num(b, "value"))
+                            .sum();
+                    List<Map<String, Object>> matched = portfolio.stream()
+                            .filter(b -> equalsIfSet(b.get("slowMoving"), in.query("slowMoving"))
                                     && (!Boolean.TRUE.equals(below) || (boolean) b.get("belowSafetyStock")))
+                            .toList();
+                    Map<String, Object> summary = new LinkedHashMap<>();
+                    summary.put("totalValue", totalValue);
+                    summary.put("slowMovingValue", slowMovingValue);
+                    summary.put("slowMovingRatio", Summaries.percent1(slowMovingValue, totalValue));
+                    summary.put(
+                            "belowSafetyStockCount",
+                            portfolio.stream()
+                                    .filter(b -> (boolean) b.get("belowSafetyStock"))
+                                    .count());
+                    summary.put("matched", matched.size());
+                    var items = matched.stream()
                             .sorted(
                                     Boolean.TRUE.equals(below)
                                             ? Comparator.comparingDouble(InventoryFinanceRoutes::shortageRatio)
@@ -117,9 +152,9 @@ public final class InventoryFinanceRoutes {
                             .limit(in.limit())
                             .toList();
                     return Outcome.ok(
-                            ctx.listBody(items),
+                            ctx.listBody(items, summary),
                             firstNonNull(in.query("materialId"), "库存余额"),
-                            "返回 " + items.size() + " 条库存余额");
+                            "返回 " + items.size() + " 条库存余额，命中 " + matched.size() + " 条");
                 });
     }
 
@@ -192,7 +227,8 @@ public final class InventoryFinanceRoutes {
         return BoRoute.get("transaction_anomaly_list", "/bo/v1/transaction-anomalies")
                 .summary("查询交易异常")
                 .description("交易异常记录。severity：low 低、medium 中、high 高、critical 严重；anomalyType：duplicate_payment 重复付款、"
-                        + "split_invoice 拆分发票、round_amount 整数金额、off_hours 非工作时间过账、reversal 冲销。period 为 YYYY-MM。")
+                        + "split_invoice 拆分发票、round_amount 整数金额、off_hours 非工作时间过账、reversal 冲销。period 为 YYYY-MM。"
+                        + "summary 给出命中条数与金额合计，在 limit 截断之前对全部命中记录计算。")
                 .query(
                         Param.string("severity").describe("逗号分隔，例如 high,critical"),
                         Param.string("period").matching("^\\d{4}-\\d{2}$", "期间格式为 YYYY-MM"),
@@ -206,20 +242,34 @@ public final class InventoryFinanceRoutes {
                                     .map(String::trim)
                                     .toList();
                     String period = in.query("period");
-                    var items = scoped(db, ctx, "transaction_anomalies", "company_id", "amount DESC").stream()
-                            .filter(a -> (severities == null || severities.contains(Rows.str(a, "severity")))
-                                    && (period == null
-                                            || Rows.str(a, "detectedAt").startsWith(period))
-                                    && equalsIfSet(a.get("status"), in.query("status")))
-                            .limit(in.limit())
-                            .map(a -> {
-                                Map<String, Object> item = new LinkedHashMap<>(a);
-                                item.put("invoiceIds", invoiceIds(a));
-                                item.put("companyName", Queries.companyName(ctx.tenantId(), Rows.str(a, "companyId")));
-                                return item;
-                            })
-                            .toList();
-                    return Outcome.ok(ctx.listBody(items), firstNonNull(period, "交易异常"), "返回 " + items.size() + " 条异常");
+                    List<Map<String, Object>> matched =
+                            scoped(db, ctx, "transaction_anomalies", "company_id", "amount DESC").stream()
+                                    .filter(a -> (severities == null || severities.contains(Rows.str(a, "severity")))
+                                            && (period == null
+                                                    || Rows.str(a, "detectedAt").startsWith(period))
+                                            && equalsIfSet(a.get("status"), in.query("status")))
+                                    .map(a -> {
+                                        Map<String, Object> item = new LinkedHashMap<>(a);
+                                        item.put("invoiceIds", invoiceIds(a));
+                                        item.put(
+                                                "companyName",
+                                                Queries.companyName(ctx.tenantId(), Rows.str(a, "companyId")));
+                                        return item;
+                                    })
+                                    .toList();
+                    // 条数与金额合计在工具层聚合（ADR 0009），模型不再逐行加总
+                    Map<String, Object> summary = new LinkedHashMap<>();
+                    summary.put("count", matched.size());
+                    summary.put(
+                            "amountTotal",
+                            matched.stream()
+                                    .mapToDouble(a -> Rows.num(a, "amount"))
+                                    .sum());
+                    var items = matched.stream().limit(in.limit()).toList();
+                    return Outcome.ok(
+                            ctx.listBody(items, summary),
+                            firstNonNull(period, "交易异常"),
+                            "返回 " + items.size() + " 条异常，命中 " + matched.size() + " 条");
                 });
     }
 

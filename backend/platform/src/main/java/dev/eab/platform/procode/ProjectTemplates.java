@@ -71,6 +71,7 @@ public final class ProjectTemplates {
                     new TemplateFile("src/app.ts", "src/app.ts"),
                     new TemplateFile("src/main.ts", "src/main.ts"),
                     new TemplateFile("src/auth.ts", "src/auth.ts"),
+                    new TemplateFile("src/callback.ts", "src/callback.ts"),
                     new TemplateFile("src/executor.ts", "src/executor.ts"),
                     new TemplateFile("package.json", "package.json"),
                     new TemplateFile("tsconfig.json", "tsconfig.json"),

@@ -227,7 +227,7 @@ class StudioMcpEndToEndTest {
     }
 
     @Test
-    @DisplayName("张敏不是开发者、匿名没有令牌：工具调用一律被拒")
+    @DisplayName("张敏不是开发者、匿名没有令牌、受限回调令牌只属于 /mcp：工具调用一律被拒")
     void rejectsNonDeveloperAndAnonymous() throws Exception {
         var zhangmin = mcpClient(login("zhangmin"));
         try {
@@ -244,6 +244,23 @@ class StudioMcpEndToEndTest {
             assertThat(text(denied)).contains("用户令牌");
         } finally {
             anonymous.closeGracefully();
+        }
+        // 受限回调令牌只在 /mcp 被接受（ADR 0014），/studio-mcp 按用户令牌校验，一律拒绝
+        String serviceToken = services.tokens()
+                .issueService(
+                        "zhangmin",
+                        "t001",
+                        "agent:vendor.pur/purchase-assistant",
+                        "tenant.t001.remote/supplier-risk-sentiment");
+        String restricted =
+                services.identity().exchangeRestricted(serviceToken, null).accessToken();
+        var callback = mcpClient(restricted);
+        try {
+            var denied = call(callback, "semantic_search", Map.of("query", "供应商"));
+            assertThat(denied.isError()).isTrue();
+            assertThat(text(denied)).contains("用户令牌");
+        } finally {
+            callback.closeGracefully();
         }
     }
 }

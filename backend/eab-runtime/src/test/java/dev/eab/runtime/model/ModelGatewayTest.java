@@ -138,6 +138,15 @@ class ModelGatewayTest {
                       supplier: '{{vars.supplier}}'
                       overdueCount: '=tools.purchase_order_list.total'
                       overallRating: risk
+              - id: scm-slow-moving
+                agent: vendor.pur/supplier-performance-analyst
+                match: { all: [呆滞] }
+                steps:
+                  - calls: [{ tool: inventory_balance_list, args: { slowMoving: slow } }]
+                  - reply: 本月库存总金额 {{tools.inventory_balance_list.summary.totalValue}}，呆滞占比 {{tools.inventory_balance_list.summary.slowMovingRatio}}%
+                    output:
+                      totalValue: '=tools.inventory_balance_list.summary.totalValue'
+                      highRisk: '=tools.inventory_balance_list.summary.slowMovingRatio > 5'
             """;
 
     static final List<Scripts.Script> SCRIPTS = Scripts.parse(SCRIPT_YAML, "test.yaml");
@@ -208,6 +217,22 @@ class ModelGatewayTest {
             var r = gateway.complete(request(List.of(new UserTurn("今天天气如何")), List.of(), new Masker()), root, "m4");
             assertThat(r.scriptId()).isEqualTo("fallback");
             assertThat(r.text()).contains("（脚本化模型）").contains("百润精密最近表现怎么样");
+        }
+
+        @Test
+        @DisplayName("大金额渲染为普通十进制而不是科学计数法，CEL 表达式仍按数值比较")
+        void plainLargeAmount() {
+            List<Turn> turns = new ArrayList<>(List.of(
+                    new UserTurn("本月呆滞库存有多少"),
+                    new AssistantTurn("", List.of(new ToolCall("c1", "inventory_balance_list", Map.of()))),
+                    new ToolTurn(
+                            "c1",
+                            "inventory_balance_list",
+                            "{\"summary\":{\"totalValue\":1.83599256E7,\"slowMovingRatio\":58.4}}")));
+            var r = gateway.complete(request(turns, List.of(), new Masker()), root, "m5");
+            assertThat(r.scriptId()).isEqualTo("scm-slow-moving");
+            assertThat(r.text()).isEqualTo("本月库存总金额 18359925.6，呆滞占比 58.4%");
+            assertThat(r.output()).containsEntry("totalValue", 1.83599256E7).containsEntry("highRisk", true);
         }
 
         @Test
@@ -500,6 +525,8 @@ class ModelGatewayTest {
                 assertThat(r.toolCalls())
                         .containsExactly(
                                 new ToolCall("toolu_1", "semantic.get_metric", Map.of("name", "overdue_days")));
+                // 正文与工具调用同回返回时正文也保留，运行时把它拼进最终回复
+                assertThat(r.text()).isEqualTo("再查一次");
                 assertThat(r.inputTokens()).isEqualTo(1000);
                 assertThat(r.outputTokens()).isEqualTo(200);
                 assertThat(r.estimated()).isFalse();
@@ -581,6 +608,39 @@ class ModelGatewayTest {
                 assertThat(r.output()).containsEntry("severity", "high");
                 assertThat(r.stopReason()).isEqualTo("end");
                 assertThat(r.inputTokens()).isEqualTo(10);
+            }
+        }
+
+        @Test
+        @DisplayName("OpenAI 兼容协议：正文与工具调用同回返回时都保留（GLM 的实际行为）")
+        void openaiTextAlongsideToolCalls() throws Exception {
+            String reply = """
+                    {"id":"c2","object":"chat.completion","created":1,"model":"demo-model",
+                     "choices":[{"index":0,"message":{"role":"assistant","content":"我先查一下口径。",
+                       "tool_calls":[{"id":"call_1","type":"function","function":{"name":"semantic_get_metric","arguments":"{\\"name\\":\\"overdue_days\\"}"}}]},
+                      "finish_reason":"tool_calls"}],
+                     "usage":{"prompt_tokens":10,"completion_tokens":5,"total_tokens":15}}
+                    """;
+            try (var vendor = new FakeVendor(reply)) {
+                var config = GatewayConfig.fromEnv(Map.of(
+                        "EAB_MODEL_PROVIDER", "openai",
+                        "OPENAI_API_KEY", "test-key",
+                        "EAB_OPENAI_BASE_URL", vendor.url() + "/v1",
+                        "EAB_MODEL_FAST", "demo-fast",
+                        "EAB_MODEL_REASONING", "demo-model",
+                        "EAB_MODEL_JUDGE", "demo-judge"));
+                var gateway = new ModelGateway(ModelProviders.create(config, List.of(), () -> "2026-10-15"), config);
+                Tracer tracer = tracer(new TraceStore.InMemory());
+                var root = tracer.start("运行", SpanKind.run, null, "run", Map.of());
+                var r = gateway.complete(
+                        new ModelGateway.Request(
+                                "reasoning", null, prompt(List.of()), CONVERSATION, TOOLS, CONTEXT, new Masker(), null),
+                        root,
+                        "m");
+                assertThat(r.text()).isEqualTo("我先查一下口径。");
+                assertThat(r.toolCalls())
+                        .containsExactly(new ToolCall("call_1", "semantic.get_metric", Map.of("name", "overdue_days")));
+                assertThat(r.stopReason()).isEqualTo("tool_use");
             }
         }
     }

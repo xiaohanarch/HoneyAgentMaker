@@ -126,8 +126,9 @@ const confirmed = await post(
 )
 check(
   '确认后写入 ERP',
+  // 确认提示先说过一遍，最终回复按顺序拼接各回合说过的话，结论在其后
   confirmed.body?.data?.status === 'completed' &&
-    confirmed.body.data.text.startsWith('已创建跟进任务 TASK-'),
+    confirmed.body.data.text.includes('已创建跟进任务 TASK-'),
   confirmed.body?.data?.text ?? JSON.stringify(confirmed.body),
 )
 const second = await run('sunkg', 'vendor.scm/inventory-risk-analyst', '为 M-0006 创建补货跟进任务')
@@ -136,7 +137,7 @@ const rejected = await post(
   { approved: false },
   second.token,
 )
-check('拒绝后不写入', rejected.body?.data?.text?.startsWith('没有创建跟进任务：用户拒绝') === true)
+check('拒绝后不写入', rejected.body?.data?.text?.includes('没有创建跟进任务：用户拒绝') === true)
 
 // 4. 审计里能查到运行时的鉴权裁决与 BO 访问
 const admin = await login('zhaoadmin')

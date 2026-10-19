@@ -170,7 +170,8 @@ class StudioEndToEndTest {
                 "chengong",
                 Map.of("message", PROMPT, "asUser", "zhangmin")));
         assertThat(run.path("status").asString()).as(run.toString()).isEqualTo("completed");
-        assertThat(run.path("text").asString()).startsWith("先说结论：按规则 PUR-R-007").contains("已逾期", "RFQ-");
+        // 各回合的叙述按顺序拼进最终回复，PUR-R-007 的结论仍在其中
+        assertThat(run.path("text").asString()).contains("先说结论：按规则 PUR-R-007", "已逾期", "RFQ-");
         List<String> types = new ArrayList<>();
         run.path("events").forEach(e -> types.add(e.path("type").asString()));
         assertThat(types).contains("constraint");

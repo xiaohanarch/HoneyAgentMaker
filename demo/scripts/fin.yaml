@@ -1,26 +1,21 @@
 # 财务域的演示剧本（格式见 README.md）
 scripts:
   - id: fin-anomaly-high-risk
-    description: 王芳问本月高风险交易异常：取清单 → 计算金额合计 → 分类给出结论，结构化结果供租户扩展的钩子使用
+    description: 王芳问本月高风险交易异常：取清单（统计摘要给出条数与金额合计）→ 分类给出结论，结构化结果供租户扩展的钩子使用
     agent: vendor.fin/transaction-anomaly-analyst
     match:
       all: [异常]
       any: [高风险, 严重, 本月]
     steps:
-      - thought: 取出本月严重程度为高和严重的交易异常
+      - thought: 取出本月严重程度为高和严重的交易异常，条数与金额合计看统计摘要
         calls:
           - {
               tool: transaction_anomaly_list,
               args: { severity: 'high,critical', period: '{{month}}', limit: 20 },
             }
-      - thought: 计算涉及金额合计
-        calls:
-          - tool: calculator
-            args:
-              expression: '{{#tools.transaction_anomaly_list.items}}{{amount}}{{^-last}} + {{/-last}}{{/tools.transaction_anomaly_list.items}}'
       - reply: |
           {{#tools.transaction_anomaly_list.platformConstraints}}按规则 {{rule}}：{{remedy}}。
-          {{/tools.transaction_anomaly_list.platformConstraints}}本月（{{month}}）共有 {{output.anomalyCount}} 条高风险或严重的交易异常{{^tools.transaction_anomaly_list.platformConstraints}}，涉及金额合计 {{tools.calculator.value}} {{tools.transaction_anomaly_list.items.0.currency}}{{/tools.transaction_anomaly_list.platformConstraints}}。
+          {{/tools.transaction_anomaly_list.platformConstraints}}本月（{{month}}）共有 {{output.anomalyCount}} 条高风险或严重的交易异常{{^tools.transaction_anomaly_list.platformConstraints}}，涉及金额合计 {{tools.transaction_anomaly_list.summary.amountTotal}} {{tools.transaction_anomaly_list.items.0.currency}}{{/tools.transaction_anomaly_list.platformConstraints}}。
 
           {{#output.kept}}
           - {{id}}（{{companyName}}）：{{anomalyType}}，严重程度 {{severity}}，金额 {{amount}} {{currency}}。{{description}}
@@ -32,8 +27,8 @@ scripts:
           severity: "=tools.transaction_anomaly_list.items.exists(a, a.severity == 'critical') ? 'critical' : 'high'"
           # 租户规则（经验回流）触发时，按规则排除跨期冲销类记录，结论随之改变
           kept: "=has(tools.transaction_anomaly_list.platformConstraints) ? tools.transaction_anomaly_list.items.filter(a, a.anomalyType != 'reversal') : tools.transaction_anomaly_list.items"
-          anomalyCount: "=has(tools.transaction_anomaly_list.platformConstraints) ? size(tools.transaction_anomaly_list.items.filter(a, a.anomalyType != 'reversal')) : tools.transaction_anomaly_list.total"
-          totalAmount: '=tools.calculator.value'
+          anomalyCount: "=has(tools.transaction_anomaly_list.platformConstraints) ? size(tools.transaction_anomaly_list.items.filter(a, a.anomalyType != 'reversal')) : tools.transaction_anomaly_list.summary.count"
+          totalAmount: '=tools.transaction_anomaly_list.summary.amountTotal'
           currency: '{{tools.transaction_anomaly_list.items.0.currency}}'
           findings: "=tools.transaction_anomaly_list.items.map(a, {'id': a.id, 'type': a.anomalyType, 'severity': a.severity, 'amount': a.amount, 'status': '疑似'})"
 

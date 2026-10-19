@@ -317,6 +317,9 @@ public final class AgentRuntime {
         Map<String, Object> output = null;
         List<String> leaked = new ArrayList<>();
         StringBuilder evidence = new StringBuilder(utterance);
+        // 真实模型常在带工具调用的回合里就说出一段正文（GLM 尤其明显），最终回复按顺序拼接各回合说过的内容，
+        // 不能只取最后一个不带工具调用的回合，否则回复只有半截
+        List<String> spoken = new ArrayList<>();
         for (int turn = 1; turn <= deps.maxTurns(); turn++) {
             String modelSegment = "turn:" + turn + "/model";
             String modelKey = exec.key() + "/" + modelSegment;
@@ -355,12 +358,14 @@ public final class AgentRuntime {
                             "模型没有给出回复（结束原因 " + result.stopReason() + "）。如果结束原因是输出长度，可以调大 EAB_MODEL_MAX_TOKENS",
                             null);
                 }
-                text = result.text();
+                spoken.add(result.text());
+                text = String.join("\n\n", spoken);
                 output = result.output();
                 break;
             }
-            if (!replay && result.text() != null && !result.text().isBlank()) {
-                exec.emit(RunEvent.of("step", ctx.agent(), "text", result.text()));
+            if (result.text() != null && !result.text().isBlank()) {
+                spoken.add(result.text());
+                if (!replay) exec.emit(RunEvent.of("step", ctx.agent(), "text", result.text()));
             }
             turns.add(new AssistantTurn(result.text(), result.toolCalls()));
             Exec turnExec = new Exec(
@@ -376,7 +381,9 @@ public final class AgentRuntime {
             }
         }
         if (text == null) {
-            text = "已达到最多 " + deps.maxTurns() + " 轮工具调用，先给出目前掌握的情况：请缩小问题范围后重试。";
+            text = spoken.isEmpty()
+                    ? "已达到最多 " + deps.maxTurns() + " 轮工具调用，先给出目前掌握的情况：请缩小问题范围后重试。"
+                    : String.join("\n\n", spoken) + "\n\n已达到最多 " + deps.maxTurns() + " 轮工具调用，以上是目前掌握的情况，请缩小问题范围后重试。";
         }
 
         Supervisor.ReferenceCheck check = outputGuard(exec, text, evidence.toString());

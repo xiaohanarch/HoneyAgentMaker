@@ -20,7 +20,7 @@ import java.util.UUID;
  * 令牌签发与校验（ADR 0005），格式与 TS 版一致，DemoERP 和前端不需要改动。受众划分：
  *
  * <ul>
- *   <li>eab-platform：用户令牌，调用平台接口
+ *   <li>eab-platform：用户令牌，调用平台接口；受限回调令牌（kind 为 restricted）也在这个受众下，只在 /mcp 端点被接受
  *   <li>eab-agent-runtime：Agent 令牌，由平台运行时持有，只用作令牌交换的 actor_token
  *   <li>demo-erp-bo：委托令牌（用户 + Agent），调用 BO API
  *   <li>demo-erp-open：集成令牌（客户端凭证），只能调用 Open API
@@ -51,6 +51,7 @@ public final class TokenService {
     public static final long DELEGATED_TTL = 300;
     public static final long PAGE_TTL = 600;
     public static final long SERVICE_TTL = 300;
+    public static final long RESTRICTED_TTL = 300;
 
     public static final class TokenException extends RuntimeException {
         private final String code;
@@ -69,6 +70,18 @@ public final class TokenService {
 
     /** @param sub agent:&lt;namespace&gt;/&lt;name&gt;；scope 是 Agent 声明的 BO 操作，空格分隔 */
     public record AgentClaims(String sub, String tid, String scope, String agentVersion) {}
+
+    /** 服务令牌的声明：sub 是最终用户，actAgent 是发起调用的平台 Agent，target 是被调用的远程 Agent 资产 */
+    public record ServiceClaims(String sub, String tid, String actAgent, String target) {}
+
+    /** 受限回调令牌的声明（ADR 0014）：sub 是用户，actAgent 是持令牌回调的外部 Agent，scope 是只读 BO 操作 */
+    public record RestrictedClaims(String sub, String tid, String actAgent, String scope) {
+
+        /** scope 声明按空格拆开的操作清单 */
+        public List<String> operations() {
+            return scope == null || scope.isBlank() ? List.of() : List.of(scope.split(" "));
+        }
+    }
 
     private final IdentityKeys keys;
     private final Clock clock;
@@ -161,6 +174,22 @@ public final class TokenService {
         return sign(all, Audience.BO, DELEGATED_TTL);
     }
 
+    /**
+     * 受限的只读回调令牌（ADR 0014）：外部 Agent 用平台调它时携带的服务令牌换来，代表发起用户回查平台。
+     * 受众是 eab-platform 但种类是 restricted，普通接口的 Principals.verify 不认它，只在 /mcp 端点被接受。
+     */
+    public String issueRestricted(RestrictedClaims claims) {
+        return sign(
+                Map.of(
+                        "kind", "restricted",
+                        "sub", claims.sub(),
+                        "tid", claims.tid(),
+                        "act", Map.of("sub", claims.actAgent()),
+                        "scope", claims.scope()),
+                Audience.PLATFORM,
+                RESTRICTED_TTL);
+    }
+
     /** 校验签名、签发者、受众、有效期和令牌种类，任何一项不符都抛 TokenException */
     public JWTClaimsSet verify(String token, String audience, String kind) {
         JWTClaimsSet claims;
@@ -210,5 +239,30 @@ public final class TokenService {
         } catch (ParseException e) {
             throw new TokenException("INVALID_TOKEN", "令牌无效：声明格式不对");
         }
+    }
+
+    public ServiceClaims verifyService(String token) {
+        JWTClaimsSet claims = verify(token, Audience.A2A, "service");
+        try {
+            return new ServiceClaims(
+                    claims.getSubject(), claims.getStringClaim("tid"), actSub(claims), claims.getStringClaim("target"));
+        } catch (ParseException e) {
+            throw new TokenException("INVALID_TOKEN", "令牌无效：声明格式不对");
+        }
+    }
+
+    public RestrictedClaims verifyRestricted(String token) {
+        JWTClaimsSet claims = verify(token, Audience.PLATFORM, "restricted");
+        try {
+            return new RestrictedClaims(
+                    claims.getSubject(), claims.getStringClaim("tid"), actSub(claims), claims.getStringClaim("scope"));
+        } catch (ParseException e) {
+            throw new TokenException("INVALID_TOKEN", "令牌无效：声明格式不对");
+        }
+    }
+
+    private static String actSub(JWTClaimsSet claims) throws ParseException {
+        Map<String, Object> act = claims.getJSONObjectClaim("act");
+        return act == null || act.get("sub") == null ? "" : String.valueOf(act.get("sub"));
     }
 }

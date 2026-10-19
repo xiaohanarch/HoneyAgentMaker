@@ -5,24 +5,54 @@
       "name": "百润精密",
       "aliases": ["百润"],
       "events": [
-        {"date": "2026-09-28", "source": "行业快讯", "severity": "high", "title": "百润精密华东二厂因设备检修停产两周，在手订单交付延后"},
-        {"date": "2026-09-12", "source": "地方财经", "severity": "medium", "title": "百润精密主要原材料供应商提价 8%，成本压力上升"},
-        {"date": "2026-08-30", "source": "招聘平台", "severity": "low", "title": "百润精密质检岗位集中招聘"}
+        {
+          "date": "2026-09-28",
+          "source": "行业快讯",
+          "severity": "high",
+          "title": "百润精密华东二厂因设备检修停产两周，在手订单交付延后"
+        },
+        {
+          "date": "2026-09-12",
+          "source": "地方财经",
+          "severity": "medium",
+          "title": "百润精密主要原材料供应商提价 8%，成本压力上升"
+        },
+        {
+          "date": "2026-08-30",
+          "source": "招聘平台",
+          "severity": "low",
+          "title": "百润精密质检岗位集中招聘"
+        }
       ]
     },
     {
       "name": "恒通物流",
       "aliases": ["恒通"],
       "events": [
-        {"date": "2026-09-20", "source": "行业快讯", "severity": "low", "title": "恒通物流新开华南干线，时效提升"}
+        {
+          "date": "2026-09-20",
+          "source": "行业快讯",
+          "severity": "low",
+          "title": "恒通物流新开华南干线，时效提升"
+        }
       ]
     },
     {
       "name": "华远电子",
       "aliases": ["华远"],
       "events": [
-        {"date": "2026-09-25", "source": "法院公告", "severity": "high", "title": "华远电子涉及一起买卖合同纠纷，部分账户被冻结"},
-        {"date": "2026-09-03", "source": "地方财经", "severity": "medium", "title": "华远电子二季度营收下滑 15%"}
+        {
+          "date": "2026-09-25",
+          "source": "法院公告",
+          "severity": "high",
+          "title": "华远电子涉及一起买卖合同纠纷，部分账户被冻结"
+        },
+        {
+          "date": "2026-09-03",
+          "source": "地方财经",
+          "severity": "medium",
+          "title": "华远电子二季度营收下滑 15%"
+        }
       ]
     },
     {

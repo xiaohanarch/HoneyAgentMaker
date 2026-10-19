@@ -35,14 +35,21 @@ public final class DelegatedClient {
         }
     }
 
-    /** 调用主体：用户令牌（代用户操作），或者委托编号（受托自主运行），二者只能有一个 */
-    public record Subject(String userToken, String delegationId) {
+    /**
+     * 调用主体：用户令牌（代用户操作）、委托编号（受托自主运行）或受限回调令牌（/mcp 的外部 Agent，ADR 0014），
+     * 三者只能有一个。受限回调令牌不做第二次交换，平台按它的声明直接签发单操作的委托令牌。
+     */
+    public record Subject(String userToken, String delegationId, String restrictedToken) {
         public static Subject user(String token) {
-            return new Subject(token, null);
+            return new Subject(token, null, null);
         }
 
         public static Subject delegation(String id) {
-            return new Subject(null, id);
+            return new Subject(null, id, null);
+        }
+
+        public static Subject restricted(String token) {
+            return new Subject(null, null, token);
         }
     }
 
@@ -81,20 +88,27 @@ public final class DelegatedClient {
         }
         String accessToken;
         try {
-            var request = call.subject().userToken() != null
-                    ? new IdentityService.ExchangeRequest(
-                            call.subject().userToken(),
-                            IdentityService.TokenType.JWT,
-                            call.agentToken(),
-                            TokenService.Audience.BO,
-                            List.of(call.operation()))
-                    : new IdentityService.ExchangeRequest(
-                            "delegation:" + call.subject().delegationId(),
-                            IdentityService.TokenType.DELEGATION,
-                            call.agentToken(),
-                            TokenService.Audience.BO,
-                            List.of(call.operation()));
-            accessToken = identity.exchange(request).accessToken();
+            if (call.subject().userToken() != null) {
+                accessToken = identity.exchange(new IdentityService.ExchangeRequest(
+                                call.subject().userToken(),
+                                IdentityService.TokenType.JWT,
+                                call.agentToken(),
+                                TokenService.Audience.BO,
+                                List.of(call.operation())))
+                        .accessToken();
+            } else if (call.subject().restrictedToken() != null) {
+                // /mcp 的受限回调（ADR 0014）：受限令牌不能再次交换，按它的声明直接签发单操作的委托令牌
+                accessToken = identity.issueBoForRestricted(
+                        call.subject().restrictedToken(), call.agentToken(), call.operation());
+            } else {
+                accessToken = identity.exchange(new IdentityService.ExchangeRequest(
+                                "delegation:" + call.subject().delegationId(),
+                                IdentityService.TokenType.DELEGATION,
+                                call.agentToken(),
+                                TokenService.Audience.BO,
+                                List.of(call.operation())))
+                        .accessToken();
+            }
         } catch (RuntimeException e) {
             String code = e instanceof TokenException t ? t.code() : "EXCHANGE_FAILED";
             throw new DelegationException(code, "身份透传失败，已拒绝调用 " + call.operation() + "：" + e.getMessage());

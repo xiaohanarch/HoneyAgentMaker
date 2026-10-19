@@ -7,6 +7,7 @@ import static dev.eab.erp.TestErp.delegatedToken;
 import static dev.eab.erp.TestErp.pageToken;
 import static dev.eab.erp.TestErp.userToken;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 import dev.eab.directory.DemoDirectory;
@@ -510,6 +511,73 @@ class ErpApiTest {
             assertThat(response.path("item").path("id").asString()).isEqualTo("ANO-2026-0003");
             assertThat(response.path("item").path("invoices").size())
                     .isEqualTo(response.path("item").path("invoiceIds").size());
+        }
+
+        @Test
+        @DisplayName("列表接口的统计摘要在 limit 截断之前计算：交付的逾期率、库存的呆滞占比、异常的金额合计")
+        void listSummariesPrecedeLimit() throws Exception {
+            // 交付：zhangmin 只看华东，按供应商缩小到一次全量调用可以核对的范围
+            String zhang = delegatedToken(new Delegation("zhangmin", List.of("delivery_list"))
+                    .agent("vendor.pur/supplier-performance-analyst"));
+            JsonNode deliveries = json(get("/bo/v1/deliveries?supplierName=百润精密&limit=200", zhang));
+            long late = 0;
+            for (JsonNode d : deliveries.path("items")) {
+                assertThat(d.path("overdueDays").asLong()).isGreaterThanOrEqualTo(0);
+                if (d.path("overdueDays").asLong() > 0) late++;
+            }
+            assertThat(deliveries.path("items").size()).isGreaterThan(0);
+            assertThat(deliveries.path("summary").path("matched").asInt())
+                    .isEqualTo(deliveries.path("items").size());
+            assertThat(deliveries.path("summary").path("lateCount").asInt()).isEqualTo((int) late);
+            assertThat(deliveries.path("summary").path("lateRate").asDouble())
+                    .isEqualTo(
+                            Math.floor(late * 1000.0 / deliveries.path("items").size()) / 10.0);
+            JsonNode truncated = json(get("/bo/v1/deliveries?supplierName=百润精密&limit=1", zhang));
+            assertThat(truncated.path("items").size()).isEqualTo(1);
+            assertThat(truncated.path("summary").path("matched").asInt())
+                    .isEqualTo(deliveries.path("items").size());
+
+            // 库存：摘要是口径范围的概览，不受 slowMoving 与 belowSafetyStock 行筛选影响
+            String sun = delegatedToken(new Delegation("sunkg", List.of("inventory_balance_list"))
+                    .agent("vendor.scm/inventory-risk-analyst"));
+            JsonNode balances = json(get("/bo/v1/inventory-balances?limit=200", sun));
+            double totalValue = 0;
+            double slowMovingValue = 0;
+            long below = 0;
+            for (JsonNode b : balances.path("items")) {
+                totalValue += b.path("value").asDouble();
+                if ("slow".equals(b.path("slowMoving").asText()))
+                    slowMovingValue += b.path("value").asDouble();
+                if (b.path("belowSafetyStock").asBoolean()) below++;
+            }
+            assertThat(balances.path("items").size()).isGreaterThan(0);
+            assertThat(balances.path("summary").path("totalValue").asDouble()).isCloseTo(totalValue, within(0.001));
+            assertThat(balances.path("summary").path("slowMovingValue").asDouble())
+                    .isCloseTo(slowMovingValue, within(0.001));
+            assertThat(balances.path("summary").path("belowSafetyStockCount").asInt())
+                    .isEqualTo((int) below);
+            JsonNode slowOnly = json(get("/bo/v1/inventory-balances?slowMoving=slow&limit=3", sun));
+            slowOnly.path("items")
+                    .forEach(b -> assertThat(b.path("slowMoving").asString()).isEqualTo("slow"));
+            assertThat(slowOnly.path("summary").path("totalValue").asDouble()).isCloseTo(totalValue, within(0.001));
+            assertThat(slowOnly.path("summary").path("matched").asInt())
+                    .isGreaterThanOrEqualTo(slowOnly.path("items").size());
+            assertThat(slowOnly.path("summary").path("slowMovingRatio").asDouble())
+                    .isCloseTo(Math.floor(slowMovingValue * 1000.0 / totalValue) / 10.0, within(0.001));
+
+            // 异常：条数与金额合计在工具层聚合，limit 只影响行
+            String wang = delegatedToken(new Delegation("wangfang", List.of("transaction_anomaly_list"))
+                    .agent("vendor.fin/transaction-anomaly-analyst"));
+            JsonNode all =
+                    json(get("/bo/v1/transaction-anomalies?severity=high,critical&period=2026-10&limit=200", wang));
+            double amountTotal = 0;
+            for (JsonNode a : all.path("items")) amountTotal += a.path("amount").asDouble();
+            JsonNode anomalies =
+                    json(get("/bo/v1/transaction-anomalies?severity=high,critical&period=2026-10&limit=1", wang));
+            assertThat(anomalies.path("items").size()).isEqualTo(1);
+            assertThat(anomalies.path("summary").path("count").asInt())
+                    .isEqualTo(all.path("items").size());
+            assertThat(anomalies.path("summary").path("amountTotal").asDouble()).isCloseTo(amountTotal, within(0.001));
         }
 
         @Test

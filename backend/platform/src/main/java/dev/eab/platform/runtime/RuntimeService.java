@@ -5,8 +5,11 @@ import dev.eab.common.IsoTime;
 import dev.eab.directory.DemoDirectory;
 import dev.eab.directory.DemoDirectory.DemoUser;
 import dev.eab.platform.PlatformServices;
+import dev.eab.platform.audit.AuditStore.NewAuditEvent;
+import dev.eab.platform.http.ApiException;
 import dev.eab.platform.identity.AgentScope;
 import dev.eab.platform.identity.DelegatedClient;
+import dev.eab.platform.identity.TokenService;
 import dev.eab.platform.policy.PolicyController;
 import dev.eab.platform.registry.AssetRepository.AssetFilter;
 import dev.eab.platform.registry.EffectiveAssembly;
@@ -243,7 +246,7 @@ public final class RuntimeService {
                 runUser(user),
                 run.mode(),
                 run.delegationId(),
-                new RunContext.Subject(run.delegationId() == null ? userToken : null, run.delegationId()),
+                new RunContext.Subject(run.delegationId() == null ? userToken : null, run.delegationId(), null),
                 run.agent(),
                 run.utterance(),
                 routing);
@@ -332,7 +335,9 @@ public final class RuntimeService {
         var client = new DelegatedClient(services.identity(), settings.erpUrl(), null);
         var subject = call.subject().delegationId() != null
                 ? DelegatedClient.Subject.delegation(call.subject().delegationId())
-                : DelegatedClient.Subject.user(call.subject().userToken());
+                : call.subject().restrictedToken() != null
+                        ? DelegatedClient.Subject.restricted(call.subject().restrictedToken())
+                        : DelegatedClient.Subject.user(call.subject().userToken());
         var response = client.callBoApi(new DelegatedClient.BoCall(
                 subject,
                 call.agentToken(),
@@ -581,7 +586,19 @@ public final class RuntimeService {
      * 并记一次运行，追踪可以在治理中心查看。
      */
     public ToolGateway.ToolOutcome callAsMcp(DemoUser user, String userToken, String tool, Map<String, Object> args) {
-        return callPlatformTool(MCP_AGENT, user, userToken, tool, args);
+        return callPlatformTool(MCP_AGENT, user, new RunContext.Subject(userToken, null, null), null, tool, args);
+    }
+
+    /**
+     * /mcp 的受限回调调用（ADR 0014）：外部 Agent 持受限只读令牌代表发起用户调用。工具网关、鉴权点 3 与审计照常，
+     * 数据范围按 sub 用户；BO 委托令牌按受限声明直接签发（不做第二次令牌交换），调用本身按 act.sub 记一条审计。
+     */
+    public ToolGateway.ToolOutcome callAsMcpRestricted(
+            TokenService.RestrictedClaims claims, String restrictedToken, String tool, Map<String, Object> args) {
+        DemoUser user = DemoDirectory.findUser(claims.sub())
+                .orElseThrow(() -> new ApiException(401, "INVALID_TOKEN", "受限令牌中的用户不存在"));
+        return callPlatformTool(
+                MCP_AGENT, user, new RunContext.Subject(null, null, restrictedToken), claims, tool, args);
     }
 
     /** 平台导航（统一入口的导航型交互）查找单据时使用的身份 */
@@ -623,7 +640,7 @@ public final class RuntimeService {
                 runUser(user),
                 "on-behalf",
                 null,
-                new RunContext.Subject(userToken, null),
+                new RunContext.Subject(userToken, null, null),
                 agent,
                 definition,
                 deps.identity().issueAgentToken(definition, tenantId),
@@ -663,16 +680,29 @@ public final class RuntimeService {
 
     /**
      * 以平台的某个只读身份（MCP 端点、导航）调用一个工具：令牌交换、鉴权点 3、审计与 Agent 的工具调用相同，并记一次运行。
+     * restricted 非空时是 /mcp 的受限回调（ADR 0014）：主体是受限令牌，Agent 令牌的 scope 收窄到受限范围，
+     * 调用按 act.sub 再记一条审计。
      */
     public ToolGateway.ToolOutcome callPlatformTool(
             String agent, DemoUser user, String userToken, String tool, Map<String, Object> args) {
+        return callPlatformTool(agent, user, new RunContext.Subject(userToken, null, null), null, tool, args);
+    }
+
+    ToolGateway.ToolOutcome callPlatformTool(
+            String agent,
+            DemoUser user,
+            RunContext.Subject subject,
+            TokenService.RestrictedClaims restricted,
+            String tool,
+            Map<String, Object> args) {
         String tenantId = user.tenantId();
         RuntimeDeps deps = depsFor(tenantId);
         EffectiveDefinition definition = platformAgentDefinition(agent);
-        List<String> readOps = definition.tools().stream()
+        List<String> readOps = new ArrayList<>(definition.tools().stream()
                 .filter(t -> t.type().equals("api"))
                 .map(EffectiveDefinition.EffectiveTool::name)
-                .toList();
+                .toList());
+        if (restricted != null) readOps.retainAll(restricted.operations());
         String agentToken = services.identity().issueAgentToken(agent, MCP_VERSION, tenantId, readOps);
         String runId = "run-" + UUID.randomUUID();
         String traceId = Tracer.newTraceId();
@@ -681,13 +711,14 @@ public final class RuntimeService {
         Tracer tracer = new Tracer(traceId, traces, tenantId, services.clock());
         var root = tracer.start("平台工具调用 · " + tool, SpanRecord.SpanKind.run, null, "run", Map.of());
         root.set("eab.agent", agent).set("eab.user.id", user.id()).set("eab.tenant.id", tenantId);
+        if (restricted != null) root.set("eab.mcp.restricted_agent", restricted.actAgent());
         RunContext ctx = new RunContext(
                 runId,
                 agent.substring(agent.indexOf('/') + 1) + "-" + runId,
                 runUser(user),
                 "on-behalf",
                 null,
-                new RunContext.Subject(userToken, null),
+                subject,
                 agent,
                 definition,
                 agentToken,
@@ -716,6 +747,20 @@ public final class RuntimeService {
                 Json.MAPPER.writeValueAsString(outcome),
                 now,
                 now));
+        if (restricted != null) {
+            services.audit()
+                    .append(NewAuditEvent.of(
+                                    restricted.actAgent(),
+                                    "mcp.restricted-call",
+                                    tool,
+                                    outcome.ok() ? "allow" : "deny",
+                                    "外部 Agent 以受限只读令牌代表 " + user.id() + " 调用 " + tool)
+                            .tenantId(tenantId)
+                            .userId(user.id())
+                            .agent(restricted.actAgent())
+                            .tool(tool)
+                            .mode("restricted"));
+        }
         return outcome;
     }
 

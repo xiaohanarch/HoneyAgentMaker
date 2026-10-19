@@ -9,6 +9,8 @@ import dev.eab.platform.audit.AuditStore.AuditFilter;
 import dev.eab.platform.identity.IdentityService.ExchangeRequest;
 import dev.eab.platform.identity.IdentityService.TokenType;
 import dev.eab.platform.identity.TokenService.TokenException;
+import dev.eab.spec.Viewer;
+import dev.eab.spec.testing.Fixtures;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -217,6 +219,170 @@ class IdentityServiceTest {
         assertThatThrownBy(() -> new TokenService(keys, Clock.systemUTC()).verifyUser(old))
                 .isInstanceOfSatisfying(
                         TokenException.class, e -> assertThat(e.code()).isEqualTo("INVALID_TOKEN"));
+    }
+
+    // ── 受限回调（ADR 0014）：服务令牌换只读回调令牌，再按声明直接签发 BO 委托令牌 ──
+
+    static final String REMOTE_AGENT = "tenant.t001.remote/supplier-risk-sentiment";
+
+    /** 只读 BO 操作以已发布的 vendor.erp.tools/demo-erp-bo 为准，单元测试里发布一个最小工具来源 */
+    static void publishBoToolSource() {
+        TestPlatform.publish(
+                services,
+                Viewer.VENDOR,
+                Fixtures.toolSource(Fixtures.with()
+                        .namespace("vendor.erp.tools")
+                        .name("demo-erp-bo")
+                        .spec(
+                                "tools",
+                                List.of(
+                                        Map.of("name", "supplier_list", "description", "供应商查询", "writeLevel", "L0"),
+                                        Map.of(
+                                                "name",
+                                                "purchase_order_list",
+                                                "description",
+                                                "采购订单查询",
+                                                "writeLevel",
+                                                "L0"),
+                                        Map.of(
+                                                "name",
+                                                "purchase_order_change_delivery_date",
+                                                "description",
+                                                "修改交付日期",
+                                                "writeLevel",
+                                                "L2")))));
+    }
+
+    static String serviceToken(String user) {
+        return services.tokens().issueService(user, "t001", "agent:vendor.pur/purchase-assistant", REMOTE_AGENT);
+    }
+
+    static String restrictedToken(String user) {
+        return services.identity().exchangeRestricted(serviceToken(user), null).accessToken();
+    }
+
+    @Test
+    @DisplayName("受限回调交换：sub 是发起用户，act 是外部 Agent，范围是用户权限与只读 BO 操作的交集")
+    void restrictedExchange() {
+        publishBoToolSource();
+        var restricted = services.identity().exchangeRestricted(serviceToken("zhangmin"), null);
+        assertThat(restricted.scope())
+                .containsExactlyInAnyOrder("supplier_list", "purchase_order_list")
+                .doesNotContain("purchase_order_change_delivery_date");
+        assertThat(restricted.expiresIn()).isEqualTo(300);
+        var claims = IdentityService.decode(restricted.accessToken());
+        assertThat(claims.get("aud").toString()).contains(TokenService.Audience.PLATFORM);
+        assertThat(claims)
+                .containsEntry("kind", "restricted")
+                .containsEntry("sub", "zhangmin")
+                .containsEntry("tid", "t001");
+        assertThat(claims.get("act")).isEqualTo(Map.of("sub", REMOTE_AGENT));
+        var event = services.audit()
+                .list(AuditFilter.all().withAction("identity.token-exchange").withDecision("allow"))
+                .getFirst();
+        assertThat(event.actor()).isEqualTo(REMOTE_AGENT);
+        assertThat(event.mode()).isEqualTo("restricted");
+        assertThat(event.userId()).isEqualTo("zhangmin");
+    }
+
+    @Test
+    @DisplayName("受限回调交换可以再收窄申请范围，令牌里的 scope 只有申请的操作")
+    void restrictedExchangeNarrowScope() {
+        publishBoToolSource();
+        var restricted =
+                services.identity().exchangeRestricted(serviceToken("zhangmin"), List.of("purchase_order_list"));
+        assertThat(restricted.scope()).containsExactly("purchase_order_list");
+        var claims = IdentityService.decode(restricted.accessToken());
+        assertThat(claims).containsEntry("scope", "purchase_order_list");
+    }
+
+    @Test
+    @DisplayName("受限令牌换 BO 委托令牌：不做第二次交换，按声明直接签发单操作令牌，via 记录外部 Agent")
+    void issueBoForRestricted() {
+        publishBoToolSource();
+        String bo = services.identity()
+                .issueBoForRestricted(
+                        restrictedToken("zhangmin"),
+                        agentToken("platform/mcp-endpoint", List.of("supplier_list", "purchase_order_list")),
+                        "purchase_order_list");
+        var claims = IdentityService.decode(bo);
+        assertThat(claims.get("aud").toString()).contains(TokenService.Audience.BO);
+        assertThat(claims)
+                .containsEntry("sub", "zhangmin")
+                .containsEntry("scope", "purchase_order_list")
+                .containsEntry("via", REMOTE_AGENT)
+                .containsEntry("mode", "on-behalf");
+        assertThat(claims.get("act")).isEqualTo(Map.of("sub", "agent:platform/mcp-endpoint"));
+    }
+
+    static Stream<Arguments> rejectedRestricted() {
+        return Stream.of(
+                Arguments.of(
+                        "服务令牌没有用户身份",
+                        (Supplier<?>) () -> services.identity().exchangeRestricted(serviceToken(""), null),
+                        "NO_USER_IDENTITY"),
+                Arguments.of(
+                        "服务令牌的用户不存在",
+                        (Supplier<?>) () -> services.identity().exchangeRestricted(serviceToken("nobody"), null),
+                        "UNKNOWN_USER"),
+                Arguments.of(
+                        "用户与服务令牌不属于同一租户",
+                        (Supplier<?>) () -> services.identity()
+                                .exchangeRestricted(
+                                        services.tokens().issueService("zhouting", "t001", "agent:x/y", REMOTE_AGENT),
+                                        null),
+                        "TENANT_MISMATCH"),
+                Arguments.of(
+                        "用户没有可回调的只读操作",
+                        (Supplier<?>) () -> services.identity().exchangeRestricted(serviceToken("chengong"), null),
+                        "EMPTY_SCOPE"),
+                Arguments.of(
+                        "拿用户令牌冒充服务令牌",
+                        (Supplier<?>) () -> services.identity().exchangeRestricted(login("zhangmin"), null),
+                        "INVALID_TOKEN"));
+    }
+
+    @ParameterizedTest(name = "{0}时拒绝签发")
+    @MethodSource("rejectedRestricted")
+    void rejectedRestrictedExchange(String label, Supplier<?> run, String code) {
+        publishBoToolSource();
+        assertThatThrownBy(run::get)
+                .isInstanceOfSatisfying(
+                        TokenException.class, e -> assertThat(e.code()).isEqualTo(code));
+    }
+
+    @Test
+    @DisplayName("操作不在受限令牌的只读范围内时拒绝签发 BO 令牌，并写入拒绝审计")
+    void issueBoForRestrictedOutOfScope() {
+        publishBoToolSource();
+        String restricted = services.identity()
+                .exchangeRestricted(serviceToken("zhangmin"), List.of("supplier_list"))
+                .accessToken();
+        String agent = agentToken("platform/mcp-endpoint", List.of("supplier_list", "purchase_order_list"));
+        assertThatThrownBy(() -> services.identity().issueBoForRestricted(restricted, agent, "purchase_order_list"))
+                .isInstanceOfSatisfying(
+                        TokenException.class, e -> assertThat(e.code()).isEqualTo("OUT_OF_SCOPE"));
+        var event = services.audit()
+                .list(AuditFilter.all().withAction("identity.token-exchange").withDecision("deny"))
+                .getFirst();
+        assertThat(event.mode()).isEqualTo("restricted");
+        assertThat(event.resultSummary()).contains("未退回任何技术账号");
+    }
+
+    @Test
+    @DisplayName("受限令牌不能冒充 Agent 令牌，也不能与另一租户的 Agent 搭配签发 BO 令牌")
+    void issueBoForRestrictedWrongTokens() {
+        publishBoToolSource();
+        String restricted = restrictedToken("zhangmin");
+        assertThatThrownBy(() -> services.identity().issueBoForRestricted(restricted, restricted, "supplier_list"))
+                .isInstanceOfSatisfying(
+                        TokenException.class, e -> assertThat(e.code()).isEqualTo("INVALID_TOKEN"));
+        String otherTenantAgent =
+                services.identity().issueAgentToken("platform/mcp-endpoint", "1.0.0", "t002", List.of("supplier_list"));
+        assertThatThrownBy(
+                        () -> services.identity().issueBoForRestricted(restricted, otherTenantAgent, "supplier_list"))
+                .isInstanceOfSatisfying(
+                        TokenException.class, e -> assertThat(e.code()).isEqualTo("TENANT_MISMATCH"));
     }
 
     @Test

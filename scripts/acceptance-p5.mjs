@@ -105,7 +105,7 @@ check(
 check(
   '约束 PUR-R-007 触发，回复先提示交付问题',
   (testData.events ?? []).some((e) => e.type === 'constraint' && e.data.rule === 'PUR-R-007') &&
-    (testData.text ?? '').startsWith('先说结论：按规则 PUR-R-007'),
+    (testData.text ?? '').includes('先说结论：按规则 PUR-R-007'),
   (testData.text ?? '').split('\n')[0].slice(0, 50),
 )
 const testTrace = await call('GET', `/traces/${testData.traceId}`, 'chengong')

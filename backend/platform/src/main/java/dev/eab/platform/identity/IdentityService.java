@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * 模拟身份服务（主提示词 7.1 节）：选人登录、客户端凭证、RFC 8693 令牌交换。
@@ -24,6 +25,8 @@ public final class IdentityService {
         public static final String ACCESS_TOKEN = "urn:ietf:params:oauth:token-type:access_token";
         /** 受托自主运行：subject_token 写 delegation:&lt;委托编号&gt; */
         public static final String DELEGATION = "urn:eab:params:oauth:token-type:delegation";
+        /** 外部 Agent 的受限回调：subject_token 是平台出站调用携带的服务令牌（ADR 0014） */
+        public static final String SERVICE = "urn:eab:params:oauth:token-type:service";
     }
 
     /** @param scope 可选：只申请部分操作，null 表示不限 */
@@ -33,18 +36,29 @@ public final class IdentityService {
     /** @param claims 委托令牌的声明：sub、act、tid、scope、mode、delegation_id、agent_version */
     public record ExchangeResult(String accessToken, List<String> scope, long expiresIn, Map<String, Object> claims) {}
 
+    /** 受限回调令牌交换的结果（ADR 0014） */
+    public record RestrictedExchange(String accessToken, List<String> scope, long expiresIn) {}
+
     public record Login(String token, DemoUser user) {}
 
     private final TokenService tokens;
     private final DelegationStore delegations;
     private final ClientRegistry clients;
     private final AuditStore audit;
+    /** 只读 BO 操作（写级别 L0），受限回调令牌的 scope 上限；惰性求值，工具来源升级后取到新清单 */
+    private final Supplier<List<String>> readOnlyOperations;
 
-    public IdentityService(TokenService tokens, DelegationStore delegations, ClientRegistry clients, AuditStore audit) {
+    public IdentityService(
+            TokenService tokens,
+            DelegationStore delegations,
+            ClientRegistry clients,
+            AuditStore audit,
+            Supplier<List<String>> readOnlyOperations) {
         this.tokens = tokens;
         this.delegations = delegations;
         this.clients = clients;
         this.audit = audit;
+        this.readOnlyOperations = readOnlyOperations;
     }
 
     public Login login(String userId) {
@@ -98,24 +112,29 @@ public final class IdentityService {
                     .resultSummary("授权操作 " + result.scope().size() + " 个"));
             return result;
         } catch (RuntimeException error) {
-            TokenException tokenError = error instanceof TokenException t
-                    ? t
-                    : new TokenException("EXCHANGE_FAILED", String.valueOf(error.getMessage()));
             String target = request.audience() == null ? "" : request.audience();
-            audit.append(NewAuditEvent.of(
-                            "identity",
-                            "identity.token-exchange",
-                            target.substring(0, Math.min(64, target.length())),
-                            "deny",
-                            truncate(tokenError.getMessage(), 300))
-                    .ruleId(tokenError.code())
-                    .resultSummary("令牌交换失败，按失败即拒绝处理，未退回任何技术账号")
-                    .tenantId(known.tenantId)
-                    .agent(known.agent)
-                    .userId(known.userId)
-                    .mode(known.mode));
-            throw tokenError;
+            throw denyExchange(target, known, error);
         }
+    }
+
+    /** 交换或受限签发失败：记审计后按 TokenException 抛出，绝不退回任何技术账号 */
+    private TokenException denyExchange(String target, Known known, RuntimeException error) {
+        TokenException tokenError = error instanceof TokenException t
+                ? t
+                : new TokenException("EXCHANGE_FAILED", String.valueOf(error.getMessage()));
+        audit.append(NewAuditEvent.of(
+                        "identity",
+                        "identity.token-exchange",
+                        target.substring(0, Math.min(64, target.length())),
+                        "deny",
+                        truncate(tokenError.getMessage(), 300))
+                .ruleId(tokenError.code())
+                .resultSummary("令牌交换失败，按失败即拒绝处理，未退回任何技术账号")
+                .tenantId(known.tenantId)
+                .agent(known.agent)
+                .userId(known.userId)
+                .mode(known.mode));
+        return tokenError;
     }
 
     private static String truncate(String text, int max) {
@@ -182,6 +201,97 @@ public final class IdentityService {
         claims.put("agent_version", actor.agentVersion());
         return new ExchangeResult(
                 tokens.issueDelegated(claims), List.copyOf(scope), TokenService.DELEGATED_TTL, claims);
+    }
+
+    /**
+     * 受限回调令牌交换（ADR 0014 第 42-51 行）：外部 Agent 拿平台调它时携带的服务令牌，换一枚代表发起用户的
+     * 只读委托令牌（aud 为 eab-platform，只在 /mcp 端点被接受）。scope 是用户业务权限与只读 BO 操作的交集，
+     * 再与申请范围取交集；没有用户身份或交集为空时拒绝，不退回任何技术账号。
+     */
+    public RestrictedExchange exchangeRestricted(String serviceToken, List<String> requestedScope) {
+        Known known = new Known();
+        known.mode = "restricted";
+        try {
+            TokenService.ServiceClaims service = tokens.verifyService(serviceToken);
+            known.tenantId = service.tid();
+            known.agent = service.target();
+            if (service.sub() == null || service.sub().isBlank()) {
+                throw new TokenException("NO_USER_IDENTITY", "服务令牌没有携带用户身份，不签发回调令牌");
+            }
+            DemoUser user = DemoDirectory.findUser(service.sub()).orElse(null);
+            if (user == null) throw new TokenException("UNKNOWN_USER", "回调令牌的主体用户不存在");
+            if (!user.tenantId().equals(service.tid())) {
+                throw new TokenException("TENANT_MISMATCH", "用户与服务令牌不属于同一租户");
+            }
+            known.userId = user.id();
+            List<String> scope = new ArrayList<>(DemoDirectory.permittedOperations(user));
+            scope.retainAll(readOnlyOperations.get());
+            if (requestedScope != null) scope.retainAll(requestedScope);
+            if (scope.isEmpty()) {
+                throw new TokenException("EMPTY_SCOPE", "用户 " + user.id() + " 没有可回调的只读操作，不签发令牌");
+            }
+            String token = tokens.issueRestricted(new TokenService.RestrictedClaims(
+                    user.id(), user.tenantId(), service.target(), String.join(" ", scope)));
+            audit.append(NewAuditEvent.of(
+                            service.target(),
+                            "identity.token-exchange",
+                            TokenService.Audience.PLATFORM,
+                            "allow",
+                            "签发受限只读回调令牌（外部 Agent 代表 " + user.id() + " 回查平台）")
+                    .tenantId(user.tenantId())
+                    .userId(user.id())
+                    .agent(service.target())
+                    .mode("restricted")
+                    .resultSummary("只读操作 " + scope.size() + " 个"));
+            return new RestrictedExchange(token, List.copyOf(scope), TokenService.RESTRICTED_TTL);
+        } catch (RuntimeException error) {
+            throw denyExchange(TokenService.Audience.PLATFORM, known, error);
+        }
+    }
+
+    /**
+     * /mcp 受限回调的 BO 委托令牌（ADR 0014）：凭已验签的受限令牌直接签发单操作的委托令牌，不做第二次交换。
+     * 操作必须在受限令牌的只读范围内；act 记录执行的 Agent，via 记录回调的外部 Agent，链路可从令牌声明里读出。
+     */
+    public String issueBoForRestricted(String restrictedToken, String agentToken, String operation) {
+        Known known = new Known();
+        known.mode = "restricted";
+        try {
+            TokenService.RestrictedClaims restricted = tokens.verifyRestricted(restrictedToken);
+            TokenService.AgentClaims actor = tokens.verifyAgent(agentToken);
+            known.tenantId = restricted.tid();
+            known.userId = restricted.sub();
+            known.agent = restricted.actAgent();
+            if (!restricted.tid().equals(actor.tid())) {
+                throw new TokenException("TENANT_MISMATCH", "受限令牌与执行 Agent 不属于同一租户");
+            }
+            if (!restricted.operations().contains(operation)) {
+                throw new TokenException("OUT_OF_SCOPE", "操作 " + operation + " 不在受限回调令牌的只读范围内，拒绝调用");
+            }
+            Map<String, Object> claims = new LinkedHashMap<>();
+            claims.put("sub", restricted.sub());
+            claims.put("act", Map.of("sub", actor.sub()));
+            claims.put("via", restricted.actAgent());
+            claims.put("tid", actor.tid());
+            claims.put("scope", operation);
+            claims.put("mode", "on-behalf");
+            claims.put("agent_version", actor.agentVersion());
+            String token = tokens.issueDelegated(claims);
+            audit.append(NewAuditEvent.of(
+                            restricted.actAgent(),
+                            "identity.token-exchange",
+                            TokenService.Audience.BO,
+                            "allow",
+                            "为受限回调签发单操作委托令牌：" + operation)
+                    .tenantId(restricted.tid())
+                    .userId(restricted.sub())
+                    .agent(actor.sub().replaceFirst("^agent:", "") + "@" + actor.agentVersion())
+                    .mode("restricted")
+                    .resultSummary("授权操作 1 个"));
+            return token;
+        } catch (RuntimeException error) {
+            throw denyExchange(TokenService.Audience.BO, known, error);
+        }
     }
 
     /** 解析令牌声明，供测试和演示控制台查看 */

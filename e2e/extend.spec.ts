@@ -93,7 +93,10 @@ test('故事 B：扩展标品 Agent，评测后发布，王芳在统一入口用
     const key = await card.getAttribute('data-key')
     await confirm.first().click()
     await expect
-      .poll(async () => (await result.count()) > 0 || (await card.getAttribute('data-key')) !== key, WAIT)
+      .poll(
+        async () => (await result.count()) > 0 || (await card.getAttribute('data-key')) !== key,
+        WAIT,
+      )
       .toBeTruthy()
   }
   await expect(result).toContainText('责任部门', WAIT)

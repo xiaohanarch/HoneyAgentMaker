@@ -35,17 +35,30 @@ export function ReplayControls({
       data-testid="replay-controls"
     >
       <div className="flex items-center gap-1.5">
-        <button type="button" aria-label="上一步" data-testid="replay-prev" className={BTN} onClick={() => onStep(-1)}>
+        <button
+          type="button"
+          aria-label="上一步"
+          data-testid="replay-prev"
+          className={BTN}
+          onClick={() => onStep(-1)}
+        >
           <SkipBack aria-hidden className="size-3.5" />
         </button>
         <button
           type="button"
           aria-label={playing ? '暂停' : '播放'}
           data-testid="replay-play"
-          className={cn(BTN, 'border-ink/20 bg-ink text-surface hover:bg-ink/85 hover:text-surface')}
+          className={cn(
+            BTN,
+            'border-ink/20 bg-ink text-surface hover:bg-ink/85 hover:text-surface',
+          )}
           onClick={onToggle}
         >
-          {playing ? <Pause aria-hidden className="size-3.5" /> : <Play aria-hidden className="size-3.5" />}
+          {playing ? (
+            <Pause aria-hidden className="size-3.5" />
+          ) : (
+            <Play aria-hidden className="size-3.5" />
+          )}
         </button>
         <button
           type="button"
@@ -86,7 +99,10 @@ export function ReplayControls({
         onChange={(e) => onSeek(Number(e.target.value) / 1000)}
         className="h-1.5 min-w-[10rem] flex-1 accent-ink"
       />
-      <p className="min-w-0 flex-1 basis-full truncate text-xs text-ink-muted sm:basis-auto" data-testid="replay-caption">
+      <p
+        className="min-w-0 flex-1 basis-full truncate text-xs text-ink-muted sm:basis-auto"
+        data-testid="replay-caption"
+      >
         {caption}
       </p>
     </div>

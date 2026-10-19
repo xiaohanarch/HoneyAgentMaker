@@ -44,7 +44,8 @@ public final class Supervisor {
     static final Pattern AMOUNT =
             Pattern.compile("(?<![\\d.,A-Za-z-])(\\d{1,3}(?:,\\d{3})+|\\d{4,})(\\.\\d+)?(?![\\d年月日-])");
 
-    static final Pattern NUMBER = Pattern.compile("-?\\d+(?:,\\d{3})*(?:\\.\\d+)?");
+    /** 证据里的数字：JSON 序列化把 10 的 7 次方以上的数写成科学计数法（1.83599256E7），按数值比对而不是按文本 */
+    static final Pattern NUMBER = Pattern.compile("-?\\d+(?:,\\d{3})*(?:\\.\\d+)?(?:[eE][+-]?\\d+)?");
 
     public static final String UNVERIFIED = "（未经核实）";
 
@@ -56,7 +57,7 @@ public final class Supervisor {
 
     /**
      * 输出守卫：结论里引用的单号、金额必须能在本次运行的工具结果（或用户的话）里找到，找不到则在原文后标注“未经核实”。
-     * 演示里用字符串比对实现。
+     * 单号按文本比对，金额按数值比对，证据里 JSON 的科学计数法（1.83599256E7）与回复里的普通写法算同一个数。
      */
     public static ReferenceCheck checkReferences(String text, String evidence) {
         Set<String> ids = new LinkedHashSet<>();

@@ -1,19 +1,19 @@
 # 供应链（库存）域的演示剧本（格式见 README.md）
 scripts:
   - id: scm-below-safety-stock
-    description: 孙库管问哪些物料低于安全库存：库存余额 → 在途订单 → 区分已有补货与需要补货
+    description: 孙库管问哪些物料低于安全库存：库存余额（摘要给出低于安全库存的条数）→ 在途订单 → 区分已有补货与需要补货
     agent: vendor.scm/inventory-risk-analyst
     match:
       any: [低于安全库存, 缺货]
     steps:
-      - thought: 找出可用库存低于安全库存的物料
+      - thought: 找出可用库存低于安全库存的物料，条数看统计摘要
         calls:
           - { tool: inventory_balance_list, args: { belowSafetyStock: true, limit: 8 } }
       - thought: 查看相关物料的在途补货订单
         calls:
           - { tool: purchase_order_list, args: { status: open, limit: 50 } }
       - reply: |
-          缺口最大的 {{tools.inventory_balance_list.total}} 条低于安全库存的记录（按缺口比例排序）：
+          低于安全库存的记录共 {{tools.inventory_balance_list.summary.belowSafetyStockCount}} 条，按缺口占安全库存的比例排列：
           {{#tools.inventory_balance_list.items}}
           - {{materialId}} {{materialName}}（{{warehouseName}}）：可用 {{quantity}} {{unit}}，安全库存 {{safetyStock}} {{unit}}
           {{/tools.inventory_balance_list.items}}
@@ -25,6 +25,32 @@ scripts:
           shortageItems: "=tools.inventory_balance_list.items.map(b, {'materialId': b.materialId, 'quantity': b.quantity, 'safetyStock': b.safetyStock})"
           slowMovingItems: '=[]'
           actions: "=['确认在途订单交期', '对没有在途补货的物料发起补货']"
+
+  - id: scm-slow-moving
+    description: 孙库管问本月呆滞库存：库存余额的统计摘要给出呆滞金额与占比，不用逐行加总
+    agent: vendor.scm/inventory-risk-analyst
+    match:
+      all: [呆滞]
+    steps:
+      - thought: 库存总金额、呆滞金额与占比在库存余额的统计摘要里，先取口径，再取几条呆滞记录举例
+        calls:
+          - { tool: semantic.get_metric, args: { name: slow_moving_ratio } }
+          - { tool: inventory_balance_list, args: { slowMoving: slow, limit: 5 } }
+      - reply: |
+          本月库存总金额 {{tools.inventory_balance_list.summary.totalValue}}，其中库龄超过 180 天的呆滞库存 {{tools.inventory_balance_list.summary.slowMovingValue}}，占比 {{tools.inventory_balance_list.summary.slowMovingRatio}}%。
+          口径说明：{{tools.semantic_get_metric.displayName}}，{{tools.semantic_get_metric.definition}}。口径来自语义包 {{tools.semantic_get_metric.provenance.semanticPack}}。
+
+          其中几条呆滞记录：
+          {{#tools.inventory_balance_list.items}}
+          - {{materialId}} {{materialName}}（{{warehouseName}}）：库龄 {{ageDays}} 天，金额 {{value}}
+          {{/tools.inventory_balance_list.items}}
+
+          按规则 SCM-R-002，处置呆滞库存前必须确认物料没有未完成的生产需求，再评估调拨、折价或报废；另外低于安全库存的记录还有 {{tools.inventory_balance_list.summary.belowSafetyStockCount}} 条，需要分开处理。数据范围：{{tools.inventory_balance_list.scopeLabel}}。
+        output:
+          riskLevel: "=tools.inventory_balance_list.summary.slowMovingRatio > 5 ? 'high' : 'medium'"
+          shortageItems: '=[]'
+          slowMovingItems: "=tools.inventory_balance_list.items.map(b, {'materialId': b.materialId, 'value': b.value, 'ageDays': b.ageDays})"
+          actions: "=['确认没有未完成的生产需求', '评估调拨、折价或报废']"
 
   - id: scm-create-followup
     description: 为物料创建补货跟进任务：调用创建跟进任务技能，触发 L2 确认，演示挂起与恢复
@@ -64,4 +90,4 @@ scripts:
           建议：优先与供应商确认逾期订单的新交期；可用量低于安全库存时，由采购部评估临时补货。本次为受托运行，没有执行任何写操作。
         output:
           riskLevel: "=tools.inventory_balance_list.items.exists(b, b.belowSafetyStock) ? 'high' : 'medium'"
-          shortageItems: "=tools.inventory_balance_list.items.filter(b, b.belowSafetyStock).map(b, b.materialId)"
+          shortageItems: '=tools.inventory_balance_list.items.filter(b, b.belowSafetyStock).map(b, b.materialId)'
