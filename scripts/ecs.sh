@@ -78,7 +78,8 @@ case "${1:-}" in
     else
       passcodes=""
       for user in "${DEMO_USERS[@]}"; do
-        pass="$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 16)"
+        # 不能用「tr </dev/urandom | head」：head 读满退出会让 tr 收到 SIGPIPE，set -o pipefail 下整个脚本被杀
+        pass="$(openssl rand -hex 8)"
         passcodes="${passcodes:+$passcodes,}$user:$pass"
       done
       mkdir -p "$HOME/.config/eab"
