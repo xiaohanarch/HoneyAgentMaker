@@ -59,6 +59,7 @@ public class IdentityController {
     private final PlatformServices services;
     private final boolean demoMode;
     private final RateLimiter limiter;
+    private final DemoPasscodes passcodes;
 
     public IdentityController(PlatformServices services, DemoMode demoMode, Environment env) {
         this.services = services;
@@ -66,6 +67,8 @@ public class IdentityController {
         // 登录限流默认每 IP 每分钟 30 次；演示环境共用回环地址，由 EAB_LOGIN_RATE_PER_MINUTE 调高
         this.limiter = new RateLimiter(
                 env.getProperty("eab.login-rate-per-minute", Integer.class, 30), 60_000, services.clock());
+        // 公网部署时按身份的登录口令（EAB_DEMO_PASSCODES）；未设置时保持选人即登录
+        this.passcodes = DemoPasscodes.parse(env.getProperty("eab.demo-passcodes", ""));
     }
 
     /** 平台与 DemoERP 之间的内部调用校验，常量时间比较 */
@@ -93,23 +96,53 @@ public class IdentityController {
                 DemoDirectory.USERS.stream().map(DemoDirectory::toPublicUser).toList());
     }
 
-    public record LoginBody(String userId) {}
+    public record LoginBody(String userId, String passcode) {}
 
     public record LoginResult(String token, PublicUser user) {}
 
+    public record LoginConfig(boolean passcodeRequired) {}
+
+    @GetMapping("/identity/v1/login-config")
+    @Operation(summary = "登录配置：是否启用了按身份口令（公网部署时前端据此出口令输入框）")
+    public ApiResponse<LoginConfig> loginConfig() {
+        requireDemoMode();
+        return ApiResponse.success(new LoginConfig(passcodes.required()));
+    }
+
     @PostMapping("/identity/v1/login")
-    @Operation(summary = "选人即登录，签发用户令牌（仅演示模式开放，没有密码）")
+    @Operation(summary = "选人登录，签发用户令牌（仅演示模式开放；设置了口令表时需要 passcode）")
     public ApiResponse<LoginResult> login(HttpServletRequest request, @RequestBody LoginBody body) {
         requireDemoMode();
         limiter.check(request.getRemoteAddr());
-        if (body == null || body.userId() == null || body.userId().length() > 64) {
-            throw new ApiException(400, "BAD_REQUEST", "请求参数不合法：缺少 userId");
+        // 公网端点不接受任意大的请求体：userId 与 passcode 都限长
+        if (body == null
+                || body.userId() == null
+                || body.userId().length() > 64
+                || (body.passcode() != null && body.passcode().length() > 128)) {
+            throw new ApiException(400, "BAD_REQUEST", "请求参数不合法：缺少 userId 或字段过长");
         }
+        checkPasscode(body);
         try {
             var login = services.identity().login(body.userId());
             return ApiResponse.success(new LoginResult(login.token(), DemoDirectory.toPublicUser(login.user())));
         } catch (TokenException e) {
             throw new ApiException(404, "UNKNOWN_USER", e.getMessage());
+        }
+    }
+
+    /** 公网口令门禁：无条目的身份拒绝公网登录，未带或不对的口令都拒绝；比较用常量时间 */
+    private void checkPasscode(LoginBody body) {
+        if (!passcodes.required()) return;
+        String expected = passcodes.lookup(body.userId());
+        if (expected == null) {
+            throw new ApiException(401, "LOGIN_DISABLED", "该身份未配置公网登录口令");
+        }
+        if (body.passcode() == null) {
+            throw new ApiException(401, "PASSCODE_REQUIRED", "该身份需要口令登录");
+        }
+        if (!MessageDigest.isEqual(
+                body.passcode().getBytes(StandardCharsets.UTF_8), expected.getBytes(StandardCharsets.UTF_8))) {
+            throw new ApiException(401, "INVALID_PASSCODE", "口令不正确");
         }
     }
 

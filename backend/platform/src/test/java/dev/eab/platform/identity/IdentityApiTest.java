@@ -211,6 +211,79 @@ class IdentityApiTest {
                                     "audience", "demo-erp-bo")));
             assertThat(exchange.json().get("error").asString()).isEqualTo("unsupported_grant_type");
         }
+
+        @Test
+        @DisplayName("未设置口令表时 login-config 报告不需要口令（默认部署）")
+        void loginConfigDefault() throws Exception {
+            assertThat(call(get("/identity/v1/login-config"))
+                            .json()
+                            .get("data")
+                            .get("passcodeRequired")
+                            .asBoolean())
+                    .isFalse();
+        }
+    }
+
+    @Nested
+    @DisplayName("公网口令门禁")
+    class PasscodeGate {
+        MockMvc gated() {
+            var env = new org.springframework.mock.env.MockEnvironment();
+            env.setProperty("eab.demo-passcodes", "zhangmin:s3cret,*:shared");
+            return TestPlatform.mvc(services, true, env);
+        }
+
+        @Test
+        @DisplayName("设置口令后：未带口令、口令错误返回 401，口令正确才签发令牌")
+        void requiredCorrect() throws Exception {
+            MockMvc gated = gated();
+            assertThat(call(gated, get("/identity/v1/login-config"))
+                            .json()
+                            .get("data")
+                            .get("passcodeRequired")
+                            .asBoolean())
+                    .isTrue();
+
+            var missing = call(gated, json(post("/identity/v1/login"), Map.of("userId", "zhangmin")));
+            assertThat(missing.status()).isEqualTo(401);
+            assertThat(missing.json().get("error").get("code").asString()).isEqualTo("PASSCODE_REQUIRED");
+
+            var wrong = call(gated, json(post("/identity/v1/login"), Map.of("userId", "zhangmin", "passcode", "nope")));
+            assertThat(wrong.status()).isEqualTo(401);
+            assertThat(wrong.json().get("error").get("code").asString()).isEqualTo("INVALID_PASSCODE");
+
+            var ok = call(gated, json(post("/identity/v1/login"), Map.of("userId", "zhangmin", "passcode", "s3cret")));
+            assertThat(ok.json().get("data").get("user").get("id").asString()).isEqualTo("zhangmin");
+            assertThat(ok.json().get("data").get("token").asString()).isNotEmpty();
+
+            // 未单列身份走 * 缺省条目
+            var shared =
+                    call(gated, json(post("/identity/v1/login"), Map.of("userId", "wangfang", "passcode", "shared")));
+            assertThat(shared.json().get("data").get("user").get("id").asString())
+                    .isEqualTo("wangfang");
+        }
+
+        @Test
+        @DisplayName("口令表没有缺省条目时，未配置口令的身份拒绝公网登录")
+        void loginDisabled() throws Exception {
+            var env = new org.springframework.mock.env.MockEnvironment();
+            env.setProperty("eab.demo-passcodes", "zhangmin:only-me");
+            MockMvc gated = TestPlatform.mvc(services, true, env);
+            var denied =
+                    call(gated, json(post("/identity/v1/login"), Map.of("userId", "wangfang", "passcode", "anything")));
+            assertThat(denied.status()).isEqualTo(401);
+            assertThat(denied.json().get("error").get("code").asString()).isEqualTo("LOGIN_DISABLED");
+        }
+
+        @Test
+        @DisplayName("口令门禁不影响用户列表：候选身份仍然公开，只是登录需要口令")
+        void usersStillPublic() throws Exception {
+            assertThat(call(gated(), get("/identity/v1/users"))
+                            .json()
+                            .get("data")
+                            .toString())
+                    .contains("zhangmin");
+        }
     }
 
     @Nested

@@ -115,8 +115,9 @@ const SERVICES = [
       EAB_INTERNAL_SECRET: INTERNAL_SECRET,
       EAB_DEMO_MODE: '1',
       EAB_DEMO_ERP_URL: DEMO_ERP_URL,
-      // 端到端测试与验收脚本和所有演示页面共用 127.0.0.1 一个来源地址，登录限流给足余量（生产默认 30）
-      EAB_LOGIN_RATE_PER_MINUTE: '240',
+      // 端到端测试与验收脚本和所有演示页面共用 127.0.0.1 一个来源地址，登录限流给足余量（生产默认 30）；
+      // 公网部署（Caddy 反代、按真实 IP 限流）时由 access.env 调低，这里尊重外部已设置的值
+      EAB_LOGIN_RATE_PER_MINUTE: process.env.EAB_LOGIN_RATE_PER_MINUTE ?? '240',
     },
     healthUrl: 'http://127.0.0.1:4000/health',
   },

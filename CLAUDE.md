@@ -63,6 +63,7 @@ cd external-agents/supplier-risk-py && uv sync && uv run pytest -q   Python 外�
 - 资产来源的颜色、图标、写级别和裁决标签统一从 `@eab/ui` 取，不在页面里另写颜色；Tailwind 类名不要动态拼接。
 - TypeScript 固定在 6.0.x，typescript-eslint 目前不支持 7.x。
 - 平台接口的身份只来自 Bearer 用户令牌。
+- 公网口令配置与真实模型配置同模式：本地 `~/.config/eab/access.env`，主机 `/home/eab/.config/eab/access.env`，都不进仓库和数据快照；`EAB_DEMO_PASSCODES` 未设置时登录保持选人即进入，本地测试与验收脚本都依赖这一点。
 - Studio（ADR 0010）：草稿在 `studio_drafts` 里以 YAML 为准，测试与评测经 `OverlayResolver` 叠加运行；发布写入注册中心后按 dev → test → prod 晋级，租户 Agent 部署到 prod 才进入统一入口。接口契约在 `docs/studio-api.md`，改接口时同步改它和 `apps/studio-web/src/studio/api.ts`。
 - 租户扩展（ADR 0011）发布即生效，不经环境晋级；发布前标品公开评测集和扩展评测集都要通过，评测时确认点一律拒绝。未审批的租户 MCP Server 不能用于 prod，由 `McpGate` 在 prod 门禁和扩展发布时检查，不在工具网关里检查。
 - 演示剧本可以用 `match.tools` 要求 Agent 挂载了某些工具才匹配（优先于不带工具条件的剧本），故事 B 靠它区分扩展发布前后。

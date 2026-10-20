@@ -3,6 +3,8 @@ server:
   port: ${EAB_PLATFORM_PORT:4000}
   address: ${EAB_HOST:127.0.0.1}
   shutdown: graceful
+  # 反向代理（如 Caddy）转发时按 X-Forwarded-For 还原真实客户端地址（登录限流用）；本地直连时保持 none
+  forward-headers-strategy: ${EAB_FORWARD_HEADERS_STRATEGY:none}
 
 spring:
   application:
@@ -36,6 +38,9 @@ eab:
   # 选人登录接口的限流（每 IP 每分钟）。生产保持 30；演示环境里端到端测试、验收脚本和多个页面共用
   # 127.0.0.1 一个来源地址，需要更大的余量，由 pnpm demo 用环境变量调高
   login-rate-per-minute: ${EAB_LOGIN_RATE_PER_MINUTE:30}
+  # 公网演示访问的按身份口令（user:pass,...，* 为缺省条目），只放在仓库外的 access.env；
+  # 未设置时选人即登录不受影响
+  demo-passcodes: ${EAB_DEMO_PASSCODES:}
 
 # 所有对外接口的 OpenAPI 描述（主提示词第 14 节），路径与 TS 版相同
 springdoc:

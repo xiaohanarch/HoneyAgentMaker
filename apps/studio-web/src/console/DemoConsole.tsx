@@ -1,10 +1,10 @@
 import { useState, type ReactNode } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router'
 import { Popover } from 'radix-ui'
 import { ArrowRightLeft, SlidersHorizontal, Zap } from 'lucide-react'
 import { cn } from '@eab/ui'
 import { useIdentity } from '../identity/identity-context'
+import { usePasscodeLogin } from '../identity/use-passcode-login'
 import { ErrorLine } from '../hub/ui'
 import { useHubRole } from '../hub/use-hub'
 import type { IntegrationCompare } from '../hub/types'
@@ -86,10 +86,10 @@ function ConfirmButton({
  * 跳到各故事起点、触发业务事件、模拟标品升级、切换演示身份。演示状态操作只对租户管理员开放。
  */
 export function DemoConsole(): ReactNode {
-  const { token, user, users, switchUser } = useIdentity()
+  const { token, user, users } = useIdentity()
+  const { loginAs, prompt: passcodePrompt } = usePasscodeLogin()
   const { canWrite } = useHubRole()
   const client = useQueryClient()
-  const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [confirming, setConfirming] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
@@ -269,11 +269,8 @@ export function DemoConsole(): ReactNode {
                     u.id === user.id && 'border-line-strong bg-surface-sunken font-medium',
                   )}
                   onClick={() => {
-                    // 切换身份即离开控制台：收起面板并跳到新身份的首页
-                    void switchUser(u.id).then((next) => {
-                      setOpen(false)
-                      navigate(`/${next.home}`)
-                    })
+                    // 切换身份即离开控制台：收起面板并跳到新身份的首页（公网口令模式下先弹口令框）
+                    loginAs(u, () => setOpen(false))
                   }}
                 >
                   {u.name}
@@ -339,6 +336,7 @@ export function DemoConsole(): ReactNode {
           )}
         </Popover.Content>
       </Popover.Portal>
+      {passcodePrompt}
     </Popover.Root>
   )
 }
