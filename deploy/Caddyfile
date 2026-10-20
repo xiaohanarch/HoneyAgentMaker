@@ -1,0 +1,18 @@
+# 公网入口：Caddy 以自签证书（tls internal，为公网 IP 签发、自动续期）把 https 反代到本机 vite。
+# 六个服务本身仍只监听 127.0.0.1，不直接暴露公网。
+# 部署脚本会把 {{PUBLIC_IP}} 替换成主机当前公网 IP（抢占式实例的 IP 会变，重新部署即更新）。
+{
+	admin off
+}
+
+https://{{PUBLIC_IP}} {
+	tls internal
+	reverse_proxy 127.0.0.1:5173 {
+		# vite 的 host 校验只放行本地 Host，代理时改写回上游地址
+		header_up Host {upstream_hostport}
+	}
+}
+
+http://{{PUBLIC_IP}} {
+	redir https://{{PUBLIC_IP}}{uri} permanent
+}

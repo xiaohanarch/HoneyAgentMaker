@@ -1,0 +1,29 @@
+# systemd 单元：Caddy 公网入口（https 反代到本机 vite），配置在 /etc/caddy/Caddyfile。
+# 安装：cp deploy/caddy.service /etc/systemd/system/ && systemctl daemon-reload && systemctl enable --now caddy
+# 由 deploy/remote-deploy.sh 安装静态二进制与 caddy 用户；admin 端点已关闭，改配置用 restart。
+[Unit]
+Description=ERP Agent Builder public entry (Caddy https reverse proxy)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=caddy
+Group=caddy
+# 与官方单元一致：证书与状态固定在 /var/lib/caddy（root.crt 在 /var/lib/caddy/pki/authorities/local/）
+Environment=XDG_DATA_HOME=/var/lib/caddy
+Environment=XDG_CONFIG_HOME=/etc/caddy
+ExecStart=/usr/local/bin/caddy run --config /etc/caddy/Caddyfile
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=5s
+LimitNOFILE=1048576
+# 绑定 443/80 只需要这一个能力，进程以非 root 运行
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/caddy
+StateDirectory=caddy
+
+[Install]
+WantedBy=multi-user.target

@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react'
-import { useNavigate } from 'react-router'
 import { DropdownMenu } from 'radix-ui'
 import { Check, ChevronDown } from 'lucide-react'
 import { cn } from '@eab/ui'
 import type { DemoUser } from './demo-users'
 import { useIdentity } from './identity-context'
+import { usePasscodeLogin } from './use-passcode-login'
 
 type Tone = 'tenant' | 'vendor' | 'platform'
 
@@ -32,8 +32,8 @@ function Initial({ name, tone }: { name: string; tone: Tone }): ReactNode {
 }
 
 export function IdentitySwitcher(): ReactNode {
-  const { user, users, switchUser } = useIdentity()
-  const navigate = useNavigate()
+  const { user, users, passcodeRequired } = useIdentity()
+  const { loginAs, prompt } = usePasscodeLogin()
 
   return (
     <DropdownMenu.Root>
@@ -59,14 +59,12 @@ export function IdentitySwitcher(): ReactNode {
           className="z-50 w-80 rounded-xl border border-line bg-surface p-1.5 shadow-lg shadow-black/5"
         >
           <DropdownMenu.Label className="px-2 pt-1 pb-2 text-[11px] font-medium tracking-wide text-ink-faint">
-            演示身份（选人即登录）
+            {passcodeRequired ? '演示身份（口令登录）' : '演示身份（选人即登录）'}
           </DropdownMenu.Label>
           {users.map((u) => (
             <DropdownMenu.Item
               key={u.id}
-              onSelect={() => {
-                void switchUser(u.id).then((next) => navigate(`/${next.home}`))
-              }}
+              onSelect={() => loginAs(u)}
               className="flex cursor-default items-center gap-2.5 rounded-lg px-2 py-1.5 outline-none data-[highlighted]:bg-surface-sunken"
             >
               <Initial name={u.name} tone={toneOf(u)} />
@@ -82,6 +80,7 @@ export function IdentitySwitcher(): ReactNode {
           ))}
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
+      {prompt}
     </DropdownMenu.Root>
   )
 }

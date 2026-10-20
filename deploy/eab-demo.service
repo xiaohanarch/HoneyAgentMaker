@@ -1,6 +1,6 @@
 # systemd 单元：在演示主机上托管 pnpm demo。
 # 安装：cp deploy/eab-demo.service /etc/systemd/system/ && systemctl daemon-reload && systemctl enable --now eab-demo
-# 服务只监听 127.0.0.1，经 SSH 隧道访问（P2 完成令牌鉴权之前不要对公网开放）。
+# 服务只监听 127.0.0.1，公网经 Caddy（deploy/caddy.service，443）反代访问，登录由口令门禁把关。
 [Unit]
 Description=ERP Agent Builder demo
 After=network-online.target
@@ -16,6 +16,8 @@ Environment=LOG_LEVEL=info
 Environment=PATH=/home/eab/.local/bin:/usr/local/bin:/usr/bin:/bin
 # 可选：真实模型的提供方与 Key（EAB_MODEL_PROVIDER、ANTHROPIC_API_KEY 等），只放在主机上，不进仓库；文件不存在时用脚本化模型
 EnvironmentFile=-/home/eab/.config/eab/model.env
+# 可选：公网登录口令（EAB_DEMO_PASSCODES，按身份）与反代相关设置，由 scripts/ecs.sh auth-init 生成；文件不存在时选人即登录
+EnvironmentFile=-/home/eab/.config/eab/access.env
 ExecStart=/usr/local/bin/pnpm demo
 Restart=on-failure
 RestartSec=5

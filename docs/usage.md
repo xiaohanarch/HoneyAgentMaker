@@ -104,7 +104,7 @@ OpenAI 兼容协议用 `EAB_MODEL_PROVIDER=openai`、`OPENAI_API_KEY` 加 `EAB_O
 
 ## 远程部署与访问
 
-部署说明见 `docs/deployment.md`。部署在远程主机上时，本地运行 `scripts/ecs.sh tunnel` 建立 SSH 隧道，浏览器打开 http://localhost:5173 就能像本地一样使用。
+部署说明见 `docs/deployment.md`。部署在远程主机上时，浏览器直接打开 `https://<主机公网IP>`（自签证书，首次访问在浏览器确认一次；装上主机拉回的根证书后不再有提示）。公网模式下切换身份要输入口令：口令在部署时由 `scripts/ecs.sh auth-init` 按身份生成，查看本机的 `~/.config/eab/access.env`。不想配证书的设备也可以用 SSH 隧道（`scripts/ecs.sh tunnel`，浏览器打开 http://localhost:5173），体验和本地一样。
 
 ## 常见问题
 
@@ -117,3 +117,5 @@ OpenAI 兼容协议用 `EAB_MODEL_PROVIDER=openai`、`OPENAI_API_KEY` 加 `EAB_O
 想断网演示。保持默认的脚本化模型即可，全部功能可离线运行；真实模型需要网络。
 
 端到端测试起不来。首次运行前执行 `pnpm exec playwright install chromium`；测试会自动拉起演示环境，与其他正在运行的环境共用端口，先停掉再跑。
+
+远程访问时切换身份要口令。口令按身份各一个，部署时生成，查看本机的 `~/.config/eab/access.env`。输错会提示重试；提示「该身份未配置公网登录口令」说明这个身份没有单独口令也没有配置缺省口令。
