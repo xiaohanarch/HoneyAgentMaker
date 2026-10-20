@@ -140,7 +140,7 @@ class RepoRegistryTest {
                 services.registry(), T001, EffectiveAssembly.Request.of("vendor.pur/purchase-order-clerk", "t001"));
         assertThat(outcome.issues()).isEmpty();
         var definition = outcome.definition();
-        assertThat(definition.provenance().resolvedTarget().version()).isEqualTo("1.2.0");
+        assertThat(definition.provenance().resolvedTarget().version()).isEqualTo("1.3.0");
         assertThat(definition.provenance().extensions())
                 .containsExactly("tenant.t001.pur/purchase-order-clerk-ext@1.0.0");
 
