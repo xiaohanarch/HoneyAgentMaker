@@ -9,7 +9,8 @@ Wants=network-online.target
 [Service]
 User=caddy
 Group=caddy
-# 与官方单元一致：证书与状态固定在 /var/lib/caddy（root.crt 在 /var/lib/caddy/pki/authorities/local/）
+# 与官方单元一致：证书与状态固定在 /var/lib/caddy（存储根再套一层 caddy，root.crt 在
+# /var/lib/caddy/caddy/pki/authorities/local/，scripts/ecs.sh ca 从这个路径拉取）
 Environment=XDG_DATA_HOME=/var/lib/caddy
 Environment=XDG_CONFIG_HOME=/etc/caddy
 ExecStart=/usr/local/bin/caddy run --config /etc/caddy/Caddyfile

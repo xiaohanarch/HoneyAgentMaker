@@ -123,7 +123,7 @@ fi
 restore_envs
 
 log "验证公网入口与口令门禁"
-# 证书为公网 IP 签发，本地探活用 --resolve 把 SNI 指到公网地址、连接留在回环
+# 本地探活：连接留在回环。curl 对 IP 地址不发送 SNI（RFC 6066），这条探活依赖 Caddyfile 里的 default_sni 生效
 https_code="$(curl -sk --resolve "$PUBLIC_IP:443:127.0.0.1" -o /dev/null -w '%{http_code}' "https://$PUBLIC_IP/")"
 if [ "$https_code" != 200 ]; then
   echo "经 Caddy 的 https 访问返回 $https_code" >&2
