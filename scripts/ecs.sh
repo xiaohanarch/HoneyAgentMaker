@@ -126,7 +126,8 @@ EOF
     ;;
   ca)
     mkdir -p "$HOME/.config/eab"
-    "${SCP[@]}" "root@$HOST:/var/lib/caddy/pki/authorities/local/root.crt" "$HOME/.config/eab/caddy-root.crt"
+    # 存储根是 $XDG_DATA_HOME 再套一层 caddy，见 deploy/caddy.service 的说明
+    "${SCP[@]}" "root@$HOST:/var/lib/caddy/caddy/pki/authorities/local/root.crt" "$HOME/.config/eab/caddy-root.crt"
     echo "已保存到 $HOME/.config/eab/caddy-root.crt，安装到自己的设备后访问不再有证书警告："
     echo "  Windows：双击证书 -> 安装证书 -> 本地计算机 -> 受信任的根证书颁发机构"
     echo "  macOS：钥匙串访问 -> 系统 -> 导入，然后信任"

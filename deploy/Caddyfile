@@ -3,6 +3,8 @@
 # 部署脚本会把 {{PUBLIC_IP}} 替换成主机当前公网 IP（抢占式实例的 IP 会变，重新部署即更新）。
 {
 	admin off
+	# 浏览器按 RFC 6066 不给 IP 字面量发送 SNI，不设这条时空 SNI 匹配不到证书，握手报 no certificate available
+	default_sni {{PUBLIC_IP}}
 }
 
 https://{{PUBLIC_IP}} {
